@@ -288,8 +288,12 @@ if (appResponse?.ok) {
       ? 'preview'
       : productionHosts.includes(base.hostname.toLowerCase()) ? 'production' : 'preview';
 
-  const isProductionHost = productionHosts.includes(base.hostname.toLowerCase());
-  if (expectedEnvironment === 'production' && isProductionHost) {
+  const testeTemporario = /const SITE_USA_TESTE_TEMPORARIAMENTE\s*=\s*true\s*;/.test(source);
+  const hostListadoProducao = productionHosts.includes(base.hostname.toLowerCase());
+  const isProductionHost = hostListadoProducao && !testeTemporario;
+  if (expectedEnvironment === 'production' && testeTemporario && hostListadoProducao) {
+    ok(`${base.hostname} usa temporariamente o Supabase de teste`);
+  } else if (expectedEnvironment === 'production' && isProductionHost) {
     ok(`${base.hostname} está na allowlist de produção`);
   } else if (expectedEnvironment === 'preview' && !isProductionHost) {
     ok(`${base.hostname} está fora da allowlist e seleciona teste`);
