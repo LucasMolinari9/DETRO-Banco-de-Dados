@@ -166,6 +166,8 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
    TESTE. O sintoma desse esquecimento é o pior possível: dado errado na tela, sem erro nenhum,
    porque o banco de teste é uma cópia e a página parece perfeitamente normal. **Ao adicionar
    domínio no painel da Vercel, adicione aqui também**, na mesma tarefa. */
+// Chave temporária enquanto o banco de produção está em manutenção. Reverter para false ao concluir.
+const SITE_USA_TESTE_TEMPORARIAMENTE = true;
 const HOSTS_PROD   = ['divatdetro.vercel.app',
                       'divatdetro-lucas-molinari-s-projects.vercel.app',
                       'divatdetro-git-main-lucas-molinari-s-projects.vercel.app'];
@@ -173,7 +175,7 @@ const SB_TESTE_URL = 'https://gontnlfmothfglssbyyk.supabase.co';
 const SB_TESTE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvbnRubGZtb3RoZmdsc3NieXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTU0OTAsImV4cCI6MjEwMDgzMTQ5MH0.NMEaXXeWxI6A50KuA1euHpSH3Mi53CXU71N16zrjhH4';
 
 const SB = selecionarSupabase(location.hostname, {
-  hostsProd: HOSTS_PROD,
+  hostsProd: SITE_USA_TESTE_TEMPORARIAMENTE ? [] : HOSTS_PROD,
   prodUrl: SB_URL,
   prodKey: SB_KEY,
   testeUrl: SB_TESTE_URL,
