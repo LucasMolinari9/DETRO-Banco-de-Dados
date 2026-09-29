@@ -1420,8 +1420,8 @@ function searchPanel(ctx, { title, placeholder, value='', selectOpts, onRun, aut
 // na publicação supabase_realtime do banco. O teste tests/realtime.test.js guarda essa regra.
 const VIEW_TABLES = {
   historicoLinha:['evento_teste','evento_empresa_teste','evento_linha_teste','codempresa_teste','tabela_vista_teste'], itinerarios:['itinerario_teste','municipio_teste','codempresa_teste'],
-  quadroHorarios:['qh_intervalo_teste','qh_predeterminado_teste','qh_teste','tarifa_atual_teste','origem_teste','codempresa_teste','tabela_vista_teste'], tarifas:['tarifa_atual_teste','codempresa_teste'],
-  frota:['qh_teste','codempresa_teste'], estrutura:['tabela_vista_teste','tarifa_atual_teste','itinerario_teste','qh_intervalo_teste','qh_predeterminado_teste','qh_teste','origem_teste','municipio_teste','codempresa_teste'],
+  quadroHorarios:['qh_intervalo_teste','qh_predeterminado_teste','qh_teste','tarifa_atual_teste','tarifa_promocional_exibicao_teste','origem_teste','codempresa_teste','tabela_vista_teste'], tarifas:['tarifa_atual_teste','tarifa_promocional_exibicao_teste','codempresa_teste'],
+  frota:['qh_teste','codempresa_teste'], estrutura:['tabela_vista_teste','tarifa_atual_teste','tarifa_promocional_exibicao_teste','itinerario_teste','qh_intervalo_teste','qh_predeterminado_teste','qh_teste','origem_teste','municipio_teste','codempresa_teste'],
   empresasRegulares:['tabela_vista_teste','codempresa_teste'], historicoEmpresa:['evento_teste','evento_empresa_teste','evento_linha_teste','codempresa_teste'],
   ligacoesPorEmpresa:['tabela_vista_teste','codempresa_teste'], secoesPorEmpresa:['tarifa_atual_teste'],
   ligacoesPorLogradouro:['itinerario_teste','tabela_vista_teste','codempresa_teste','municipio_teste'], municipioRegiao:['municipio_teste','itinerario_teste','tabela_vista_teste','codempresa_teste'],
@@ -1523,7 +1523,7 @@ function toast(msg, type = 'info') {
    REALTIME — atualiza o que está na tela quando o Supabase muda
    ================================================================ */
 const RT_TABLES = ['tabela_vista_teste','itinerario_teste','qh_teste','qh_intervalo_teste',
-  'qh_predeterminado_teste','tarifa_atual_teste','municipio_teste','origem_teste',
+  'qh_predeterminado_teste','tarifa_atual_teste','tarifa_promocional_exibicao_teste','municipio_teste','origem_teste',
   'localidades_teste','evento_teste','evento_empresa_teste','evento_linha_teste','codempresa_teste',
   'portaria_teste'];
 const rtDot = document.getElementById('rtDot');

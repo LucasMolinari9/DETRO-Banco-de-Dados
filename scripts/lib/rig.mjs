@@ -99,7 +99,7 @@ const linha = (codlinha, numero_ligacao, nome_ligacao, codempresa, via) => ({
 
 const frotaCols = cod => ({
   codlinha: cod, codempresa: cod === '549000001' ? '101' : '102', hierarquia: 'PRINCIPAL',
-  ultima_alteracao: '2025-11-02', frota_operacional: 12, reserva: 2,
+  ultima_alteracao: '2025-11-02', observacao: 'Partidas sujeitas a ajustes do cadastro.', frota_operacional: 12, reserva: 2,
   frota_a: 4, frota_sa: 3, frota_ac: 2, frota_sac: 1, frota_e: 2,
   frota_micro_a: 0, frota_micro_sa: 0, frota_micro_ac: 0, frota_micro_sac: 0, frota_micro_e: 0,
 });
@@ -151,6 +151,9 @@ export const FIXTURES = {
     tarifa('549000001', '101', 1, 7.5),
     tarifa('549000001', '101', 2, 4.25),
     tarifa('740000001', '102', 1, 19.9),
+  ],
+  tarifa_promocional_exibicao_teste: [
+    { codsecao:'54900000101', codlinha:'549000001', secao:1, tarifa_promocional:5.5, data_inicial:'2024-08-16', prazo_origem:186 },
   ],
   itinerario_teste: [
     { id: 1, codlinha: '549000001', codempresa: '101', sentido: 'IDA', tipo_logradouro: 'Terminal', nome_logradouro: 'TERMINAL MENEZES CORTES', cod_municipio_origem: '3304557' },

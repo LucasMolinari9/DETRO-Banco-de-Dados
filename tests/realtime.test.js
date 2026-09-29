@@ -43,10 +43,10 @@ const RT_TABLES   = extrai(/const RT_TABLES = (\[[\s\S]*?\]);/,   'RT_TABLES');
 const EXPECTED = {
   historicoLinha:['evento_teste','evento_empresa_teste','evento_linha_teste','codempresa_teste','tabela_vista_teste'],
   itinerarios:['itinerario_teste','municipio_teste','codempresa_teste'],
-  quadroHorarios:['qh_intervalo_teste','qh_predeterminado_teste','qh_teste','tarifa_atual_teste','origem_teste','codempresa_teste','tabela_vista_teste'],
-  tarifas:['tarifa_atual_teste','codempresa_teste'],
+  quadroHorarios:['qh_intervalo_teste','qh_predeterminado_teste','qh_teste','tarifa_atual_teste','tarifa_promocional_exibicao_teste','origem_teste','codempresa_teste','tabela_vista_teste'],
+  tarifas:['tarifa_atual_teste','tarifa_promocional_exibicao_teste','codempresa_teste'],
   frota:['qh_teste','codempresa_teste'],
-  estrutura:['tabela_vista_teste','tarifa_atual_teste','itinerario_teste','qh_intervalo_teste','qh_predeterminado_teste','qh_teste','origem_teste','municipio_teste','codempresa_teste'],
+  estrutura:['tabela_vista_teste','tarifa_atual_teste','tarifa_promocional_exibicao_teste','itinerario_teste','qh_intervalo_teste','qh_predeterminado_teste','qh_teste','origem_teste','municipio_teste','codempresa_teste'],
   empresasRegulares:['tabela_vista_teste','codempresa_teste'],
   historicoEmpresa:['evento_teste','evento_empresa_teste','evento_linha_teste','codempresa_teste'],
   ligacoesPorEmpresa:['tabela_vista_teste','codempresa_teste'],
@@ -63,7 +63,7 @@ const EXPECTED = {
 // --- tabelas que DEVEM estar na publicação supabase_realtime do banco (as 14 usadas). Verifique
 //     no banco com: select tablename from pg_publication_tables where pubname='supabase_realtime'; ---
 const PUB_ESPERADA = ['tabela_vista_teste','itinerario_teste','qh_teste','qh_intervalo_teste',
-  'qh_predeterminado_teste','tarifa_atual_teste','municipio_teste','origem_teste','localidades_teste',
+  'qh_predeterminado_teste','tarifa_atual_teste','tarifa_promocional_exibicao_teste','municipio_teste','origem_teste','localidades_teste',
   'evento_teste','evento_empresa_teste','evento_linha_teste','codempresa_teste','portaria_teste'];
 
 if (VIEW_TABLES && RT_TABLES){
@@ -87,7 +87,7 @@ if (VIEW_TABLES && RT_TABLES){
 
   // 3) RT_TABLES == conjunto que deve estar na publicação (mantém o JS e o banco em sincronia)
   console.log('RT_TABLES == conjunto esperado na publicação do banco');
-  ok(setEq(RT_TABLES, PUB_ESPERADA), 'RT_TABLES == PUB_ESPERADA (14 tabelas)',
+  ok(setEq(RT_TABLES, PUB_ESPERADA), 'RT_TABLES == PUB_ESPERADA (15 tabelas)',
     `RT_TABLES=${JSON.stringify([...RT_TABLES].sort())}`);
 }
 

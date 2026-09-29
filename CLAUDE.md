@@ -187,7 +187,7 @@ exibe e **atualiza ao vivo** (Realtime).
   - **Baseline de reconstrução** (RLS/policies/grants/índices/funções) versionada em
     `docs/backup_schema.sql`. Snapshot do estado atual (auditoria/DR):
     `scripts/gen_security_snapshot.sql` (salvar a saída **fora do git**).
-- **Realtime:** as 14 tabelas lidas pelo portal estão na publicação `supabase_realtime`. Ao criar
+- **Realtime:** as 15 tabelas lidas pelo portal no projeto `divat - TESTE` estão na publicação `supabase_realtime`. Ao criar
   um card que lê tabela nova, faça **as duas coisas**: (1) `alter publication supabase_realtime
   add table public.<tabela>;` e (2) inclua-a em `RT_TABLES` e no `VIEW_TABLES` da view no
   `app.js`. O teste offline `tests/realtime.test.js` guarda o lado do JS (`VIEW_TABLES ⊆
@@ -195,7 +195,7 @@ exibe e **atualiza ao vivo** (Realtime).
   Realtime).
 
 ## Tabelas → onde aparecem (cards)
-As **14** tabelas de `RT_TABLES`, sem exceção — a lista abaixo é conferida contra o código pelo
+As **15** tabelas de `RT_TABLES`, sem exceção — a lista abaixo é conferida contra o código pelo
 `tests/check.js` §[2b]: tabela que entra no `RT_TABLES` e não aparece aqui reprova o gate.
 - `tabela_vista_teste` (cadastro de linhas) → busca, Ligações por Empresa, Empresas Regulares.
 - `itinerario_teste` (+ `municipio_teste`) → Itinerários, Ligações por Logradouro/Município.
@@ -203,6 +203,7 @@ As **14** tabelas de `RT_TABLES`, sem exceção — a lista abaixo é conferida 
   Horários, Ligações por Terminais.
 - `qh_teste` (frota_*) → Frota, Estrutura, Frota por Empresa.
 - `tarifa_atual_teste` → Tarifas, Seções por Ligação/Empresa.
+- `tarifa_promocional_exibicao_teste` → Quadro de Horários, Estrutura Operacional e Tarifas; projeção pública mínima no projeto `divat - TESTE`, sem comprovação de vigência. Deve ser criada com RLS e SELECT restrito antes de apontar o portal para outro projeto.
 - `evento_teste` (+ `evento_empresa_teste`, `evento_linha_teste`) → Histórico.
 - `localidades_teste` → Linhas por Localidade e Município.
 - `codempresa_teste` (cadastro de empresas) → lookup `getEmpresas`, usado por **quase todo card**

@@ -141,3 +141,16 @@ export function secoesTarifasHTML(rows){
   if(!rows.length) return emptyLinha('seção ou tarifa');
   return tableHTML(TARIFA_COLS, rows.map(tarifaRowHTML).join(''), rows.length+' seção(ões)');
 }
+
+export function observacaoQHHTML(observacao){
+  if (!String(observacao||'').trim()) return '';
+  return `<div class="ev-block"><div class="ev-label">Observação do quadro de horários:</div><div class="ev-text">${esc(observacao)}</div></div>`;
+}
+
+export function tarifasPromocionaisHTML(rows){
+  if (!rows.length) return '';
+  const body = rows.map(r=>`<tr><td class="td-num">${esc(orDash(r.secao))}</td><td class="td-sentido">R$ ${esc(fmtMoney(r.tarifa_promocional))}</td><td class="td-num">${esc(fmtDate(r.data_inicial))}</td><td class="td-num">${esc(orDash(r.prazo_origem))}</td></tr>`).join('');
+  return `<h3 class="doc-h3">Tarifas promocionais registradas</h3>
+    <div class="doc-obs tight">Valores encontrados no cadastro de origem. A vigência atual não foi confirmada; o prazo está apresentado como registrado, sem unidade verificada.</div>
+    ${tableHTML([{t:'Seção',w:'60px'},{t:'Valor',w:'90px'},{t:'Data inicial registrada',w:'150px'},{t:'Prazo registrado',w:'150px'}], body, rows.length+' tarifa(s) promocional(is)')}`;
+}
