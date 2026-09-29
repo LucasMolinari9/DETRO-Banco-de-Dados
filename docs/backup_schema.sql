@@ -8,6 +8,10 @@
 -- importe os dados com `pg_restore --data-only`, `scripts/restore_rest.mjs` ou, como último
 -- recurso, os CSVs. Para alvo pós-Fase 3, aplique as migrations versionadas DEPOIS deste arquivo
 -- e ANTES dos dados.
+-- A integração Access de 29/09/2026 é separada desta baseline: depende dos schemas privados
+-- e da staging completa de 209.004 registros já carregados. As migrações
+-- 20260929201822/20260929202229 acrescentam os modelos privados e os metadados públicos
+-- de procedência/conferência; não execute essas cargas sobre um projeto vazio.
 --
 -- NÃO É IDEMPOTENTE nem script de reconciliação: as 18 instruções CREATE TABLE são deliberadamente
 -- estritas. Nunca rode por cima de um schema já criado por pg_restore ou por execução anterior.
@@ -114,8 +118,11 @@ CREATE TABLE public.qh_teste (
   frota_e            integer,
   frota_operacional  integer,
   reserva            integer,
-  hierarquia         text
+  hierarquia         text,
+  observacao         text
 );
+-- Pós-integração Access, via migração 20260929201822:
+-- observacao_fonte text; observacao_conferida_documentalmente boolean.
 
 -- BY DEFAULT permite restaurar os row_id trazidos pelos CSVs; ALWAYS quebra o passo 4.
 -- A proteção perdida é só teórica: o portal é read-only e o ETL omite row_id, portanto no uso
@@ -167,6 +174,8 @@ CREATE TABLE public.evento_teste (
   descricao         text,
   observacao        text
 );
+-- Pós-integração Access, via migração 20260929201822:
+-- fonte_registro text; conferido_documentalmente boolean; data_publicacao_suspeita boolean.
 
 CREATE TABLE public.evento_empresa_teste (
   id              integer,

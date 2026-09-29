@@ -112,10 +112,9 @@ console.log('situacaoHTML');
 ok(P.situacaoHTML({}).includes('chip-off') && P.situacaoHTML({}).includes('Ativa'), 'situacaoHTML sem flags → Ativa (verde)');
 ok(P.situacaoHTML({cancelado:true}).includes('Cancelada') && P.situacaoHTML({cancelado:true}).includes('chip-on'), 'situacaoHTML cancelada → chip vermelho');
 ok(P.situacaoHTML({paralisado:true}).includes('Paralisada') && !P.situacaoHTML({paralisado:true}).includes('Ativa'), 'situacaoHTML paralisada → Paralisada (NÃO Ativa)');
-eq(P.situacaoHTML({paralisado:true,transferido:true}), P.situacaoHTML({paralisado:true}), 'situacaoHTML paralisada+transferida → Paralisada (ex.: 458M)');
-ok(P.situacaoHTML({transferido:true}) === P.situacaoHTML({}), 'situacaoHTML só transferida → igual a Ativa (sem Transferida)');
-ok(!P.situacaoHTML({transferido:true}).includes('Transferida'), 'situacaoHTML nunca mostra Transferida');
-eq(P.situacaoHTML({cancelado:true,paralisado:true}), P.situacaoHTML({cancelado:true}), 'situacaoHTML cancelada+paralisada → Cancelada (cancelada tem prioridade)');
+ok(P.situacaoHTML({paralisado:true,transferido:true}).includes('Paralisada') && P.situacaoHTML({paralisado:true,transferido:true}).includes('Transferida'), 'situacaoHTML preserva os dois flags');
+ok(P.situacaoHTML({transferido:true}).includes('Ativa') && P.situacaoHTML({transferido:true}).includes('Transferida'), 'situacaoHTML distingue operação e transferência');
+ok(P.situacaoHTML({cancelado:true,paralisado:true}).includes('Cancelada') && P.situacaoHTML({cancelado:true,paralisado:true}).includes('Paralisada'), 'situacaoHTML mostra flags coexistentes');
 
 // --- isLinhaAtiva (ativa = não cancelada e não paralisada; sub judice/transferida contam como ativas) ---
 console.log('isLinhaAtiva');

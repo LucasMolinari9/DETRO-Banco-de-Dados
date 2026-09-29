@@ -370,6 +370,16 @@ t('tarifaRowHTML: chip de status ligado traz a data do evento junto', () => {
   const h = blocos.tarifaRowHTML({ cancelado:true, data_cancelamento:'2026-01-15' });
   assert.match(h, /chip-on">Canc\. 15\/01\/2026/);
 });
+t('observação e tarifa promocional preservam texto e não afirmam vigência', () => {
+  const obs = blocos.observacaoQHHTML('Ajuste <pendente>\n2ª linha');
+  assert.match(obs, /Ajuste &lt;pendente&gt;\n2ª linha/);
+  assert.equal(blocos.observacaoQHHTML('  '), '');
+  const promo = blocos.tarifasPromocionaisHTML([{ secao:0, tarifa_promocional:5.5, data_inicial:'2024-08-16', prazo_origem:186 }]);
+  assert.match(promo, /R\$ 5,50/);
+  assert.match(promo, /16\/08\/2024/);
+  assert.match(promo, /vigência atual não foi confirmada/);
+  assert.match(promo, />0<\/td>/);
+});
 
 /* ================================================================
    src/data/campos.mjs  (Fase C1)
@@ -390,6 +400,8 @@ t('campos: as colunas que a Estrutura consolida estão nas listas gêmeas', () =
   // cada par abaixo é (constante, coluna que um render lê por nome) — o elo que some em silêncio
   assert.ok(campos.ITINERARIO_FIELDS.split(',').includes('cod_municipio_origem'));
   assert.ok(campos.FROTA_FIELDS.split(',').includes('frota_micro_sac'));
+  assert.ok(campos.FROTA_FIELDS.split(',').includes('observacao'));
+  assert.ok(campos.PROMOCIONAL_FIELDS.split(',').includes('tarifa_promocional'));
   assert.ok(campos.EVENTO_FIELDS.split(',').includes('evento_empresa'));
   assert.ok(campos.LINE_FIELDS.split(',').includes('nome_lig_cresc'));
   assert.ok(campos.TARIFA_LINHA_FIELDS.split(',').includes('piso_i'));

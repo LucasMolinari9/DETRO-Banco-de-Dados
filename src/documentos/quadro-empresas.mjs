@@ -41,10 +41,10 @@ import { commitViewResult, isCurrentGen, withHost } from '../domain/view-state.m
 import { docHead, metaRows, tableHTML, loading, emptyBox, emptyLinha, errorBox, bannerTrunc } from '../ui/doc.mjs';
 import { paginateTable, paginateEvents } from '../ui/paginacao.mjs';
 import { lineResults } from '../ui/listas.mjs';
-import { evBandHTML, evBlocksHTML, secoesTarifasHTML, quadroHorariosBodyHTML } from '../ui/blocos.mjs';
+import { evBandHTML, evBlocksHTML, secoesTarifasHTML, quadroHorariosBodyHTML, observacaoQHHTML, tarifasPromocionaisHTML } from '../ui/blocos.mjs';
 import { searchEmpresas, empresaChooserHTML, bindEmpresaRows } from '../ui/empresas.mjs';
 import { getOrigem, getEmpresas, empNome, empresaPorCod, empresasList, empresasMap, getEvLookups } from '../data/lookups.mjs';
-import { LINE_FIELDS, QH_INTERVALO_FIELDS, QH_PREDET_FIELDS, TARIFA_LINHA_FIELDS, EVENTO_FIELDS } from '../data/campos.mjs';
+import { LINE_FIELDS, QH_INTERVALO_FIELDS, QH_PREDET_FIELDS, TARIFA_LINHA_FIELDS, PROMOCIONAL_FIELDS, EVENTO_FIELDS } from '../data/campos.mjs';
 import { sbFetch } from '../data/rest.mjs';
 
 let _loaderShell = null;
@@ -101,20 +101,24 @@ export function quadroMetaHTML(line, ultimaAlteracao){
   return metaRows(pares);
 }
 
-export function quadroDocInner(line, interv, predet, orig){
+export function quadroDocInner(line, interv, predet, orig, qh = {}, promo = []){
   return `${quadroMetaHTML(line)}
+    ${observacaoQHHTML(qh.observacao, qh)}${tarifasPromocionaisHTML(promo)}
     ${quadroHorariosBodyHTML(interv, predet, orig)}`;
 }
 
 // Busca os quadros (intervalo + predeterminado) de várias linhas de uma vez e agrupa por codlinha.
 export async function fetchQHByLines(codlinhas){
   const inList = codlinhas.map(enc).join(',');
-  const [interv, predet] = await Promise.all([
+  const [interv, predet, qh, promo] = await Promise.all([
     sbFetch('qh_intervalo_teste', `codlinha=in.(${inList})&select=codlinha,cod_origem,nome_origem,dia_semana,hora_inicio,hora_fim,intervalo&order=id&limit=20000`),
-    sbFetch('qh_predeterminado_teste', `codlinha=in.(${inList})&select=codlinha,cod_origem,nome_origem,dia_semana,saida&order=id&limit=30000`)
+    sbFetch('qh_predeterminado_teste', `codlinha=in.(${inList})&select=codlinha,cod_origem,nome_origem,dia_semana,saida&order=id&limit=30000`),
+    sbFetch('qh_teste', `codlinha=in.(${inList})&select=codlinha,observacao,observacao_fonte,observacao_conferida_documentalmente&limit=500`),
+    sbFetch('tarifa_promocional_exibicao_teste', `codlinha=in.(${inList})&select=codlinha,${PROMOCIONAL_FIELDS}&order=codlinha,secao&limit=5000`)
   ]);
   return { intervBy: groupBy(interv, r=>r.codlinha), predetBy: groupBy(predet, r=>r.codlinha),
-           trunc: !!(interv._trunc || predet._trunc) };
+           qhBy: new Map(qh.map(r=>[r.codlinha,r])), promoBy: groupBy(promo, r=>r.codlinha),
+           trunc: !!(interv._trunc || predet._trunc || qh._trunc || promo._trunc) };
 }
 
 // Quadro de UMA linha (comportamento clássico do card). O modo "por linha" chama este render via
@@ -124,19 +128,22 @@ export async function renderLinhaQuadro(ctx){
   if(!host || !line) return;
   host.innerHTML = loading();
   try {
-    const [interv, predet, qh, secoes, orig] = await Promise.all([
+    const [interv, predet, qh, secoes, promo, orig] = await Promise.all([
       sbFetch('qh_intervalo_teste', `codlinha=eq.${enc(line.codlinha)}&select=${QH_INTERVALO_FIELDS}&order=id`),
       sbFetch('qh_predeterminado_teste', `codlinha=eq.${enc(line.codlinha)}&select=${QH_PREDET_FIELDS}&order=id`),
-      sbFetch('qh_teste', `codlinha=eq.${enc(line.codlinha)}&select=ultima_alteracao&limit=1`),
+      sbFetch('qh_teste', `codlinha=eq.${enc(line.codlinha)}&select=ultima_alteracao,observacao,observacao_fonte,observacao_conferida_documentalmente&limit=1`),
       sbFetch('tarifa_atual_teste', `codlinha=eq.${enc(line.codlinha)}&select=${TARIFA_LINHA_FIELDS}&order=secao`),
+      sbFetch('tarifa_promocional_exibicao_teste', `codlinha=eq.${enc(line.codlinha)}&select=${PROMOCIONAL_FIELDS}&order=secao`),
       getOrigem(), getEmpresas()
     ]);
     if (!interv.length && !predet.length){ host.innerHTML = emptyLinha('quadro de horários'); commitViewResult(view, gen, { pdfHTML:null }); return; }
     const ultima = qh[0]?.ultima_alteracao;
+    const obsHTML = observacaoQHHTML(qh[0]?.observacao, qh[0]);
+    const promoHTML = tarifasPromocionaisHTML(promo);
     // bloco de Seções e Tarifas da linha (mesma tabela/builder da Estrutura), fora do #qhResult
     const h3sec = `<h3 class="doc-h3">Seções e Tarifas</h3>`;
     const secBlock = secoes.length ? `${h3sec}${secoesTarifasHTML(secoes)}` : '';
-    commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${docHead('Quadro de Horários')}${quadroMetaHTML(line, ultima)}${secBlock}${quadroHorariosBodyHTML(interv, predet, orig)}</div>` });
+    commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${docHead('Quadro de Horários')}${quadroMetaHTML(line, ultima)}${obsHTML}${secBlock}${promoHTML}${quadroHorariosBodyHTML(interv, predet, orig)}</div>` });
     // filtros por sentido (origem das partidas) e por dia — o PDF segue completo
     const sentidoKey = (cod,nome)=> orig[cod] || nome || ('Origem '+orDash(cod));
     const sentidos = [...new Set([...interv.map(r=>sentidoKey(r.cod_origem,r.nome_origem)), ...predet.map(r=>sentidoKey(r.cod_origem,r.nome_origem))])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
@@ -144,7 +151,7 @@ export async function renderLinhaQuadro(ctx){
     const sentSel = sentidos.length>1 ? `<label>Sentido <select id="qhSent"><option value="">Todos</option>${sentidos.map(s=>`<option value="${esc(s)}">de ${esc(s)}</option>`).join('')}</select></label>` : '';
     const diaSel  = dias.length>1 ? `<label>Dia <select id="qhDia"><option value="">Todos</option>${dias.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('')}</select></label>` : '';
     const tools = (sentSel||diaSel) ? `<div class="loc-tools">${sentSel}${diaSel}</div>` : '';
-    host.innerHTML = `${quadroMetaHTML(line, ultima)}${secBlock}${tools}<div id="qhResult"></div>`;
+    host.innerHTML = `${quadroMetaHTML(line, ultima)}${obsHTML}${secBlock}${promoHTML}${tools}<div id="qhResult"></div>`;
     const result = host.querySelector('#qhResult'), ss = host.querySelector('#qhSent'), ds = host.querySelector('#qhDia');
     const paint = ()=>{
       const s = ss?ss.value:'', d = ds?ds.value:'';
@@ -193,12 +200,12 @@ export async function renderEmpresaQuadros(ctx, cod, nome){
   ]);
   const nomeEmp = nome || empNome(cod);
   if(!linhas.length){ host.innerHTML = emptyBox('Nenhuma linha encontrada para a empresa '+esc(nomeEmp)+'.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
-  const { intervBy, predetBy, trunc } = await fetchQHByLines(linhas.map(l=>l.codlinha));
+  const { intervBy, predetBy, qhBy, promoBy, trunc } = await fetchQHByLines(linhas.map(l=>l.codlinha));
   const comQuadro = linhas.filter(l => intervBy.has(l.codlinha) || predetBy.has(l.codlinha));
   if(!comQuadro.length){ host.innerHTML = emptyBox('Nenhum quadro de horários cadastrado para as linhas da empresa '+esc(nomeEmp)+'.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
   // PDF: todos os quadros, um por página
   commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${comQuadro.map(l=>
-    `<div class="ev-page">${docHead('Quadro de Horários')}${quadroDocInner(l, intervBy.get(l.codlinha)||[], predetBy.get(l.codlinha)||[], orig)}</div>`).join('')}</div>` });
+    `<div class="ev-page">${docHead('Quadro de Horários')}${quadroDocInner(l, intervBy.get(l.codlinha)||[], predetBy.get(l.codlinha)||[], orig, qhBy.get(l.codlinha), promoBy.get(l.codlinha))}</div>`).join('')}</div>` });
   host.innerHTML = `<div class="doc-obs tight"><b>${esc(nomeEmp)}</b> · ${linhas.length} linha(s), ${comQuadro.length} com quadro de horários.
       Use o botão <b>PDF</b> da barra acima para baixar todos os quadros (um por página).</div>`
     + (trunc? `<div class="trunc-aviso"><b>Resultado parcial:</b> a empresa tem muitos horários e alguns podem não ter sido carregados.</div>`:'')
@@ -211,8 +218,8 @@ export async function renderEmpresaQuadros(ctx, cod, nome){
     if(!l) return;
     const iv = intervBy.get(l.codlinha)||[], pd = predetBy.get(l.codlinha)||[];
     host.innerHTML = `<button type="button" class="qh-back">‹ Voltar à lista da empresa</button>`
-      + quadroDocInner(l, iv, pd, orig);
-    commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${docHead('Quadro de Horários')}${quadroDocInner(l, iv, pd, orig)}</div>` });
+      + quadroDocInner(l, iv, pd, orig, qhBy.get(l.codlinha), promoBy.get(l.codlinha));
+    commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${docHead('Quadro de Horários')}${quadroDocInner(l, iv, pd, orig, qhBy.get(l.codlinha), promoBy.get(l.codlinha))}</div>` });
     host.querySelector('.qh-back').addEventListener('click', ()=>renderEmpresaQuadros(ctx, cod, nome));
   };
   paginateTable(host.querySelector('#eqResult'), comQuadro, {

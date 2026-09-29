@@ -99,7 +99,8 @@ const linha = (codlinha, numero_ligacao, nome_ligacao, codempresa, via) => ({
 
 const frotaCols = cod => ({
   codlinha: cod, codempresa: cod === '549000001' ? '101' : '102', hierarquia: 'PRINCIPAL',
-  ultima_alteracao: '2025-11-02', frota_operacional: 12, reserva: 2,
+  ultima_alteracao: '2025-11-02', observacao: 'Partidas sujeitas a ajustes do cadastro.',
+  observacao_fonte: null, observacao_conferida_documentalmente: null, frota_operacional: 12, reserva: 2,
   frota_a: 4, frota_sa: 3, frota_ac: 2, frota_sac: 1, frota_e: 2,
   frota_micro_a: 0, frota_micro_sa: 0, frota_micro_ac: 0, frota_micro_sac: 0, frota_micro_e: 0,
 });
@@ -152,6 +153,9 @@ export const FIXTURES = {
     tarifa('549000001', '101', 2, 4.25),
     tarifa('740000001', '102', 1, 19.9),
   ],
+  tarifa_promocional_exibicao_teste: [
+    { codsecao:'54900000101', codlinha:'549000001', secao:1, tarifa_promocional:5.5, data_inicial:'2024-08-16', prazo_origem:186 },
+  ],
   itinerario_teste: [
     { id: 1, codlinha: '549000001', codempresa: '101', sentido: 'IDA', tipo_logradouro: 'Terminal', nome_logradouro: 'TERMINAL MENEZES CORTES', cod_municipio_origem: '3304557' },
     { id: 2, codlinha: '549000001', codempresa: '101', sentido: 'IDA', tipo_logradouro: 'Avenida', nome_logradouro: 'AVENIDA PRESIDENTE VARGAS', cod_municipio_origem: '3304557' },
@@ -173,8 +177,8 @@ export const FIXTURES = {
     { localidade: 'ITAIPU', ordem_importacao: 2 },
   ],
   evento_teste: [
-    { data_registro: '2024-03-12', data_publicacao: '2024-03-15', codlinha: '549000001', codempresa: '101', numero_processo: 'E-10/002/2024', evento_linha: '1', evento_empresa: '1', descricao: 'ALTERACAO DE ITINERARIO', observacao: 'Trecho da Av. Brasil.' },
-    { data_registro: '2023-08-01', data_publicacao: '2023-08-04', codlinha: '740000001', codempresa: '102', numero_processo: 'E-10/003/2023', evento_linha: '2', evento_empresa: '1', descricao: 'REAJUSTE TARIFARIO', observacao: null },
+    { data_registro: '2024-03-12', data_publicacao: '2024-03-15', codlinha: '549000001', codempresa: '101', numero_processo: 'E-10/002/2024', evento_linha: '1', evento_empresa: '1', descricao: 'ALTERACAO DE ITINERARIO', observacao: 'Trecho da Av. Brasil.', fonte_registro: 'Access / Eventos', conferido_documentalmente: false, data_publicacao_suspeita: false },
+    { data_registro: '2023-08-01', data_publicacao: '2023-08-04', codlinha: '740000001', codempresa: '102', numero_processo: 'E-10/003/2023', evento_linha: '2', evento_empresa: '1', descricao: 'REAJUSTE TARIFARIO', observacao: null, fonte_registro: null, conferido_documentalmente: null, data_publicacao_suspeita: null },
   ],
   evento_empresa_teste: [{ id: '1', evento_empresa: 'ALTERACAO CADASTRAL' }],
   evento_linha_teste: [
@@ -295,7 +299,7 @@ export function serve(table, qs) {
 // enquanto um render atrasado pinta o pane da aba ERRADA. É o buraco que o check_corrida_abas.mjs
 // fecha, e o atraso controlável é a peça que faltava para isso.
 export async function launchPage(chromium, { segurar } = {}) {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ executablePath: process.env.DIVAT_CHROMIUM_EXECUTABLE || undefined });
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   await page.route('**/rest/v1/**', async route => {
     const u = new URL(route.request().url());

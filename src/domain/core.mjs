@@ -22,9 +22,15 @@ export const norm = s => String(s ?? '').normalize('NFD').replace(/\p{Diacritic}
 export const orDash = v => (v===null||v===undefined||v==='') ? '—' : v;
 export const fmtLineName = nome => nome ? esc(nome).split(' - ').map(p => p.replace(/ /g, '&nbsp;')).join(' - ') : '—';
 export const boolChip = (v,label) => v ? `<span class="chip chip-on">${label}</span>` : '';
-export const situacaoHTML = r => r.cancelado ? '<span class="chip chip-on">Cancelada</span>'
-  : r.paralisado ? '<span class="chip chip-on">Paralisada</span>'
-  : '<span class="chip chip-off">Ativa</span>';
+export const situacaoHTML = r => {
+  const chips = [];
+  if (r.cancelado) chips.push('<span class="chip chip-on">Cancelada</span>');
+  if (r.paralisado) chips.push('<span class="chip chip-on">Paralisada</span>');
+  if (!r.cancelado && !r.paralisado) chips.push('<span class="chip chip-off">Ativa</span>');
+  if (r.transferido) chips.push('<span class="chip chip-on">Transferida</span>');
+  if (r.sub_judice) chips.push('<span class="chip chip-on">Sub judice</span>');
+  return chips.join(' ');
+};
 export const isLinhaAtiva = r => !r.cancelado && !r.paralisado;
 export const isVigente = r => isLinhaAtiva(r) && !r.sub_judice && !r.transferido;
 

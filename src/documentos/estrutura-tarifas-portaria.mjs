@@ -37,13 +37,13 @@ import { docHead, metaRows, loading, emptyBox, emptyLinha, errorBox } from '../u
 import { paginateTable } from '../ui/paginacao.mjs';
 import {
   itinerarioTableHTML, frotaBlockHTML, quadroHorariosBodyHTML,
-  secoesTarifasHTML, TARIFA_COLS, tarifaRowHTML,
+  secoesTarifasHTML, TARIFA_COLS, tarifaRowHTML, observacaoQHHTML, tarifasPromocionaisHTML,
 } from '../ui/blocos.mjs';
 import { searchEmpresas, empresaChooserHTML, bindEmpresaRows } from '../ui/empresas.mjs';
 import { getIbge, getOrigem, getEmpresas, empNome } from '../data/lookups.mjs';
 import {
   LINE_FIELDS, ITINERARIO_FIELDS, QH_INTERVALO_FIELDS, QH_PREDET_FIELDS,
-  TARIFA_LINHA_FIELDS, FROTA_FIELDS,
+  TARIFA_LINHA_FIELDS, FROTA_FIELDS, PROMOCIONAL_FIELDS,
 } from '../data/campos.mjs';
 import { sbFetch } from '../data/rest.mjs';
 import { novoCtx } from './shell.mjs';
@@ -82,15 +82,19 @@ export function loadTarifas(ctx){
 export async function renderTarifas(ctx){
   const { view, gen, host, line } = ctx;
   host.innerHTML = loading();
-  const rows = await sbFetch('tarifa_atual_teste', `codlinha=eq.${enc(line.codlinha)}&select=${TARIFA_LINHA_FIELDS}&order=secao`);
+  const [rows, promo] = await Promise.all([
+    sbFetch('tarifa_atual_teste', `codlinha=eq.${enc(line.codlinha)}&select=${TARIFA_LINHA_FIELDS}&order=secao`),
+    sbFetch('tarifa_promocional_exibicao_teste', `codlinha=eq.${enc(line.codlinha)}&select=${PROMOCIONAL_FIELDS}&order=secao`)
+  ]);
   if (!rows.length) { host.innerHTML = emptyLinha('tarifa'); commitViewResult(view, gen, { pdfHTML:null }); return; }
   const meta = metaRows([['Ligação',esc(line.nome_ligacao||'—'),true],['Código',esc(fmtCode(line.codlinha))]]);
-  const inner = `${meta}${secoesTarifasHTML(rows)}`;            // documento completo (p/ PDF)
+  const promoHTML = tarifasPromocionaisHTML(promo);
+  const inner = `${meta}${secoesTarifasHTML(rows)}${promoHTML}`; // documento completo (p/ PDF)
   commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${docHead('Tarifas Vigentes')}${inner}</div>` });
   // filtro por situação da seção — reusa isVigente (critério estrito compartilhado; ver junto a isLinhaAtiva)
   const temInativa = rows.some(r=>!isVigente(r));
   const tools = temInativa ? `<div class="loc-tools"><label>Situação <select id="tarSit"><option value="todas">Todas</option><option value="vigentes">Vigentes</option><option value="inativas">Canceladas/inativas</option></select></label></div>` : '';
-  host.innerHTML = `${meta}${tools}<div id="tarResult"></div>`;
+  host.innerHTML = `${meta}${tools}<div id="tarResult"></div>${promoHTML}`;
   const result = host.querySelector('#tarResult'), sel = host.querySelector('#tarSit');
   const paint = ()=>{
     const s = sel?sel.value:'todas';
@@ -161,9 +165,10 @@ export async function renderEstrutura(ctx){
   const { view, gen, host, line } = ctx;
   host.innerHTML = loading();
   const cod = enc(line.codlinha);
-  const [lineRows, secoes, itin, interv, predet, qh, orig, ibge] = await Promise.all([
+  const [lineRows, secoes, promo, itin, interv, predet, qh, orig, ibge] = await Promise.all([
     sbFetch('tabela_vista_teste', `codlinha=eq.${cod}&select=${LINE_FIELDS}&limit=1`),
     sbFetch('tarifa_atual_teste', `codlinha=eq.${cod}&select=${TARIFA_LINHA_FIELDS}&order=secao`),
+    sbFetch('tarifa_promocional_exibicao_teste', `codlinha=eq.${cod}&select=${PROMOCIONAL_FIELDS}&order=secao`),
     sbFetch('itinerario_teste', `codlinha=eq.${cod}&select=${ITINERARIO_FIELDS}&order=id`),
     sbFetch('qh_intervalo_teste', `codlinha=eq.${cod}&select=${QH_INTERVALO_FIELDS}&order=id`),
     sbFetch('qh_predeterminado_teste', `codlinha=eq.${cod}&select=${QH_PREDET_FIELDS}&order=id`),
@@ -182,9 +187,9 @@ export async function renderEstrutura(ctx){
       ['Data de criação',fmtDate(L.data_criacao)],['Processo Nº',esc(orDash(L.processo_criacao)),true],
       ['Situação',situacaoHTML(L),true],
     ])}
-    ${h3('Seções e Tarifas')}${secoesTarifasHTML(secoes)}
+    ${h3('Seções e Tarifas')}${secoesTarifasHTML(secoes)}${tarifasPromocionaisHTML(promo)}
     ${h3('Itinerário')}${itinerarioTableHTML(itin, ibge)}
-    ${h3('Quadro de Horários e Frota')}${frotaMeta}${f&&Object.keys(f).length?frotaBlockHTML(f):''}${quadroHorariosBodyHTML(interv, predet, orig)}
+    ${h3('Quadro de Horários e Frota')}${frotaMeta}${f&&Object.keys(f).length?frotaBlockHTML(f):''}${observacaoQHHTML(f.observacao, f)}${quadroHorariosBodyHTML(interv, predet, orig)}
     <div class="doc-foot">Fonte: cadastro DETRO-RJ · DIVAT</div>`;
   host.innerHTML = inner;
   commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${docHead('Cadastro de Linhas: Estrutura Operacional')}${inner}</div>` });
