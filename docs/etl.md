@@ -28,6 +28,25 @@ Consequência prática: **o Supabase é uma cópia**. Se ele for perdido e o ban
 restore de [`backup.md`](backup.md). O restore continua sendo a rede de segurança para o caso
 inverso (dado que só existe no Supabase, ou perda com o DETRO indisponível).
 
+### Integração incremental de 29/09/2026
+
+O alvo conferido desta carga é TESTE (`gontnlfmothfglssbyyk`), usando a exportação Access
+de 28/09/2026. O pacote original permanece em `stage_access_20260928` e os complementos
+em `divat_integracao`, com chaves, hashes e valores brutos. Ver [schema.md](schema.md).
+
+Os scripts `integrate_access_complementos.sql` e `integrate_access_eventos_observacoes.sql`
+usam transações, conferem identidades/contagens e acrescentam os registros faltantes.
+Não executam exclusão nem substituição integral das tabelas finais. Os três eventos
+21639–21641 foram acrescentados às duas stagings de eventos e à final, todas com
+20.901 registros. As observações de QH 256/571 e a divergência do evento 19953 têm
+antes/depois em `divat_integracao.atualizacao_auditoria_20260929`.
+
+Texto recuperado do ACCDB continua sendo informação do cadastro de origem: não comprova
+sozinho a publicação de um ato nem autoriza mudança de status, tarifa ou itinerário.
+O portal usa metadados de procedência e conferência; em uma reconstrução manual, preserve
+essas colunas junto dos dados finais. A tabela privada de conciliação de observações de QH
+mantém o retrato anterior à atualização; a auditoria registra quais lacunas já foram preenchidas.
+
 ---
 
 ## 2. UTF-8 é obrigatório — não é preferência

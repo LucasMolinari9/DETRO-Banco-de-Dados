@@ -213,3 +213,43 @@ aplique as migrações versionadas depois dele. A reconciliação integral perte
 | `localidades_teste` | 752 | | `origem_teste` | 548 |
 | `codempresa_teste` | 133 | | `municipio_teste` | 92 |
 | `evento_linha_teste` | 82 | | `evento_empresa_teste` | 51 |
+
+## Integração incremental do Access — 29/09/2026
+
+No projeto TESTE (`gontnlfmothfglssbyyk`), a exportação de 28/09/2026 está preservada
+em `stage_access_20260928`: 43 tabelas e 209.004 registros. Os modelos privados abaixo
+mantêm chave de página/slot, hash do registro e os valores originais; não são fontes de
+atos vigentes por si sós. Todas as tabelas novas têm RLS, sem policies nem grants públicos.
+O schema `divat_integracao` não concede `USAGE` a `anon` ou `authenticated`.
+
+| Tabela em `divat_integracao` | Registros | Papel |
+|---|--:|---|
+| `qh_operacional_origem` | 1.495 | Frota, processo, picos e valores brutos de tempo de viagem; unidade ainda não confirmada |
+| `itinerario_alteracao_origem` | 1.618 | Registro da alteração na origem; não substitui o itinerário publicado |
+| `qh_fragmento_origem` | 35.301 | Intervalos e partidas; preserva IDs fracionários da origem |
+| `referencia_auxiliar_origem` | 2.208 | Características e nomes de ligação da origem |
+| `memo_texto_origem` | 2 | Textos externos recuperados do ACCDB, com ponteiro, hash e tamanho |
+| `campo_invalido_origem` | 2 | Valores inválidos de `PicoManhaFim`; JSON original preservado e campo tipado nulo |
+| `evento_importacao_conciliacao` | 4 | Três eventos novos e uma divergência de data ainda sem confirmação documental |
+| `atualizacao_auditoria_20260929` | 6 | Antes/depois das três inclusões, duas observações e marcação da data suspeita |
+
+As migrações `20260929201822_access_complementos_e_proveniencia_20260929.sql` e
+`20260929202229_access_anomalias_origem_20260929.sql` definem essas estruturas. As cargas
+guardadas estão em `scripts/integrate_access_complementos.sql` e
+`scripts/integrate_access_eventos_observacoes.sql`; exigem a staging e os textos recuperados
+identificados por hash, e abortam quando as contagens ou identidades não conferem.
+
+| Tabela pública existente | Colunas acrescentadas | Leitura no portal |
+|---|---|---|
+| `evento_teste` | `fonte_registro text`, `conferido_documentalmente boolean`, `data_publicacao_suspeita boolean` | Histórico da linha, da empresa e pesquisa de eventos; data suspeita aparece como “Não confirmada” |
+| `qh_teste` | `observacao_fonte text`, `observacao_conferida_documentalmente boolean` | Observações nos horários e na estrutura operacional, com indicação de conferência pendente |
+
+As colunas são anuláveis para preservar os registros antigos. Não são filtradas pelos
+loaders, portanto não exigem índices novos. As tabelas já pertencem à publicação Realtime
+e às listas `RT_TABLES`/`VIEW_TABLES`; os modelos privados não entram nessas listas.
+
+Os eventos 21639–21641 foram inseridos em `evento_dados`, `evento_textos` e `evento_teste`:
+**20.901** registros em cada uma dessas tabelas. Somente as observações vazias dos QHs 256 e 571 foram preenchidas,
+resultando em 625 observações não vazias. Os campos originais do evento 19953, inclusive
+sua data de publicação divergente, ficaram preservados para conferência. Nenhuma dessas
+inclusões promove automaticamente status, tarifa ou itinerário.

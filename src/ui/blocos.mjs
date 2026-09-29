@@ -36,7 +36,8 @@ import { emptyLinha, tableHTML } from './doc.mjs';
    `./paginacao.mjs`; aqui é só o MARKUP de um evento. */
 export function evBlocksHTML(r){
   return `<div class="ev-block"><div class="ev-label">Descrição:</div><div class="ev-text${r.descricao?'':' empty'}">${r.descricao?esc(r.descricao):'—'}</div></div>
-    <div class="ev-block"><div class="ev-label">Observação:</div><div class="ev-text${r.observacao?'':' empty'}">${r.observacao?esc(r.observacao):'—'}</div></div>`;
+    <div class="ev-block"><div class="ev-label">Observação:</div><div class="ev-text${r.observacao?'':' empty'}">${r.observacao?esc(r.observacao):'—'}</div></div>
+    ${r.fonte_registro && r.conferido_documentalmente === false ? '<div class="doc-foot">Registro do cadastro de origem. O documento original ainda não foi conferido.</div>' : ''}`;
 }
 export function evBandHTML(r, tipoLabel, tipoVal, showLine){
   return `<div class="ev-grid${showLine?' ev5':''}">
@@ -44,7 +45,7 @@ export function evBandHTML(r, tipoLabel, tipoVal, showLine){
     ${showLine?`<div class="ev-cell"><span class="ev-h">Linha</span><span class="ev-v mono">${esc(fmtCode(r.codlinha))}</span></div>`:''}
     <div class="ev-cell"><span class="ev-h">Nº do Processo/Doc.</span><span class="ev-v mono">${esc(orDash(r.numero_processo))}</span></div>
     <div class="ev-cell"><span class="ev-h">${esc(tipoLabel)}</span><span class="ev-v">${esc(tipoVal)}</span></div>
-    <div class="ev-cell"><span class="ev-h">Data da Publicação</span><span class="ev-v mono">${esc(fmtDate(r.data_publicacao))}</span></div></div>`;
+    <div class="ev-cell"><span class="ev-h">Data da Publicação</span><span class="ev-v mono">${r.data_publicacao_suspeita ? 'Não confirmada' : esc(fmtDate(r.data_publicacao))}</span></div></div>`;
 }
 
 /* ---- Itinerário ----
@@ -142,9 +143,10 @@ export function secoesTarifasHTML(rows){
   return tableHTML(TARIFA_COLS, rows.map(tarifaRowHTML).join(''), rows.length+' seção(ões)');
 }
 
-export function observacaoQHHTML(observacao){
+export function observacaoQHHTML(observacao, registro = {}){
   if (!String(observacao||'').trim()) return '';
-  return `<div class="ev-block"><div class="ev-label">Observação do quadro de horários:</div><div class="ev-text">${esc(observacao)}</div></div>`;
+  return `<div class="ev-block"><div class="ev-label">Observação do quadro de horários:</div><div class="ev-text">${esc(observacao)}</div></div>
+    ${registro.observacao_fonte && registro.observacao_conferida_documentalmente === false ? '<div class="doc-foot">Observação transcrita do cadastro de origem. O documento original ainda não foi conferido.</div>' : ''}`;
 }
 
 export function tarifasPromocionaisHTML(rows){

@@ -60,7 +60,7 @@ const EXPECTED = {
   localidades:['tabela_vista_teste','tarifa_atual_teste','itinerario_teste','municipio_teste','localidades_teste','codempresa_teste'],
 };
 
-// --- tabelas que DEVEM estar na publicação supabase_realtime do banco (as 14 usadas). Verifique
+// --- tabelas que DEVEM estar na publicação supabase_realtime do banco (as 15 usadas). Verifique
 //     no banco com: select tablename from pg_publication_tables where pubname='supabase_realtime'; ---
 const PUB_ESPERADA = ['tabela_vista_teste','itinerario_teste','qh_teste','qh_intervalo_teste',
   'qh_predeterminado_teste','tarifa_atual_teste','tarifa_promocional_exibicao_teste','municipio_teste','origem_teste','localidades_teste',

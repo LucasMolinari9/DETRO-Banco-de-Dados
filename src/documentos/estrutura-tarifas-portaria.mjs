@@ -189,7 +189,7 @@ export async function renderEstrutura(ctx){
     ])}
     ${h3('Seções e Tarifas')}${secoesTarifasHTML(secoes)}${tarifasPromocionaisHTML(promo)}
     ${h3('Itinerário')}${itinerarioTableHTML(itin, ibge)}
-    ${h3('Quadro de Horários e Frota')}${frotaMeta}${f&&Object.keys(f).length?frotaBlockHTML(f):''}${observacaoQHHTML(f.observacao)}${quadroHorariosBodyHTML(interv, predet, orig)}
+    ${h3('Quadro de Horários e Frota')}${frotaMeta}${f&&Object.keys(f).length?frotaBlockHTML(f):''}${observacaoQHHTML(f.observacao, f)}${quadroHorariosBodyHTML(interv, predet, orig)}
     <div class="doc-foot">Fonte: cadastro DETRO-RJ · DIVAT</div>`;
   host.innerHTML = inner;
   commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${docHead('Cadastro de Linhas: Estrutura Operacional')}${inner}</div>` });

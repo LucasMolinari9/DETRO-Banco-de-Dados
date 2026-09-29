@@ -103,7 +103,7 @@ export function quadroMetaHTML(line, ultimaAlteracao){
 
 export function quadroDocInner(line, interv, predet, orig, qh = {}, promo = []){
   return `${quadroMetaHTML(line)}
-    ${observacaoQHHTML(qh.observacao)}${tarifasPromocionaisHTML(promo)}
+    ${observacaoQHHTML(qh.observacao, qh)}${tarifasPromocionaisHTML(promo)}
     ${quadroHorariosBodyHTML(interv, predet, orig)}`;
 }
 
@@ -113,7 +113,7 @@ export async function fetchQHByLines(codlinhas){
   const [interv, predet, qh, promo] = await Promise.all([
     sbFetch('qh_intervalo_teste', `codlinha=in.(${inList})&select=codlinha,cod_origem,nome_origem,dia_semana,hora_inicio,hora_fim,intervalo&order=id&limit=20000`),
     sbFetch('qh_predeterminado_teste', `codlinha=in.(${inList})&select=codlinha,cod_origem,nome_origem,dia_semana,saida&order=id&limit=30000`),
-    sbFetch('qh_teste', `codlinha=in.(${inList})&select=codlinha,observacao&limit=500`),
+    sbFetch('qh_teste', `codlinha=in.(${inList})&select=codlinha,observacao,observacao_fonte,observacao_conferida_documentalmente&limit=500`),
     sbFetch('tarifa_promocional_exibicao_teste', `codlinha=in.(${inList})&select=codlinha,${PROMOCIONAL_FIELDS}&order=codlinha,secao&limit=5000`)
   ]);
   return { intervBy: groupBy(interv, r=>r.codlinha), predetBy: groupBy(predet, r=>r.codlinha),
@@ -131,14 +131,14 @@ export async function renderLinhaQuadro(ctx){
     const [interv, predet, qh, secoes, promo, orig] = await Promise.all([
       sbFetch('qh_intervalo_teste', `codlinha=eq.${enc(line.codlinha)}&select=${QH_INTERVALO_FIELDS}&order=id`),
       sbFetch('qh_predeterminado_teste', `codlinha=eq.${enc(line.codlinha)}&select=${QH_PREDET_FIELDS}&order=id`),
-      sbFetch('qh_teste', `codlinha=eq.${enc(line.codlinha)}&select=ultima_alteracao,observacao&limit=1`),
+      sbFetch('qh_teste', `codlinha=eq.${enc(line.codlinha)}&select=ultima_alteracao,observacao,observacao_fonte,observacao_conferida_documentalmente&limit=1`),
       sbFetch('tarifa_atual_teste', `codlinha=eq.${enc(line.codlinha)}&select=${TARIFA_LINHA_FIELDS}&order=secao`),
       sbFetch('tarifa_promocional_exibicao_teste', `codlinha=eq.${enc(line.codlinha)}&select=${PROMOCIONAL_FIELDS}&order=secao`),
       getOrigem(), getEmpresas()
     ]);
     if (!interv.length && !predet.length){ host.innerHTML = emptyLinha('quadro de horários'); commitViewResult(view, gen, { pdfHTML:null }); return; }
     const ultima = qh[0]?.ultima_alteracao;
-    const obsHTML = observacaoQHHTML(qh[0]?.observacao);
+    const obsHTML = observacaoQHHTML(qh[0]?.observacao, qh[0]);
     const promoHTML = tarifasPromocionaisHTML(promo);
     // bloco de Seções e Tarifas da linha (mesma tabela/builder da Estrutura), fora do #qhResult
     const h3sec = `<h3 class="doc-h3">Seções e Tarifas</h3>`;
