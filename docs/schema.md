@@ -232,6 +232,19 @@ O schema `divat_integracao` não concede `USAGE` a `anon` ou `authenticated`.
 | `campo_invalido_origem` | 2 | Valores inválidos de `PicoManhaFim`; JSON original preservado e campo tipado nulo |
 | `evento_importacao_conciliacao` | 4 | Três eventos novos e uma divergência de data ainda sem confirmação documental |
 | `atualizacao_auditoria_20260929` | 6 | Antes/depois das três inclusões, duas observações e marcação da data suspeita |
+| `tarifa_promocional_conciliacao_20260929` | 390 | Classificação privada das promoções sem seção atual; códigos e versões históricas preservados sem confirmar vigência |
+
+A migração `20260929214137_tarifa_promocional_conciliacao_privada.sql` registra um
+snapshot privado das 390 promoções não exibidas: 333 códigos apontam, pelo prefixo,
+para linhas sem seções tarifárias atuais; uma seção 00 e outras 56 seções não existem
+no cadastro tarifário dessas linhas. Todas as 390 seções aparecem nas versões
+históricas, mas isso não comprova vigência. Somente três têm o mesmo valor promocional
+em alguma versão. A seção `13500100400` tem dois vínculos históricos (`135001003` e
+`135001004`), registrados como divergência. Nenhuma associação foi escolhida por
+inferência. RLS ligado, sem policies/grants públicos; não é lida pelo portal nem
+participa do Realtime. O prefixo do código é uma referência para conciliação, não
+uma ligação confirmada. O snapshot não substitui os registros brutos e não atualiza
+automaticamente quando o cadastro muda.
 
 As migrações `20260929201822_access_complementos_e_proveniencia_20260929.sql` e
 `20260929202229_access_anomalias_origem_20260929.sql` definem essas estruturas. As cargas
