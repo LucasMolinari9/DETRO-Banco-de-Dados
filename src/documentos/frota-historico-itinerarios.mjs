@@ -58,12 +58,18 @@ export async function renderLineHistory(ctx){
     getEvLookups(), getEmpresas()
   ]);
   const head = docHead('Histórico da Linha');
-  const meta = metaRows([['Empresa',esc(empNome(line.codempresa)),true],['Registro','RJ-'+esc(orDash(line.codempresa))],['Código da Ligação',esc(fmtCode(line.codlinha))],['Número da Ligação',esc(orDash(line.numero_ligacao))],['Ligação',esc(line.nome_ligacao||'—'),true]]);
-  if (!rows.length){ host.innerHTML = meta + emptyLinha('evento'); commitViewResult(view, gen, { pdfHTML:null }); return; }
+  const meta = metaRows([['Empresa',esc(empNome(line.codempresa)),true],['Registro','RJ-'+esc(orDash(line.codempresa))],['Código da Ligação',esc(fmtCode(line.codlinha))],['Número da Ligação',esc(orDash(line.numero_ligacao))],['Ligação',esc(line.nome_ligacao||'—'),true],['Situação atual no cadastro',situacaoHTML(line),true]]);
+  const statusNote = '<div class="doc-foot">A situação acima é um retrato do cadastro atual; não representa um evento ou a data de um ato.</div>';
+  if (!rows.length){
+    const inner = meta + statusNote + emptyLinha('evento');
+    host.innerHTML = inner;
+    commitViewResult(view, gen, { pdfHTML:()=>`<div class="doc">${head}${inner}</div>` });
+    return;
+  }
   const build = r => evBandHTML(r, 'Tipo Evento da Linha', lk.lin?.[r.evento_linha] || lk.emp?.[r.evento_empresa] || '—', false) + evBlocksHTML(r);
   // PDF/impressão: um evento por página (cabeçalho repetido); segue o filtro aplicado na tela
-  const pdfFrom = list => `<div class="doc">${list.map(r=>`<div class="ev-page">${head}${meta}${build(r)}</div>`).join('')}</div>`;
-  paginateEvents(host, rows, build, meta, { view, gen, onFilter:(vis)=>{ commitViewResult(view, gen, { pdfHTML: ()=>pdfFrom(vis) }); } });
+  const pdfFrom = list => `<div class="doc">${list.map(r=>`<div class="ev-page">${head}${meta}${statusNote}${build(r)}</div>`).join('')}</div>`;
+  paginateEvents(host, rows, build, meta + statusNote, { view, gen, onFilter:(vis)=>{ commitViewResult(view, gen, { pdfHTML: ()=>pdfFrom(vis) }); } });
   commitViewResult(view, gen, { pdfHTML: ()=>pdfFrom(rows) });
 }
 
