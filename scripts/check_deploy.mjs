@@ -25,6 +25,9 @@ base.pathname = '/';
 base.search = '';
 base.hash = '';
 const vercelBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
+const officialRef = 'gontnlfmothfglssbyyk';
+const retiredRef = 'lwzsxuaqqeoamukduhev';
+const officialUrl = `https://${officialRef}.supabase.co`;
 
 const failures = [];
 const ok = message => console.log(`  ✓ ${message}`);
@@ -150,15 +153,15 @@ if (home) {
     ["script-src 'self'", 'script-src sem inline/eval'],
     ["style-src-attr 'none'", 'style-src-attr'],
     ["frame-ancestors 'none'", 'frame-ancestors'],
-    ['https://lwzsxuaqqeoamukduhev.supabase.co', 'Supabase produção HTTPS'],
-    ['wss://lwzsxuaqqeoamukduhev.supabase.co', 'Supabase produção WSS'],
-    ['https://gontnlfmothfglssbyyk.supabase.co', 'Supabase teste HTTPS'],
-    ['wss://gontnlfmothfglssbyyk.supabase.co', 'Supabase teste WSS'],
+    [officialUrl, 'Supabase oficial HTTPS'],
+    [`wss://${officialRef}.supabase.co`, 'Supabase oficial WSS'],
   ];
   for (const [rule, label] of cspRules) {
     if (csp.includes(rule)) ok(`CSP: ${label}`);
     else fail(`CSP sem ${rule}`);
   }
+  if (csp.includes(retiredRef)) fail('CSP permite o projeto Supabase apagado');
+  else ok('CSP exclui o projeto Supabase apagado');
   if (csp.includes("'unsafe-inline'") || csp.includes("'unsafe-eval'")) {
     fail("CSP contém 'unsafe-inline' ou 'unsafe-eval'");
   } else {
@@ -292,19 +295,20 @@ if (appResponse?.ok) {
   const hostListadoProducao = productionHosts.includes(base.hostname.toLowerCase());
   const isProductionHost = hostListadoProducao && !testeTemporario;
   if (expectedEnvironment === 'production' && testeTemporario && hostListadoProducao) {
-    ok(`${base.hostname} usa temporariamente o Supabase de teste`);
+    ok(`${base.hostname} seleciona a configuração temporária do banco oficial`);
   } else if (expectedEnvironment === 'production' && isProductionHost) {
     ok(`${base.hostname} está na allowlist de produção`);
   } else if (expectedEnvironment === 'preview' && !isProductionHost) {
-    ok(`${base.hostname} está fora da allowlist e seleciona teste`);
+    ok(`${base.hostname} seleciona a configuração de preview`);
   } else {
     fail(`${base.hostname}: ambiente informado=${expectedEnvironment}, HOSTS_PROD=${productionHosts.join(', ')}`);
   }
 
-  if (prodUrl === 'https://lwzsxuaqqeoamukduhev.supabase.co') ok('URL de produção preservada');
+  if (prodUrl === officialUrl) ok('URL do banco oficial');
   else fail(`URL de produção inesperada: ${prodUrl || '(ausente)'}`);
-  if (testUrl === 'https://gontnlfmothfglssbyyk.supabase.co') ok('URL de teste isolada');
-  else fail(`URL de teste inesperada: ${testUrl || '(ausente)'}`);
+  // O novo projeto de teste ainda não existe. A flag não cria isolamento de dados.
+  if (testUrl === officialUrl) ok('previews compartilham o banco oficial; isolamento pendente');
+  else fail(`URL de preview inesperada: ${testUrl || '(ausente)'}`);
 
   const verifyAnonKey = (key, expectedRef, label) => {
     try {
@@ -315,8 +319,8 @@ if (appResponse?.ok) {
       fail(`${label}: chave pública não é uma JWT anon válida`);
     }
   };
-  verifyAnonKey(prodKey, 'lwzsxuaqqeoamukduhev', 'produção');
-  verifyAnonKey(testKey, 'gontnlfmothfglssbyyk', 'teste');
+  verifyAnonKey(prodKey, officialRef, 'produção');
+  verifyAnonKey(testKey, officialRef, 'preview');
 
   // Asserção sobre CÓDIGO, não sobre prosa. A Fase B moveu selecionarSupabase e seu `throw`
   // fail-closed para a fronteira REST. Procurá-lo ainda em app.js reprovaria todo deploy correto.
@@ -333,4 +337,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('\nDeploy aprovado: headers, allowlist e isolamento de ambiente estão coerentes.');
+console.log('\nDeploy aprovado: headers, allowlist e configuração de ambiente estão coerentes.');
