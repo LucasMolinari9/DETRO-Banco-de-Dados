@@ -1,21 +1,9 @@
-// scripts/lib/audit-database.mjs — transporte compartilhado dos 4 gates vivos para o auditor
-// PostgreSQL de teste (`divat_auditor_ci`), substituindo o PostgREST/anon usado até aqui.
-//
-// Por que existe: até esta mudança, check_grants.mjs / check_deriva.mjs / check_data_quality.mjs
-// / check_realtime.mjs liam SB_URL/SB_KEY do app.js por regex e chamavam RPCs `public.*` como
-// `anon` — sempre contra o projeto de PRODUÇÃO (`lwzsxuaqqeoamukduhev`), como o
-// docs/adr/0002-ambiente-de-teste-isolado.md documentava. A migração
-// `20260729034018_phase3_moderate_hardening.sql` (aplicada só no projeto de TESTE,
-// `gontnlfmothfglssbyyk`) moveu essas quatro funções para o schema `audit` — no dia em que a
-// mesma migração chegar a produção, o caminho antigo quebra de uma vez (ver
-// docs/planos/fase-3-hardening-moderado.md, seção "Pré-requisito da promoção a produção"). Este
-// módulo é o caminho novo: fala com o auditor mínimo (`divat_auditor_ci`, NOLOGIN exceto para
-// este login externo, sem SELECT direto em tabela) do projeto de TESTE, pelo mesmo mecanismo já
-// provado em scripts/check_phase3_audit.mjs — psql com a credencial só em variável de ambiente,
-// nunca em argv nem em log.
-//
-// CONSEQUÊNCIA ACEITA (documentada, não escondida): os quatro gates passam a auditar o projeto de
-// TESTE, não mais produção — produção não tem o schema `audit` ainda. Ver docs/seguranca.md § 10.
+// Transporte compartilhado dos gates PostgreSQL do Portal DIVAT.
+// Audita gontnlfmothfglssbyyk, banco atualmente em uso e candidato a oficial.
+// O nome histórico SUPABASE_TEST_AUDIT_DATABASE_URL continua sendo o contrato do CI.
+// A produção anterior foi apagada segundo o dono; não existe fallback para ela.
+// O auditor mínimo acessa apenas os diagnósticos de audit, sem SELECT direto.
+// A senha fica no ambiente do processo filho, nunca em argv ou mensagens de erro.
 //
 // Contrato de segurança (cada regra tem teste em tests/audit-database.test.mjs):
 //   - lê exclusivamente SUPABASE_TEST_AUDIT_DATABASE_URL — nenhuma outra variável, nenhum
@@ -71,13 +59,22 @@ export function validarConexaoAuditora(rawUrl) {
   }
 
   let url;
+  let user;
+  let password;
   try {
     url = new URL(rawUrl);
+    user = decodeURIComponent(url.username || '');
+    password = decodeURIComponent(url.password || '');
   } catch {
     falhar(`${ENV_VAR} não é uma URL PostgreSQL válida.`);
   }
 
-  const user = decodeURIComponent(url.username || '');
+  if (!['postgres:', 'postgresql:'].includes(url.protocol) || url.hash
+      || !['', '/', '/postgres'].includes(url.pathname)
+      || [...url.searchParams.keys()].some(k => !['sslmode', 'connect_timeout'].includes(k))
+      || url.searchParams.getAll('sslmode').length > 1) {
+    falhar('Conexão recusada: protocolo, banco ou parâmetros PostgreSQL inesperados.');
+  }
   const isPoolerHost = url.hostname.endsWith('.pooler.supabase.com');
   const isDirectHost = url.hostname === DIRECT_HOST;
   const direto = isDirectHost && user === LOGIN_DIRETO;
@@ -91,13 +88,13 @@ export function validarConexaoAuditora(rawUrl) {
       'conexão por pooler exige divat_auditor_ci.gontnlfmothfglssbyyk em host *.pooler.supabase.com).');
   }
 
-  if (!url.password) {
+  if (!password || password.includes('\0')) {
     falhar('Conexão recusada: a credencial auditora não contém senha.');
   }
 
   const sslmode = url.searchParams.get('sslmode');
   if (!SSLMODES_ACEITOS.has(sslmode)) {
-    falhar(`Conexão recusada: sslmode '${sslmode || '(ausente)'}' não é aceito — use require, verify-ca ou verify-full.`);
+    falhar('Conexão recusada: sslmode não é aceito — use require, verify-ca ou verify-full.');
   }
 
   return Object.freeze({
@@ -105,7 +102,7 @@ export function validarConexaoAuditora(rawUrl) {
     port: url.port || '5432',
     database: url.pathname.slice(1) || 'postgres',
     user,
-    password: decodeURIComponent(url.password),
+    password,
     sslmode,
   });
 }
@@ -120,6 +117,8 @@ export function carregarConfiguracaoAuditora(env = process.env) {
 export function executarConsulta(config, sql, { psqlBin = 'psql' } = {}) {
   const child = spawnSync(psqlBin, ['-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', sql], {
     encoding: 'utf8',
+    timeout: 90000,
+    maxBuffer: 10 * 1024 * 1024,
     env: {
       PATH: process.env.PATH,
       PGHOST: config.host,
@@ -128,6 +127,8 @@ export function executarConsulta(config, sql, { psqlBin = 'psql' } = {}) {
       PGUSER: config.user,
       PGPASSWORD: config.password,
       PGSSLMODE: config.sslmode,
+      PGCONNECT_TIMEOUT: '15',
+      PGOPTIONS: '-c default_transaction_read_only=on',
     },
   });
 
