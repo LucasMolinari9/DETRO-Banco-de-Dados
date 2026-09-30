@@ -10,7 +10,7 @@ Contexto para qualquer sessão futura do Claude trabalhar neste projeto. Este ar
 > [`docs/governanca.md`](docs/governanca.md). O plano de
 > [`hardening moderado`](docs/planos/fase-3-hardening-moderado.md) registra as condições externas
 > ainda necessárias; o [`dossiê de promoção`](docs/planos/fase-3-promocao-producao.md) reúne as
-> evidências e aguarda autorização humana separada para aplicar o DDL em produção.
+> pendências de backup, restauração e separação dos ambientes para tornar oficial o banco em uso.
 >
 > **O dono opera pelo CELULAR:** "rode `node …` na sua máquina" não é instrução executável para ele
 > — o caminho é a aba Actions ou o painel do Supabase, no navegador (o **app** do GitHub não mostra
@@ -130,48 +130,34 @@ exibe e **atualiza ao vivo** (Realtime).
   antes de corrigir; a bateria de mutação que os guarda tem 18 casos.
 
 ## Supabase
-- Projeto: **`bd_teste`** · ref **`lwzsxuaqqeoamukduhev`** · região sa-east-1.
-- `SB_URL` e `SB_KEY` ficam no topo do `app.js`. A chave atual é a **JWT `anon` legada**, não uma
-  `sb_publishable_...`; ambas são públicas, mas têm formatos de header diferentes. A migração para
-  publishable precisa atualizar REST, Realtime, scripts e testes em conjunto. A segurança vem do
-  **RLS + privilégio mínimo** (anon só lê).
-- **RLS / segurança (LER COM ATENÇÃO):**
-  - Todas as tabelas têm RLS ligado; cada tabela de consulta tem policy `anon_read_*` (SELECT).
-  - O portal é **read-only de verdade**: `anon` e `authenticated` têm **apenas SELECT** nas 14
-    tabelas de consulta, e toda escrita foi revogada. **Não há caminho de escrita pela API pública**
-    (conferido contra o banco vivo em 27/07/2026, não só contra o SQL versionado).
-  - **Objeto novo nasce FECHADO (default deny), desde 27/07/2026.** Os `ALTER DEFAULT PRIVILEGES`
-    do schema `public` **revogam** de `anon`/`authenticated`: tabelas, sequências e `EXECUTE` de
-    funções. Antes eles faziam o oposto — `GRANT SELECT ON TABLES` — e a prosa daqui afirmava que
-    "garantiam que tabelas novas não voltassem a conceder", o que estava invertido (era o achado
-    SEC-01). **Consequência prática: tabela nova exige `GRANT SELECT` + policy explícitos, e RPC
-    nova exige `GRANT EXECUTE` explícito** — sem isso o portal recebe 401/404 e parece bug de
-    front. A skill `db-change` cobra isso. **Fechar o default não conserta o que já existe:** as
-    18 tabelas atuais nasceram sob o default antigo e ficaram com `MAINTAIN` até um `REVOKE
-    MAINTAIN ON ALL TABLES` explícito — achado do próprio gate na 1ª rodada contra o banco.
-  - **Limitação ATIVA:** há um segundo conjunto de defaults, do role `supabase_admin`, que concede
-    escrita a `anon` em tabelas de `public`, e não é fechável — `postgres` não é superusuário no
-    Supabase. Até 28/07/2026 esta linha dizia que ele "só atinge objetos criados por esse role (o
-    painel cria como `postgres`)", ou seja, que na prática não pegava. **Medição desmentiu:** ao
-    rodar o `backup_schema.sql` num projeto novo pelo SQL Editor (portanto como `postgres`), as 18
-    tabelas nasceram com TRUNCATE/REFERENCES/TRIGGER para `anon` e `authenticated` — 108 grants.
-    **RLS não bloqueia TRUNCATE**, e a anon key é pública, então era caminho aberto para esvaziar o
-    banco. Por isso o `backup_schema.sql` agora revoga tudo que não é SELECT, não só `MAINTAIN`.
-    Mitigação: o gate `scripts/check_grants.mjs` roda **diariamente** enquanto esse default existir.
-    **Cobertura atual do gate é o projeto de TESTE, não produção** — migrou para o auditor
-    PostgreSQL mínimo (`divat_auditor_ci`) e por isso produção fica sem nenhum dos quatro gates
-    vivos até a Fase 3 chegar lá; detalhe em `docs/seguranca.md` §10 e §9.1.
-  - **NUNCA conceda escrita (GRANT nem policy de INSERT/UPDATE/DELETE) a `anon`/`authenticated`.**
-    Se um dia precisar de edição logada legítima, crie policy **restrita por tabela/coluna** —
-    nunca `ALL USING(true)`.
-  - **Signup do Auth: manter FECHADO** (Dashboard → Authentication → "Allow new users to sign
-    up" = OFF). O estado e as limitações vigentes ficam registrados em `docs/seguranca.md`.
-  - **Manual de segurança do dono + auditoria/pentest** (linguagem direta, modelo de ameaça,
-    checklist trimestral e resposta a incidente): **`docs/seguranca.md`**. Auditoria completa +
-    teste de invasão ao vivo em 23/07/2026 (sem achados de segredo; sem caminho de escrita).
-  - **Como o dono alimenta:** o banco do **DETRO** é a fonte; o dono exporta em **CSV** e importa
-    pelo **Table Editor** do painel do Supabase (service role, ignora RLS). Runbook completo —
-    encoding obrigatório, staging, o que rodar depois: **`docs/etl.md`**.
+- Banco em uso: **`divat - TESTE`** · ref **`gontnlfmothfglssbyyk`** · região sa-east-1.
+  A produção antiga (`lwzsxuaqqeoamukduhev`) foi apagada segundo o dono. O banco em uso foi
+  adotado como oficial; a separação de previews segue o [plano](docs/planos/fase-3-promocao-producao.md).
+- **Seleção atual:** `SITE_USA_TESTE_TEMPORARIAMENTE = true` leva todos os hosts ao banco em uso,
+  inclusive previews. `SB_URL`/`SB_KEY` também apontam ao banco em uso. Não há isolamento de
+  dados hoje; a flag só sai ao configurar outro teste. Ver [ADR-0002](docs/adr/0002-ambiente-de-teste-isolado.md).
+- `SB_TESTE_URL`/`SB_TESTE_KEY` fornecem o endpoint ativo e a **JWT `anon` legada** pública.
+  Preserve os literais `SB_URL`/`SB_KEY` usados pelos testes. Migrar para `sb_publishable_...`
+  exige atualizar REST, Realtime e testes em conjunto; segredo administrativo nunca vai no front.
+- **RLS / segurança:**
+  - As 19 tabelas de `public` têm RLS. `anon` lê 15; as quatro stagings ficam fechadas.
+    Não há grants de escrita para `anon`/`authenticated`. `authenticated` não tem SELECT de
+    tabela pública nem EXECUTE de função pública; o portal continua sem login.
+  - As duas RPCs de produto são `SECURITY INVOKER`, com `search_path` fixo. Diagnósticos ficam em
+    `audit`, executáveis só pelo auditor mínimo. Não devolver diagnósticos à Data API.
+  - Defaults controláveis de `postgres` estão fechados; defaults herdados de `supabase_admin`
+    persistem. **RLS não bloqueia TRUNCATE**. Migrações exigem revokes + RLS explícitos e os
+    gates de migração e grants permanecem obrigatórios. O gate vivo cobre o banco em uso pelo
+    login `divat_auditor_ci` (`SUPABASE_TEST_AUDIT_DATABASE_URL`, nome histórico do secret).
+  - **NUNCA conceda escrita a `anon`/`authenticated`**, nem policy `ALL USING(true)`.
+    Tabela nova só recebe SELECT + policy se seus dados forem públicos e usados pelo portal;
+    staging e schemas privados permanecem sem acesso público. Não conceder a `authenticated`
+    por padrão. RPC nova exige revisão da allowlist e EXECUTE somente para a role necessária.
+  - **Signup deve ficar fechado.** Zero usuários no catálogo não comprova que signup esteja
+    desativado. MFA, Auth, chaves e proteção da branch exigem conferência do painel; estado e
+    pendências em [segurança](docs/seguranca.md).
+  - Dados vêm do DETRO por exportação/importação administrativa. Não existe rebuild automático
+    de ETL. Preserve staging, histórico e procedência; instruções em [ETL](docs/etl.md).
   - **Teto do PostgREST:** `pgrst.db_max_rows = 30000` no role `authenticator` (igual ao maior
     `limit` do front). **Ao criar query com `limit` > 30000, suba o teto junto**
     (`ALTER ROLE authenticator SET pgrst.db_max_rows = '<n>'; NOTIFY pgrst, 'reload config';`)
@@ -184,9 +170,9 @@ exibe e **atualiza ao vivo** (Realtime).
   - **Timeouts por role** (medidos em 09/08/2026, versionados na baseline): `anon` = **3s**,
     `authenticated` = **8s**, `authenticator` = 8s + `lock_timeout` 8s. Não são iguais de
     propósito — o caminho anônimo é o exposto, e tem o teto mais curto.
-  - **Baseline de reconstrução** (RLS/policies/grants/índices/funções) versionada em
-    `docs/backup_schema.sql`. Snapshot do estado atual (auditoria/DR):
-    `scripts/gen_security_snapshot.sql` (salvar a saída **fora do git**).
+  - `docs/backup_schema.sql` é baseline histórica anterior à Fase 3, insuficiente para reconstruir
+    o banco atual. Use o dump privado de [backup](docs/backup.md), sem sobrepor essa baseline.
+    Snapshot de ACLs: `scripts/gen_security_snapshot.sql` (salvar **fora do Git**).
 - **Realtime:** as 15 tabelas lidas pelo portal no projeto `divat - TESTE` estão na publicação `supabase_realtime`. Ao criar
   um card que lê tabela nova, faça **as duas coisas**: (1) `alter publication supabase_realtime
   add table public.<tabela>;` e (2) inclua-a em `RT_TABLES` e no `VIEW_TABLES` da view no
@@ -278,13 +264,11 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
 ## Publicação (Vercel) e atualização automática
 - **Host: Vercel** (único host em uso). A ligação com o Supabase é toda **client-side**; o host
   só serve arquivos estáticos.
-- **Config:** `vercel.json` (raiz) carrega os cabeçalhos de segurança — em especial a **CSP**,
-  cujo `connect-src` autoriza os projetos Supabase de produção
-  (`lwzsxuaqqeoamukduhev`) e teste (`gontnlfmothfglssbyyk`) em REST e Realtime.
-  `app.js` mantém produção numa allowlist de **3 domínios**: o canônico, o alias do time e o alias
-  da branch `main`. Preview, localhost e hostname desconhecido usam teste. Configuração ausente
-  falha fechado, sem fallback para produção. Ao mexer na CSP ou nessa matriz, rode também
-  `tests/environment.test.js`.
+- **Config:** `vercel.json` autoriza REST e Realtime de `gontnlfmothfglssbyyk`; o endpoint apagado
+  foi removido da CSP e do MCP. `app.js` mantém uma allowlist de **3 domínios** em `HOSTS_PROD`,
+  mas a flag temporária ainda leva todos os hosts ao banco oficial. Novo projeto de teste é
+  necessário para separar previews. Ao alterar essa matriz, rode `tests/environment.test.js`
+  e o smoke real; ver [ADR-0002](docs/adr/0002-ambiente-de-teste-isolado.md).
 - **Auto-deploy:** conectar o repo GitHub `LucasMolinari9/LucasCTEC` ao projeto Vercel pelo
   **dashboard** (OAuth, ação única) → **push na `main` = deploy** (e **push em branch = preview
   deploy**, use-o). Sem essa conexão, publica-se rodando o MCP `deploy_to_vercel` após o push.
@@ -375,7 +359,7 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    Runbook e como escrever regra nova: **`docs/semgrep.md`**.
 2c. **Deriva docs×banco — `node scripts/check_deriva.mjs`** (precisa de rede). Confere que toda
    tabela/coluna/RPC que o repo afirma existe mesmo — pelo auditor PostgreSQL mínimo
-   (`divat_auditor_ci`), contra o projeto de **teste**, não mais na visão de `anon`/produção
+   (`divat_auditor_ci`), contra o **banco em uso**, sem diagnósticos pela API de `anon`
    (migração registrada em `docs/seguranca.md` §10).
    **O que quebra se esquecer:** nada imediato — por isso o workflow `deriva.yml` roda **semanal**
    além de push/PR: deriva também nasce de mudança NO BANCO, que não gera push. Do ambiente do
@@ -398,7 +382,7 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    varria todo token em backtick e deu 61 falsos positivos contra 0 verdadeiros.
 2e. **Qualidade dos dados pós-ETL — `node scripts/check_data_quality.mjs`** (precisa de rede;
    chama `divat_data_quality()` pelo auditor PostgreSQL mínimo, contra o projeto de **teste** —
-   não mais a RPC como `anon`/produção). Fecha a issue #63. Roda **diariamente** no
+   pelo auditor mínimo do banco em uso). Fecha a issue #63. Roda **diariamente** no
    `db-checks.yml`, junto do `check_realtime.mjs` e do `check_grants.mjs` (job `seguranca`).
    **A integridade hub-and-spoke JÁ ESTÁ VIOLADA no banco:** 17 codlinhas órfãs em 4 tabelas + 4
    linhas com `cod_origem` inexistente, medidas em 27/07/2026. **As views dessas linhas renderizam

@@ -1,31 +1,14 @@
 -- ============================================================================
--- Portal DIVAT (bd_teste) — SCHEMA-ONLY backup (estrutura, sem dados)
--- Gerado ao vivo em 2026-07-16 a partir do banco de produção (lwzsxuaqqeoamukduhev).
---
--- O QUE ISTO É: reconstrói tabelas, PK/FK, índices, RLS policies, grants,
--- funções, trigger e extensões — tudo que o CSV exportado pelo Table Editor
--- NÃO carrega. Esta é a baseline PRÉ-FASE 3. Rode UMA VEZ contra um banco novo/vazio e depois
--- importe os dados com `pg_restore --data-only`, `scripts/restore_rest.mjs` ou, como último
--- recurso, os CSVs. Para alvo pós-Fase 3, aplique as migrations versionadas DEPOIS deste arquivo
--- e ANTES dos dados.
--- A integração Access de 29/09/2026 é separada desta baseline: depende dos schemas privados
--- e da staging completa de 209.004 registros já carregados. As migrações
--- 20260929201822/20260929202229 acrescentam os modelos privados e os metadados públicos
--- de procedência/conferência; não execute essas cargas sobre um projeto vazio.
---
--- NÃO É IDEMPOTENTE nem script de reconciliação: as 18 instruções CREATE TABLE são deliberadamente
--- estritas. Nunca rode por cima de um schema já criado por pg_restore ou por execução anterior.
---
--- COMO USAR (em caso de perda total do banco):
---   1. Crie um projeto Supabase novo (ou zere o atual, com cuidado).
---   2. SQL Editor → cole este arquivo inteiro → Run.
---   3. Importe os dados por um dos caminhos de docs/backup.md.
---   4. Confira o Realtime (seção no fim) e o vercel.json/CSP — nada aqui
---      mexe em configuração de hosting, só no banco.
---
--- NÃO inclui: dados (linhas das tabelas — isso vem dos CSVs), usuários do
--- Auth, Storage, nem extensões padrão do Supabase (pg_stat_statements,
--- uuid-ossp, pgcrypto, supabase_vault) que já vêm em qualquer projeto novo.
+-- Portal DIVAT — BASELINE HISTÓRICA, estrutura sem dados.
+-- Originada em 2026-07-16 na antiga produção lwzsxuaqqeoamukduhev.
+-- Este arquivo NÃO reconstrói o banco atual gontnlfmothfglssbyyk:
+-- faltam schemas privados, conciliações, snapshots de dados e objetos posteriores.
+-- Não executar no banco ativo nem antes/depois de um pg_restore completo.
+-- Para recuperação atual use o Caminho A de docs/backup.md, com dump consistente privado.
+-- A baseline é mantida para consulta histórica e para o Caminho B parcial legado do runbook,
+-- exclusivamente em projeto novo/vazio. Não é idempotente: contém 18 CREATE TABLE estritos.
+-- Copiar as migrations não recupera dados de snapshots antigos; ver docs/schema.md.
+-- Não inclui Auth, Storage ou configuração externa do serviço.
 -- ============================================================================
 
 -- ============================================================
