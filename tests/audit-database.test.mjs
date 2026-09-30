@@ -83,6 +83,16 @@ test('URL malformada é recusada', () => {
   assertRecusada('isto não é uma url', /URL PostgreSQL válida/);
 });
 
+test('protocolo HTTP, banco inesperado e parâmetro duplicado são recusados', () => {
+  assertRecusada(url().replace('postgresql:', 'https:'), /recusada/);
+  assertRecusada(url({ db: 'another_database' }), /recusada/);
+  assertRecusada(url() + '&sslmode=disable', /recusada/);
+});
+
+test('valor arbitrário em sslmode nunca é ecoado no erro', () => {
+  assertRecusada(url({ sslmode: SENHA_SECRETA }), /sslmode/);
+});
+
 // ---------------------------------------------------------------------------------------------
 // 2. Project ref — só o de teste; produção (e qualquer outro) é recusado
 // ---------------------------------------------------------------------------------------------

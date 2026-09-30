@@ -1,35 +1,11 @@
 // Executa as RPCs diagnósticas pelo login PostgreSQL mínimo da Fase 3.
 // A URL nunca é passada na linha de comando nem impressa.
-import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { carregarConfiguracaoAuditora, auditarJson, AuditDatabaseError } from './lib/audit-database.mjs';
 
-const PROJECT_REF = 'gontnlfmothfglssbyyk';
-const LOGIN_PREFIX = 'divat_auditor_ci';
-const rawUrl = process.env.SUPABASE_TEST_AUDIT_DATABASE_URL;
-
-if (!rawUrl) {
-  console.error('SUPABASE_TEST_AUDIT_DATABASE_URL não configurado. Consulte docs/planos/fase-3-hardening-moderado.md.');
-  process.exit(1);
-}
-
-let url;
-try {
-  url = new URL(rawUrl);
-} catch {
-  console.error('SUPABASE_TEST_AUDIT_DATABASE_URL não é uma URL PostgreSQL válida.');
-  process.exit(1);
-}
-
-const directHost = `db.${PROJECT_REF}.supabase.co`;
-const pooler = url.hostname.endsWith('.pooler.supabase.com') && url.username.endsWith(`.${PROJECT_REF}`);
-const direct = url.hostname === directHost;
-if ((!direct && !pooler) || !url.username.startsWith(LOGIN_PREFIX)) {
-  console.error('Conexão recusada: host/project ref ou login não pertence ao auditor do Supabase de teste.');
-  process.exit(1);
-}
-if (!url.password) {
-  console.error('Conexão recusada: a credencial auditora não contém senha.');
-  process.exit(1);
-}
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const query = String.raw`
 with payload as (
@@ -53,7 +29,7 @@ select jsonb_build_object(
     select count(*) from jsonb_array_elements(security->'funcoes') f
     where (f->>'authenticated_execute')::boolean
   ),
-  'realtime_count', jsonb_array_length(realtime),
+  'realtime_tables', realtime,
   'data_quality_rows', data_quality_rows,
   'direct_table_select', has_table_privilege(current_user, 'public.tabela_vista_teste', 'select'),
   'session_user', session_user
@@ -61,55 +37,48 @@ select jsonb_build_object(
 from payload;
 `;
 
-const child = spawnSync('psql', ['-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', query], {
-  encoding: 'utf8',
-  env: {
-    PATH: process.env.PATH,
-    PGHOST: url.hostname,
-    PGPORT: url.port || '5432',
-    PGDATABASE: url.pathname.slice(1) || 'postgres',
-    PGUSER: decodeURIComponent(url.username),
-    PGPASSWORD: decodeURIComponent(url.password),
-    PGSSLMODE: url.searchParams.get('sslmode') || 'require',
-  },
-});
+export function validarShapeAuditor(shape, expectedRealtime) {
+  const actualRealtime = Array.isArray(shape.realtime_tables) ? [...shape.realtime_tables].sort() : [];
+  const expectedRpcs = ['divat_busca_logradouro', 'divat_linhas_regiao'];
+  const expectedSignatures = ['divat_busca_logradouro(text,integer)', 'divat_linhas_regiao(text,text)'];
+  const checks = [
+    [JSON.stringify([...(shape.api_rpcs || [])].sort()) === JSON.stringify(expectedRpcs), 'API expõe RPCs além da allowlist'],
+    [JSON.stringify(shape.anon_rpcs) === JSON.stringify(expectedSignatures), 'grants anônimos de função divergiram'],
+    [shape.authenticated_exec_count === 0, 'authenticated voltou a executar função pública'],
+    [shape.public_objects >= 19 && shape.all_rls === true, 'objeto público sem RLS ou catálogo incompleto'],
+    [JSON.stringify(actualRealtime) === JSON.stringify([...expectedRealtime].sort()), 'publicação Realtime divergiu de RT_TABLES'],
+    [shape.direct_table_select === false, 'credencial auditora ganhou leitura direta de tabela'],
+    [typeof shape.data_quality_rows === 'number', 'RPC de qualidade não pôde ser executada'],
+    [shape.session_user === 'divat_auditor_ci', 'checagem não executou com o login auditor dedicado'],
+  ];
 
-if (child.error) {
-  console.error(`Não foi possível executar psql: ${child.error.message}`);
-  process.exit(1);
-}
-if (child.status !== 0) {
-  console.error(child.stderr.trim() || `psql terminou com status ${child.status}`);
-  process.exit(1);
+  return checks.filter(([ok]) => !ok).map(([, message]) => message);
 }
 
-let shape;
-try {
-  const line = child.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);
-  shape = JSON.parse(line);
-} catch {
-  console.error('Saída do auditor não é JSON válido; abortando em vez de assumir sucesso.');
-  process.exit(1);
+function main() {
+  try {
+    const app = readFileSync(join(ROOT, 'app.js'), 'utf8');
+    const block = /const RT_TABLES\s*=\s*\[([\s\S]*?)\]/.exec(app)?.[1];
+    const expectedRealtime = [...(block || '').matchAll(/'([^']+)'/g)].map(m => m[1]);
+    if (!expectedRealtime.length || new Set(expectedRealtime).size !== expectedRealtime.length) {
+      throw new Error('RT_TABLES ausente ou duplicado; não assumir publicação vazia.');
+    }
+    const config = carregarConfiguracaoAuditora();
+    const shape = auditarJson(config, query);
+    const failed = validarShapeAuditor(shape, expectedRealtime);
+    if (failed.length) {
+      console.error('✗ Auditoria PostgreSQL da Fase 3 falhou:');
+      for (const message of failed) console.error('  - ' + message);
+      return 1;
+    }
+    console.log('✓ Auditor mínimo: ' + shape.public_objects + ' objetos públicos, ' + expectedRealtime.length + ' tabelas Realtime, RPCs anônimas na allowlist.');
+    return 0;
+  } catch (error) {
+    console.error(error instanceof AuditDatabaseError ? error.message : 'Auditoria interrompida: catálogo ou configuração inválidos.');
+    return 1;
+  }
 }
 
-const expectedRpcs = ['divat_busca_logradouro', 'divat_linhas_regiao'];
-const expectedSignatures = ['divat_busca_logradouro(text,integer)', 'divat_linhas_regiao(text,text)'];
-const checks = [
-  [JSON.stringify([...(shape.api_rpcs || [])].sort()) === JSON.stringify(expectedRpcs), 'API expõe RPCs além da allowlist'],
-  [JSON.stringify(shape.anon_rpcs) === JSON.stringify(expectedSignatures), 'grants anônimos de função divergiram'],
-  [shape.authenticated_exec_count === 0, 'authenticated voltou a executar função pública'],
-  [shape.public_objects >= 18 && shape.all_rls === true, 'objeto público sem RLS ou catálogo incompleto'],
-  [shape.realtime_count === 14, 'publicação Realtime divergiu das 14 tabelas'],
-  [shape.direct_table_select === false, 'credencial auditora ganhou leitura direta de tabela'],
-  [typeof shape.data_quality_rows === 'number', 'RPC de qualidade não pôde ser executada'],
-  [String(shape.session_user || '').startsWith(LOGIN_PREFIX), 'checagem não executou com o login auditor dedicado'],
-];
-
-const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
-if (failed.length) {
-  console.error('✗ Auditoria PostgreSQL da Fase 3 falhou:');
-  for (const message of failed) console.error(`  - ${message}`);
-  process.exit(1);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = main();
 }
-
-console.log(`✓ Auditor mínimo: ${shape.public_objects} objetos públicos, ${shape.realtime_count} tabelas Realtime, RPCs anônimas na allowlist.`);
