@@ -8,7 +8,8 @@ fica no [plano de promoção](planos/fase-3-promocao-producao.md).
 
 O portal usa `divat - TESTE` (`gontnlfmothfglssbyyk`). Segundo o dono, a antiga produção
 `lwzsxuaqqeoamukduhev` foi apagada. O nome TESTE não significa que os dados sejam descartáveis:
-o projeto já serve o portal e foi adotado como oficial. O isolamento de previews permanece pendente.
+o projeto já serve o portal e foi adotado como oficial. Em 30/09/2026, o dono determinou não
+criar outro banco. Previews e desenvolvimento continuam compartilhando o banco oficial.
 
 Com `SITE_USA_TESTE_TEMPORARIAMENTE = true`, produção, previews e desenvolvimento consultam
 esse mesmo banco. Uma branch do Git não isola dados; ver [ADR-0002](adr/0002-ambiente-de-teste-isolado.md).
@@ -142,8 +143,9 @@ as correções desta entrega. RTO/RPO continuam sem medição; cobertura em [bac
 RLS em tabelas públicas novas, sem conceder acesso público. Não substitui RLS explícito e
 revokes na migration. `anon`/`authenticated` não devem poder executar essa função.
 
-A falta de separação entre previews e o banco oficial é uma pendência de implantação tratada
-no plano de promoção, não uma garantia resolvida por renomear o projeto.
+O compartilhamento entre previews e o banco oficial é uma decisão registrada na
+[ADR-0002](adr/0002-ambiente-de-teste-isolado.md), sem criação de outro banco nesta entrega.
+Previews não são ambientes isolados para experimentar com dados ou ACLs.
 
 ## 10. Auditor mínimo
 
