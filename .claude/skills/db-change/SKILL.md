@@ -1,79 +1,69 @@
 ---
 name: db-change
-description: Use whenever a mudança envolve estrutura do banco Supabase do Portal DIVAT — tabela nova, coluna nova, policy/RLS, GRANT, Realtime, índice, staging do ETL, ou qualquer coisa que o front (app.js) precise ler de uma tabela nova ou alterada. Também acionar para "cadastro de linha nova tipo X", "quero um card novo que lê tabela Y", "preciso adicionar coluna Z". NÃO usar para ajuste isolado de CSS/texto/UI que não toca schema nem loaders de dado.
+description: Use para mudanças de schema, RLS/GRANT, Realtime, índices ou loaders que dependam de estrutura nova no Supabase do Portal DIVAT. Não usar para ajuste isolado de CSS/texto/UI.
 ---
 
 # Mudança estrutural no banco (Portal DIVAT)
 
-Pipeline de 4 etapas para qualquer mudança que toque **schema, RLS/GRANT, Realtime ou índices**
-do Supabase deste projeto. O objetivo é não perder nenhum dos passos documentados em
-`CLAUDE.md` (seção Supabase / Armadilhas) — que é exatamente onde os bugs desse tipo de mudança
-costumam aparecer, silenciosamente, semanas depois.
+Pipeline para mudanças de estrutura e permissões. Leia `CLAUDE.md`, `docs/schema.md`,
+`docs/seguranca.md` e `docs/backup.md` apenas nas partes relevantes à alteração.
+O alvo atualmente em uso é `gontnlfmothfglssbyyk`, oficial; não é banco descartável.
+Previews ainda usam esse mesmo projeto. Uma branch não autoriza experimentar DDL no banco.
 
-Para mudanças que **não** tocam schema/loaders (CSS, texto, UI pura), pule este pipeline e vá
-direto para implementar + `node tests/check.js` + `/code-review`.
+## Etapa 1 — Levantar pré-requisitos
 
-## Etapa 1 — Grill (perguntas antes de escrever qualquer SQL ou JS)
+Responda com o código e o catálogo disponíveis; peça informação ao dono apenas se ela faltar:
 
-Releia `CLAUDE.md` (seção "Supabase") e `docs/schema.md` e responda, para a mudança pedida:
+1. Qual projeto, schema e tabela serão alterados? O banco antigo foi apagado segundo o dono;
+   não executar migrations nele nem desligar a flag temporária sem configurar outro teste.
+2. O objeto é de consulta pública ou privado/staging? Objeto novo nasce fechado. As tabelas
+   públicas exigem PK adequada, RLS explícito e revokes na mesma migration. Conceda SELECT e
+   policy de SELECT a `anon` apenas se os dados forem públicos e necessários ao portal.
+   Não conceda a `authenticated` por padrão; o produto não usa sessões.
+3. Uma RPC nova é necessária? Prefira `SECURITY INVOKER`, `search_path` fixo e tipos explícitos;
+   remova EXECUTE implícito de `PUBLIC` e revise a allowlist antes de conceder EXECUTE a `anon`.
+   Diagnósticos permanecem em `audit`; helpers em `private`. Nunca abrir diagnóstico público.
+4. Quais loaders, filtros, joins e lookups mudam? Decida índices por consultas e evidência;
+   atualize `RT_TABLES`/`VIEW_TABLES` somente para objetos públicos que o portal consome.
+5. Existe staging correspondente? Não há rebuild automático de ETL. Preserve procedência e
+   mantenha cópias coerentes por operação explícita, sem presumir que um job fará isso depois.
+6. Existe backup fresco e recuperável antes de aplicar DDL/ACLs? A exportação REST não cobre
+   os schemas privados nem oferece snapshot consistente; siga o dump privado do runbook.
 
-1. **Tabela é nova ou é alteração de existente?**
-   - Nova → precisa de PK própria (surrogate `row_id` se for tabela grande com `id` repetido),
-     RLS ligado + policy `anon_read_*` (SELECT only) **e `GRANT SELECT ... TO anon, authenticated`
-     EXPLÍCITO**. Desde 27/07/2026 os default privileges são **deny** (achado SEC-01): tabela nova
-     **não** nasce mais legível. Esquecer o GRANT dá 401/404 no portal e parece bug de front.
-     Mesma regra para RPC nova: **`GRANT EXECUTE` explícito**, senão o `anon` não chama.
-   - Alteração → a coluna nova muda algum nome que o ETL escreve? (ver armadilha
-     `cod_origem`/`cod_municipio_origem` — nomes errados recriam colunas velhas.)
-2. **Essa tabela vai ser lida por algum card/view do `app.js`?**
-   - Se sim → precisa entrar em `RT_TABLES` **e** no `VIEW_TABLES` da(s) view(s) que a usam,
-     incluindo lookups indiretos (`getEmpresas`, `getIbge`, `getOrigem`, `getEvLookups`).
-   - Precisa de `alter publication supabase_realtime add table public.<tabela>;`.
-3. **Alguma coluna nova vai ser filtrada (`ilike`, `eq`, join) por um loader?**
-   - Se sim → precisa de índice (btree; `pg_trgm`+GIN se for `ilike`).
-4. **A query vai usar `limit` > 30000?**
-   - Se sim → precisa subir `pgrst.db_max_rows` no role `authenticator` e `NOTIFY pgrst,
-     'reload config'`.
-5. **Existe staging de ETL correspondente** (`evento_dados`/`evento_textos`,
-   `portaria_data`/`portaria_texto_teste`)?
-   - Se a correção é num dado já publicado, ela precisa ser replicada na staging (senão o
-     rebuild do ETL desfaz). Staging não recebe policy nem grant — isso é esperado.
-6. **Existe backup fresco antes de qualquer DROP/ALTER destrutivo?** (ver `docs/backup.md`).
+Não criar policies para eliminar INFO de staging/backup privado. Não abrir USAGE/SELECT de
+schemas privados a roles públicas. RLS não substitui revokes de TRUNCATE e outros privilégios.
 
-Não avance para a Etapa 2 sem ter resposta para as 6 perguntas.
+## Etapa 2 — Especificação curta
 
-## Etapa 2 — Spec
+Registre no chat ou na descrição da entrega: alvo, DDL, PK/FK, grants/policies estritamente
+necessários, índices, consumidores, Realtime, impacto nos dados e recuperação prevista.
+Versão e nome da migration devem corresponder ao histórico aplicado. Não versionar senhas.
 
-Escreva um mini-spec curto (pode ser só no chat, não precisa virar arquivo) cobrindo:
+Para leituras acima do teto atual, prefira paginação. Alterar o teto exige avaliar a carga,
+conciliar `pgrst.db_max_rows`, `SB_MAX_ROWS` e a documentação na mesma entrega, com backup antes
+da alteração administrativa. Não aumentar limites automaticamente por haver um `limit` maior.
 
-- DDL da tabela/coluna (nomes exatos, tipos, PK/FK).
-- Policies e grants exatos (`anon_read_<tabela>` SELECT-only — nunca `ALL USING(true)`).
-- Índice(s) necessários e seu tipo.
-- Entrada em `RT_TABLES` e em qual(is) `VIEW_TABLES[view]` a tabela entra.
-- Qual card/seção do `app.js` consome isso (ver tabela "Tabelas → onde aparecem" no
-  `CLAUDE.md`) — card novo ou existente?
-- Se afeta `docs/backup_schema.sql` (baseline versionada) ou `docs/schema.md` (mapa relacional).
+## Etapa 3 — Implementar e verificar em ordem
 
-## Etapa 3 — Tickets (ordem de execução)
+1. Prepare a migration versionada, sem executá-la no banco em uso. Verifique
+   `node scripts/check_migrations.mjs` e o diff de privilégios.
+2. Preserve backup e ensaie em projeto isolado. Se ele ainda não existe, conclua os arquivos
+   revisáveis e registre a dependência; não tratar preview do frontend como isolamento.
+3. Na aplicação, crie estrutura, RLS e revokes de forma atômica; publique somente os grants
+   indispensáveis. Índices e publicação Realtime acompanham os consumidores aprovados.
+4. Atualize loaders/cards, `RT_TABLES`, `VIEW_TABLES`, mapa em `docs/schema.md` e fatos vigentes
+   em `CLAUDE.md`. A baseline `docs/backup_schema.sql` é histórica, não dump atual.
+5. Rode o gate do repositório e as verificações vivas de grants, Realtime, deriva e qualidade
+   no alvo certo. Não ampliar baselines para esconder falhas e não apagar órfãos históricos.
+6. Abra a entrega em branch, valide preview e revise o diff antes de merge. Mudança na `main`
+   pode disparar deploy; confirme os pré-requisitos do banco antes de publicar código dependente.
 
-Quebre a spec nesta ordem — cada item é um passo verificável:
+Nunca executar um `pg_restore` completo junto da baseline histórica. Reconciliação de arquivos
+de migrations já aplicadas não significa executá-las novamente no banco oficial.
 
-1. [ ] Migration/DDL no Supabase (via painel/service role — dono do dado).
-2. [ ] Policy `anon_read_*` (SELECT only) + conferir RLS ligado.
-3. [ ] Índice(s).
-4. [ ] `alter publication supabase_realtime add table public.<tabela>;`
-5. [ ] `app.js`: loader/card + `RT_TABLES` + `VIEW_TABLES` da(s) view(s) + lookups indiretos.
-6. [ ] Atualizar `docs/backup_schema.sql` e `docs/schema.md` se a estrutura mudou.
-7. [ ] `node tests/check.js` (sintaxe, cópias `*.harness.js`, anti-drift, `<script>` inline).
-8. [ ] `scripts/check_realtime.mjs` (checagem viva do Realtime contra o banco).
-9. [ ] Push em branch (não `main`) → preview deploy → conferir manualmente no preview.
-10. [ ] `/code-review` antes do merge.
-11. [ ] Merge na `main` → bump do carimbo de versão (`#verTag`) se for algo que o usuário
-    precisa perceber.
+## Etapa 4 — Revisão e encerramento
 
-## Etapa 4 — Implement + Review
-
-Só depois dos tickets prontos, implemente e rode `/code-review` normalmente. Este pipeline não
-substitui o `/code-review` — ele garante que, quando o review acontecer, os passos de schema já
-estão todos cobertos (o review não vai pegar "esqueceu de adicionar em RT_TABLES", porque isso é
-uma decisão de infraestrutura, não um bug de código).
+A revisão registra comportamento resultante, testes realmente executados e dependências
+pendentes. Não afirmar backup ou restauração concluídos a partir de testes sintéticos.
+Uma operação no banco termina quando ACLs/dados/leituras foram verificados após sua aplicação;
+uma preparação no Git termina com arquivos revisáveis, sem confundir as duas entregas.
