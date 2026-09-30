@@ -33,8 +33,8 @@ ataques de escrita nem mudou ACLs. O estado observado foi:
 - Realtime publica as 15 tabelas consumidas pelo portal. Novas tabelas privadas não entram
   nessa publicação.
 
-Essa evidência demonstra as permissões observadas; não comprova MFA, configuração de signup,
-proteção de branch ou ausência de toda vulnerabilidade no código/histórico.
+Essa evidência demonstra as permissões observadas; não comprova MFA, configuração de signup
+ou ausência de toda vulnerabilidade no código/histórico. A proteção do Git foi conferida separadamente.
 
 ## 3. Modelo de ameaça e segredos
 
@@ -63,6 +63,13 @@ Ela não comprova a configuração de `gontnlfmothfglssbyyk`.
 
 ## 5. Conferências necessárias nos painéis
 
+Em 30/09/2026, a API confirmou a `main` protegida pelo ruleset ativo
+[Proteção da main](https://github.com/LucasMolinari9/LucasCTEC/rules/21211640): exige PR,
+bloqueia exclusão e force-push, exige resolução de discussões e oito checks obrigatórios
+com branch atualizada (`check`, `views`, `semgrep`, `migration-contract`, `seguranca`,
+`qualidade`, `realtime`, `deriva`). Não há atores com bypass; a conexão atual não pode ignorar
+as regras. O ruleset não exige aprovação humana. Secret scanning/push protection não foram conferidos.
+
 Estas verificações dependem de acesso ao painel; ainda não estão comprovadas nesta auditoria:
 
 1. Supabase, GitHub e Vercel: MFA, membros e permissões das integrações.
@@ -70,8 +77,7 @@ Estas verificações dependem de acesso ao painel; ainda não estão comprovadas
    desativados enquanto o produto não usa Auth. Zero registros em `auth.users` não prova isso.
 3. Rever os avisos de Auth e recursos disponíveis no plano. Não mudar de plano nem introduzir
    login somente para eliminar um aviso de Leaked Password Protection.
-4. GitHub: proteção da `main`, bloqueio de force-push, checks obrigatórios e disponibilidade
-   de secret scanning/push protection. A conexão atual não comprova essas configurações.
+4. GitHub: disponibilidade e ativação de secret scanning/push protection; preservar o ruleset acima.
 5. A preservação integral foi adiada pelo dono; sua cobertura permanece explícita em [backup.md](backup.md).
 
 ## 6. Rotina de verificação
@@ -83,8 +89,13 @@ configuradas no workflow. `Deriva` compara as RPCs usadas pelo frontend. Todos c
 
 Após importar dados ou alterar estrutura, execute esses workflows na aba Actions do site do
 GitHub e confirme jobs executados e verdes. Um job pulado não valida o banco. O workflow
-`Phase 3 database security` em PR verifica migrations; sua auditoria viva é manual e precisa
-ser executada após publicar a correção que compara Realtime por nomes.
+`Phase 3 database security` em PR verifica migrations sem credencial. A auditoria viva roda
+após push relevante na `main` e por despacho manual, comparando Realtime por nomes. Nunca roda
+em PR, e somente consulta os diagnósticos pelo auditor mínimo.
+
+O smoke de deploy verifica cabeçalhos, arquivos públicos/privados e URL/JWT `anon` do banco
+oficial, rejeitando o endpoint apagado na CSP. Sua aprovação não comprova isolamento: previews
+ainda compartilham o banco oficial e o script registra essa limitação.
 
 Trimestralmente, revise membros, configurações de Auth, advisors, artifacts e o exercício de
 restauração. Não reduza a frequência diária do gate de grants enquanto os defaults herdados
