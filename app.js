@@ -145,8 +145,8 @@ configurarLoadersQuadroEmpresas({ lineSearchRun, searchPanel });
    PostgREST. Inspirado no limite Domain→Infrastructure da Clean Architecture:
    a "camada de dado" fica isolada para poder mudar (outro backend, outro
    client) sem mexer em quem lê `isLinhaAtiva`/`isVigente` abaixo. --- */
-const SB_URL = 'https://lwzsxuaqqeoamukduhev.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3enN4dWFxcWVvYW11a2R1aGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTk4NjYsImV4cCI6MjA5NTQ5NTg2Nn0.90R-n9pu_gpDfmRr7O4DMAdjtIUkIDGyEKfG9zXXV1s';
+const SB_URL = 'https://gontnlfmothfglssbyyk.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvbnRubGZtb3RoZmdsc3NieXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTU0OTAsImV4cCI6MjEwMDgzMTQ5MH0.NMEaXXeWxI6A50KuA1euHpSH3Mi53CXU71N16zrjhH4';
 
 /* --- Seleção de ambiente (produção × teste) ---
    As duas constantes ACIMA são de produção e devem permanecer literais, uma por linha, com
