@@ -16,6 +16,7 @@ const TODAS = [
   'evento_textos', 'evento_empresa_teste', 'evento_linha_teste', 'codempresa_teste',
   'portaria_teste', 'portaria_data', 'portaria_texto_teste', 'municipio_teste',
   'localidades_teste', 'origem_teste',
+  'tarifa_promocional_exibicao_teste',
 ];
 const STAGING = new Set(['evento_dados', 'evento_textos', 'portaria_data', 'portaria_texto_teste']);
 const PUBLICAS = TODAS.filter(t => !STAGING.has(t));
@@ -23,7 +24,7 @@ const PUBLICAS = TODAS.filter(t => !STAGING.has(t));
 const sha = s => createHash('sha256').update(s).digest('hex');
 
 async function criarFixture(pasta, origem = 'https://origem.supabase.co') {
-  const manifest = { gerado_em: '2026-07-31T00:00:00.000Z', url: origem, modo: 'publico', tabelas: {}, total_linhas: 0 };
+  const manifest = { formato: 2, status: 'exported', gerado_em: '2026-07-31T00:00:00.000Z', url: origem, modo: 'publico', tabelas: {}, total_linhas: 0 };
   for (const tabela of PUBLICAS) {
     let linhas = [];
     if (tabela === 'tabela_vista_teste') linhas = [{ codlinha: '001', codempresa: 'A' }];

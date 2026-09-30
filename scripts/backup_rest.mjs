@@ -9,17 +9,17 @@
 // concorrente. Achado da revisão externa.)
 //
 // DOIS MODOS (decidido pela chave presente no ambiente):
-//   COMPLETO — SUPABASE_SECRET_KEY (preferida) ou SUPABASE_SERVICE_KEY legada: baixa TUDO,
-//              inclusive as 4 tabelas de staging do ETL. Rodar só na SUA máquina.
-//   PÚBLICO  — SUPABASE_PUBLISHABLE_KEY (preferida) ou SUPABASE_ANON_KEY legada: baixa as 14 tabelas públicas
+//   PUBLIC_SCHEMA — SUPABASE_SECRET_KEY ou SUPABASE_SERVICE_KEY: as 19 tabelas conhecidas
+//              de public, inclusive 4 de staging. Não exporta schemas privados nem estrutura.
+//   PÚBLICO  — SUPABASE_PUBLISHABLE_KEY (preferida) ou SUPABASE_ANON_KEY legada: baixa as 15 tabelas públicas
 //              do portal (sem staging). É o modo do workflow do GitHub Actions
 //              (.github/workflows/backup.yml) — a anon key é pública por design, então o
 //              artifact não expõe nada além do que a API pública já expõe.
 //
 // NÃO substitui o pg_dump (que também salva schema/policies/índices). Ver docs/backup.md.
 //
-// Uso (modo completo, na SUA máquina):
-//   SUPABASE_URL="https://lwzsxuaqqeoamukduhev.supabase.co" \
+// Uso (schema public, em ambiente privado):
+//   SUPABASE_URL="https://gontnlfmothfglssbyyk.supabase.co" \
 //   SUPABASE_SECRET_KEY="<sb_secret_...: Dashboard → Settings → API Keys>" \
 //   node scripts/backup_rest.mjs ./backup_$(date +%Y-%m-%d)
 //
@@ -27,7 +27,7 @@
 //
 // Requer apenas Node 18+ (usa fetch nativo). Nenhuma dependência.
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
@@ -42,7 +42,7 @@ const OUT = process.argv[2] || `./backup_${new Date().toISOString().slice(0, 10)
 const PAGE = 1000; // linhas por requisição (abaixo de qualquer max-rows do PostgREST)
 
 if (!URL || !KEY) {
-  console.error('Faltou SUPABASE_URL e/ou uma chave (SECRET/SERVICE para completo; PUBLISHABLE/ANON para público). Veja o cabeçalho do arquivo.');
+  console.error('Faltou SUPABASE_URL e/ou uma chave (SECRET/SERVICE para public com staging; PUBLISHABLE/ANON para público).');
   process.exit(1);
 }
 
@@ -53,6 +53,7 @@ const STAGING = new Set(['evento_dados', 'evento_textos', 'portaria_data', 'port
 const TABELAS = {
   tabela_vista_teste: 'codlinha,codempresa', // PK composta; ordenar pelas duas colunas (codlinha repete → offset instável)
   tarifa_atual_teste: 'ordem_importacao',
+  tarifa_promocional_exibicao_teste: 'codsecao',
   itinerario_teste: 'row_id',
   qh_teste: 'id',
   qh_intervalo_teste: 'row_id',
@@ -110,14 +111,16 @@ async function dumpTabela(tabela, pk) {
   for (;;) {
     const url = `${URL}/rest/v1/${tabela}?select=*&order=${cols.map(c => `${c}.asc`).join(',')}&limit=${PAGE}`
       + (ultimo ? filtroKeyset(cols, ultimo) : '');
-    const r = await fetch(url, { headers: ultimo ? headers : { ...headers, Prefer: 'count=exact' } });
-    if (!r.ok) throw new Error(`${tabela}: HTTP ${r.status} — ${await r.text()}`);
+    const r = await fetch(url, { headers: ultimo ? headers : { ...headers, Prefer: 'count=exact' }, signal: AbortSignal.timeout(30000) });
+    if (!r.ok) throw new Error(`${tabela}: HTTP ${r.status}`);
     if (esperado === null) {
       // Content-Range: "0-999/52146" — o que vem depois da barra é o total.
       const m = /\/(\d+)\s*$/.exec(r.headers.get('content-range') || '');
       if (m) esperado = Number(m[1]);
+      if (!Number.isSafeInteger(esperado)) throw new Error(`${tabela}: contagem exata ausente ou inválida; não aprovar exportação sem conferência`);
     }
     const page = await r.json();
+    if (!Array.isArray(page)) throw new Error(`${tabela}: resposta não é uma lista de registros`);
     linhas.push(...page);
     if (page.length < PAGE) break; // última página
     ultimo = page[page.length - 1];
@@ -125,7 +128,7 @@ async function dumpTabela(tabela, pk) {
 
   const arquivo = join(OUT, `${tabela}.ndjson`);
   const conteudo = linhas.map((x) => JSON.stringify(x)).join('\n') + (linhas.length ? '\n' : '');
-  await writeFile(arquivo, conteudo);
+  await writeFile(arquivo, conteudo, { mode: 0o600 });
 
   // SHA-256 do arquivo: detecta corrupção em trânsito e no armazenamento. NÃO prova consistência
   // lógica — um dump internamente incoerente tem hash tão válido quanto um bom. Está aqui para
@@ -135,10 +138,21 @@ async function dumpTabela(tabela, pk) {
 }
 
 async function main() {
-  await mkdir(OUT, { recursive: true });
+  const source = new globalThis.URL(URL);
+  const local = ['localhost', '127.0.0.1'].includes(source.hostname);
+  if ((source.protocol !== 'https:' && !(local && source.protocol === 'http:'))
+      || source.username || source.password || source.search || source.hash
+      || !['', '/'].includes(source.pathname)
+      || (!local && !/^[a-z0-9]+\.supabase\.co$/.test(source.hostname))) {
+    throw new Error('SUPABASE_URL deve ser um endpoint Supabase HTTPS sem credenciais nem parâmetros');
+  }
+  await mkdir(OUT, { recursive: true, mode: 0o700 });
+  if ((await readdir(OUT)).length) throw new Error('Destino contém arquivos; use uma pasta vazia para não misturar exportações');
   const alvo = Object.entries(TABELAS).filter(([t]) => !PUBLICO || !STAGING.has(t));
-  console.log(`Modo: ${PUBLICO ? 'PÚBLICO (publishable/anon — sem staging)' : 'COMPLETO (secret/service)'} — ${alvo.length} tabelas`);
-  const manifest = { formato: 1, gerado_em: new Date().toISOString(), url: URL, modo: PUBLICO ? 'publico' : 'completo', tabelas: {} };
+  console.log(`Modo: ${PUBLICO ? 'PÚBLICO (publishable/anon — sem staging)' : 'SCHEMA PUBLIC (secret/service — com staging)'} — ${alvo.length} tabelas`);
+  const manifest = { formato: 2, gerado_em: new Date().toISOString(), url: URL,
+    modo: PUBLICO ? 'publico' : 'public_schema', escopo: 'public', consistent_snapshot: false,
+    limitações: ['Somente dados das tabelas listadas de public; sem schemas privados ou estrutura.', 'Requisições REST não compartilham um snapshot transacional.'], tabelas: {} };
   let total = 0;
   const faltando = [], sobrando = [];
   for (const [tabela, pk] of alvo) {
@@ -155,7 +169,8 @@ async function main() {
     console.log(`${linhas} linhas${esperado !== null && linhas !== esperado ? ` (servidor: ${esperado})` : ''}`);
   }
   manifest.total_linhas = total;
-  await writeFile(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  manifest.status = faltando.length ? 'incomplete' : 'exported';
+  await writeFile(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 });
 
   if (sobrando.length) {
     console.log(`\n⚠ Mais linhas que a contagem inicial (provável escrita durante o dump) — não invalida:`);

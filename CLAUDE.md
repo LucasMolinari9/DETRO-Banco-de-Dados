@@ -415,18 +415,10 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    atualizam via detector de versão. Bumpe o carimbo se quiser confirmar a chegada.
 4. Mudanças de **dados** NÃO exigem deploy — o site lê o Supabase ao vivo.
 
-## Backup (leia antes de qualquer coisa destrutiva no banco)
-- Plano **Free (NANO)** — sem PITR automático (só no Pro). A rede de segurança tem 3 camadas
-  (runbook completo: **`docs/backup.md`**):
-  1. **Automática:** `.github/workflows/backup.yml` roda semanal (e sob demanda) o
-     `scripts/backup_rest.mjs` em **modo público** (anon JWT legada hoje; 14 tabelas públicas, sem staging);
-     artifact do Actions por 90 dias.
-  2. **Manual (completa):** `pg_dump` (padrão-ouro) ou `backup_rest.mjs` com secret/service key
-     (18 tabelas) ou 18 CSVs pelo Table Editor — sempre **FORA do git** (dados no repo =
-     vazamento; o git versiona só CÓDIGO).
-  3. **Estrutura:** `docs/backup_schema.sql` (versionado). Para NDJSON, o caminho inverso é
-     `scripts/restore_rest.mjs`, com dry-run padrão, confirmação do ref e destino vazio.
-- **Não rodar nada destrutivo (DROP/DELETE/TRUNCATE/REVOKE/migração) sem backup fresco.**
+## Backup
+- A rotina REST exporta 15 tabelas públicas (19 com staging), sem snapshot consistente e sem
+  schemas privados. Não chamá-la de backup completo. O dono adiou o dump nesta entrega.
+- Cobertura, recuperação parcial e pendências: [docs/backup.md](docs/backup.md).
 
 ## Armadilhas / observações
 - **CSS — dropdown da busca:** o dropdown é inserido **dentro de `.selector`**. A regra do botão

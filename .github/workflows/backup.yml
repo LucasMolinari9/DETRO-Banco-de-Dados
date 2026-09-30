@@ -1,13 +1,13 @@
 # Backup automático (dados) — roda scripts/backup_rest.mjs em MODO PÚBLICO.
 #
-# Usa a ANON KEY (a mesma pública que o site serve a todo visitante): baixa só as 14
+# Usa a ANON KEY (a mesma pública que o site serve a todo visitante): baixa só as 15
 # tabelas que a API pública já expõe. Nada de service key aqui — e a razão NÃO é a visibilidade
 # do repositório (ele é público desde 31/07/2026; ver docs/adr/0003-repositorio-publico.md, e
 # este comentário já trocou de premissa duas vezes por causa disso). A razão é que service key
 # em variável de workflow amplia a superfície sem necessidade: quem obtiver acesso ao Actions
 # passaria a ler as tabelas de staging. Vale igual em repo público e em repo privado — por isso
-# a conclusão sobreviveu às duas trocas. O dump completo (staging + schema) continua sendo a
-# rotina manual do dono — ver docs/backup.md.
+# a conclusão sobreviveu às duas trocas. O dump dos schemas de aplicação usa o workflow
+# separado backup-private.yml, criptografado — ver docs/backup.md.
 #
 # O dump fica como artifact do Actions por 90 dias (aba Actions → run → Artifacts).
 #
@@ -26,9 +26,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: public-backup
+  cancel-in-progress: false
+
 jobs:
   backup:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -38,9 +43,9 @@ jobs:
           node-version: '20'
       - name: Dump NDJSON via REST (modo público)
         env:
-          SUPABASE_URL: https://lwzsxuaqqeoamukduhev.supabase.co
+          SUPABASE_URL: https://gontnlfmothfglssbyyk.supabase.co
           # anon JWT legada — pública por design (é a mesma embutida no app.js servido a todo visitante)
-          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3enN4dWFxcWVvYW11a2R1aGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTk4NjYsImV4cCI6MjA5NTQ5NTg2Nn0.90R-n9pu_gpDfmRr7O4DMAdjtIUkIDGyEKfG9zXXV1s
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvbnRubGZtb3RoZmdsc3NieXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTU0OTAsImV4cCI6MjEwMDgzMTQ5MH0.NMEaXXeWxI6A50KuA1euHpSH3Mi53CXU71N16zrjhH4
         run: node scripts/backup_rest.mjs ./backup_out
       - name: Publicar artifact (90 dias)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
