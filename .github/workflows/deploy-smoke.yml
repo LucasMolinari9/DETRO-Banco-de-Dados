@@ -1,6 +1,7 @@
 # Verifica o deploy real depois que a Vercel publica uma revisão.
 # Cobre a fronteira que os testes locais não enxergam: headers efetivamente servidos,
-# allowlist de arquivos e hostname de preview apontando para o Supabase de teste.
+# allowlist de arquivos e configuração do Supabase publicado. Previews ainda compartilham
+# o banco oficial enquanto o novo projeto de teste não for configurado.
 name: Deploy smoke
 
 on:
@@ -93,7 +94,7 @@ jobs:
       # runner (CWE-78 / yaml.github-actions.security.run-shell-injection). O Semgrep vendorizado
       # não pega este caso porque o padrão da regra cobre `github.*`/`inputs.*` diretos, não
       # `steps.*.outputs.*` — daí não ter aparecido no `./scripts/semgrep.sh`.
-      - name: Headers, allowlist e isolamento do Supabase
+      - name: Headers, allowlist e configuração do Supabase
         env:
           DEPLOY_URL_RESOLVIDA: ${{ steps.alvo.outputs.url }}
         run: node scripts/check_deploy.mjs "$DEPLOY_URL_RESOLVIDA" "$DEPLOY_ENVIRONMENT"
