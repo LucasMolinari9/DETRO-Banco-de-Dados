@@ -52,7 +52,7 @@ somente para marcar a etapa como concluída.
 | `check_data_quality.mjs` | `audit.divat_data_quality()` | semanal e manual em `DB checks` |
 | `check_realtime.mjs` | `audit.realtime_tables()` | semanal e manual em `DB checks` |
 | `check_deriva.mjs` | `audit.divat_api_shape()` | semanal e push/PR em `Deriva` |
-| `check_phase3_audit.mjs` | combinação dos diagnósticos e login | manual em `Phase 3 database security` |
+| `check_phase3_audit.mjs` | combinação dos diagnósticos e login | push relevante na `main` e manual em `Phase 3 database security` |
 
 O alvo de todos é o banco em uso. O nome TESTE no secret não cria isolamento. A checagem
 agregada compara os nomes de Realtime com `RT_TABLES`, sem fixar a contagem histórica de 14.

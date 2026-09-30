@@ -45,9 +45,10 @@ nem presumem isolamento de previews ou rebuild automático de ETL.
 
 ## Etapa 4 — Dependências de painel e novo teste
 
-Conferir MFA, membros, integrações, signup/anonymous sign-ins e proteção da `main` nos painéis,
-conforme [seguranca.md](../seguranca.md). Esses controles não foram comprovados pelo catálogo
-SQL; zero usuários não comprova signup fechado.
+A proteção da `main` foi comprovada pela API em 30/09/2026, com PR e checks obrigatórios,
+sem exclusão, force-push ou bypass; detalhes em [seguranca.md](../seguranca.md).
+Conferir MFA, membros, integrações, signup/anonymous sign-ins e secret scanning nos painéis.
+Esses controles não foram comprovados pelo catálogo SQL; zero usuários não comprova signup fechado.
 
 Criar/configurar outro projeto de teste e depois alterar `SB_TESTE_URL`/`SB_TESTE_KEY`, flag,
 CSP e MCP em conjunto. O novo ref e sua configuração ainda não estão definidos. Não inventar
