@@ -49,6 +49,7 @@ const COMPOSTA = Array.from({ length: 1500 }, (_, i) => ({
 let mentirContagem = 0;   // soma ao total anunciado no Content-Range
 let pedidos = [];
 let chaveOpacaCorreta = true;
+let omitirContagem = false;
 
 const srv = createServer((req, res) => {
   pedidos.push(req.url);
@@ -79,7 +80,7 @@ const srv = createServer((req, res) => {
   const limite = Number(u.searchParams.get('limit') || 1000);
   const pagina = restantes.slice(0, limite);
   const cab = { 'Content-Type': 'application/json' };
-  if (req.headers.prefer === 'count=exact') cab['Content-Range'] = `0-${pagina.length - 1}/${dados.length + mentirContagem}`;
+  if (req.headers.prefer === 'count=exact' && !omitirContagem) cab['Content-Range'] = `0-${pagina.length - 1}/${dados.length + mentirContagem}`;
   res.writeHead(200, cab);
   res.end(JSON.stringify(pagina));
 });
@@ -105,6 +106,8 @@ pedidos = [];
 let r = await rodar(dir);
 checar(r.code === 0, 'dump são termina com sucesso', `saiu ${r.code}\n${r.out}`);
 const man = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
+checar(man.formato === 2 && man.consistent_snapshot === false, 'manifest explicita exportação REST sem snapshot compartilhado');
+checar(!!man.tabelas.tarifa_promocional_exibicao_teste, 'exportação inclui a projeção pública de tarifas promocionais');
 checar(man.tabelas.itinerario_teste?.linhas === 2500, 'paginou as 2500 linhas (PK simples)', JSON.stringify(man.tabelas.itinerario_teste));
 checar(man.tabelas.tabela_vista_teste?.linhas === 1500, 'paginou as 1500 linhas (PK composta)', JSON.stringify(man.tabelas.tabela_vista_teste));
 checar(/^[0-9a-f]{64}$/.test(man.tabelas.itinerario_teste?.sha256 || ''), 'SHA-256 gravado no manifest');
@@ -133,7 +136,11 @@ r = await rodar(dir4);
 checar(r.code === 0, 'linha inserida durante o dump apenas AVISA', `saiu ${r.code}\n${r.out}`);
 checar(/não invalida/.test(r.out), 'e o aviso explica que não invalida');
 
+const dir5 = await mkdtemp(join(tmpdir(), 'divat-bk-'));
+omitirContagem = true;
+r = await rodar(dir5);
+checar(r.code === 1 && /contagem exata ausente/.test(r.out), 'contagem ausente aborta em vez de aprovar exportação sem conferência');
 srv.close();
-for (const d of [dir, dir2, dir3, dir4]) await rm(d, { recursive: true, force: true });
+for (const d of [dir, dir2, dir3, dir4, dir5]) await rm(d, { recursive: true, force: true });
 console.log(falhas ? `\n✗ ${falhas} caso(s) falharam` : '\n✓ bancada do backup: todos os casos passaram');
 process.exit(falhas ? 1 : 0);

@@ -7,9 +7,9 @@
 //   4. confere que TODAS as tabelas-alvo estão vazias antes do primeiro INSERT;
 //   5. restaura a tabela-pai antes da única filha com FK e confere a contagem final.
 //
-// O script não cria estrutura. Antes dele, execute docs/backup_schema.sql num projeto vazio e,
-// se o alvo pretendido for pós-Fase 3, aplique também as migrations versionadas. Veja
-// docs/backup.md.
+// O script não cria estrutura nem recupera schemas privados. A baseline histórica não contém
+// todo o estado atual: prepare a estrutura correspondente ao dump em destino isolado e confira
+// docs/backup.md antes de qualquer gravação.
 //
 // Validação local, sem rede e sem credencial:
 //   node scripts/restore_rest.mjs ./backup_AAAA-MM-DD
@@ -31,6 +31,7 @@ import { join, resolve } from 'node:path';
 const TODAS = [
   'tabela_vista_teste', // pai da única FK — precisa vir antes de tarifa_atual_teste
   'tarifa_atual_teste',
+  'tarifa_promocional_exibicao_teste',
   'itinerario_teste',
   'qh_teste',
   'qh_intervalo_teste',
@@ -107,9 +108,16 @@ async function carregarManifest(pasta) {
   if (!manifest || typeof manifest !== 'object' || !manifest.tabelas || typeof manifest.tabelas !== 'object') {
     throw new Error('manifest.json sem o objeto "tabelas"');
   }
-  if (!['publico', 'completo'].includes(manifest.modo)) throw new Error('manifest.json com "modo" inválido');
+  if (!['publico', 'public_schema', 'completo'].includes(manifest.modo)) throw new Error('manifest.json com "modo" inválido');
+  if (manifest.status === 'incomplete') throw new Error('manifest registra exportação incompleta; restauração recusada');
+  if (manifest.formato !== undefined && ![1, 2].includes(manifest.formato)) throw new Error('formato de manifest não suportado');
   const nomes = Object.keys(manifest.tabelas);
-  const esperado = manifest.modo === 'publico' ? PUBLICAS : TODAS;
+  // Backups antigos (formato 1 ou ausente) cobriam 14/18 tabelas. Mantém a validação desse
+  // conjunto histórico, sem fingir que ele contém a projeção promocional adicionada depois.
+  const atual = manifest.formato === 2;
+  const esperado = (manifest.modo === 'publico' ? PUBLICAS : TODAS)
+    .filter(t => atual || t !== 'tarifa_promocional_exibicao_teste');
+  if (!atual) console.warn('Backup legado: não inclui tarifa_promocional_exibicao_teste nem schemas privados.');
   const extras = nomes.filter(t => !PERMITIDAS.has(t));
   if (extras.length) throw new Error(`manifest contém tabela fora da allowlist: ${extras.join(', ')}`);
   if (!mesmoConjunto(nomes, esperado)) {
