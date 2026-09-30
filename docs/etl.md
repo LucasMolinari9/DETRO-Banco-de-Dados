@@ -13,8 +13,8 @@ arquivo).
 ## 1. O caminho do dado, de ponta a ponta
 
 ```
-banco do DETRO  ──exporta──▶  CSV  ──Table Editor──▶  Supabase (bd_teste)  ──lê ao vivo──▶  portal
-   (fonte)                                             lwzsxuaqqeoamukduhev
+banco do DETRO  ──exporta──▶  CSV  ──Table Editor──▶  Supabase (divat - TESTE)  ──lê ao vivo──▶  portal
+   (fonte)                                             gontnlfmothfglssbyyk
 ```
 
 1. A equipe atualiza o **banco do DETRO** — é ele a fonte da verdade, não o Supabase.
@@ -23,14 +23,14 @@ banco do DETRO  ──exporta──▶  CSV  ──Table Editor──▶  Supaba
 4. O portal **não precisa de deploy**: ele lê o Supabase ao vivo, e o Realtime atualiza a tela de
    quem estiver com o card aberto. Mudança de **dado** nunca exige publicar.
 
-Consequência prática: **o Supabase é uma cópia**. Se ele for perdido e o banco do DETRO estiver
-íntegro, o caminho de recuperação mais curto é reexportar e reimportar — não necessariamente o
-restore de [`backup.md`](backup.md). O restore continua sendo a rede de segurança para o caso
-inverso (dado que só existe no Supabase, ou perda com o DETRO indisponível).
+O DETRO é a fonte dos cadastros, mas reexportar não recupera sozinho as conciliações, auditorias,
+procedência e snapshots privados criados no Supabase. Preserve o dump completo descrito em
+[backup.md](backup.md), além das fontes originais. O projeto em uso foi adotado como oficial;
+a produção antiga foi apagada segundo o dono.
 
 ### Integração incremental de 29/09/2026
 
-O alvo conferido desta carga é TESTE (`gontnlfmothfglssbyyk`), usando a exportação Access
+O alvo conferido desta carga é o banco atualmente em uso (`gontnlfmothfglssbyyk`), usando a exportação Access
 de 28/09/2026. O pacote original permanece em `stage_access_20260928` e os complementos
 em `divat_integracao`, com chaves, hashes e valores brutos. Ver [schema.md](schema.md).
 
@@ -141,23 +141,17 @@ lê essas tabelas.
 node scripts/check_data_quality.mjs
 ```
 
-Precisa de rede até o Supabase (não roda do ambiente do Claude; roda na máquina do dono e semanal
-no workflow `db-checks.yml`) e de `SUPABASE_TEST_AUDIT_DATABASE_URL` no ambiente. Chama
+Pelo celular, execute o workflow `DB checks` na aba Actions do site do GitHub após a carga.
+O comando também pode rodar em ambiente com `psql`, rede até o Supabase e
+`SUPABASE_TEST_AUDIT_DATABASE_URL`. Chama
 `audit.divat_data_quality()` pelo login mínimo `divat_auditor_ci`
 (`scripts/lib/audit-database.mjs`) e mede a integridade *hub-and-spoke* — quase tudo se liga a
 `tabela_vista_teste` por `codlinha`, mas a única foreign key real é a `fk_tarifa_linha`; os outros
 joins são convenção, feitos no JavaScript, e o Postgres não os garante.
 
-> ⚠️ **Este passo agora audita o projeto de TESTE (`gontnlfmothfglssbyyk`), não mais o de
-> PRODUÇÃO (`lwzsxuaqqeoamukduhev`, o "Supabase (bd_teste)" do diagrama do §1) — o mesmo onde o
-> ETL de verdade importa.** A migração dos quatro gates para o auditor PostgreSQL (ver
-> docs/seguranca.md § 10) trocou de banco porque só o projeto de teste tem o schema `audit`
-> aplicado hoje. **Consequência prática: rodar este comando depois de um import real não
-> confere mais os dados que você acabou de importar** — confere o projeto de teste, que pode
-> estar desatualizado ou ter dados diferentes. Até a Fase 3 chegar a produção (pré-requisito
-> documentado em `docs/planos/fase-3-hardening-moderado.md`), a conferência pós-ETL de produção
-> volta a depender de consulta manual pelo SQL Editor do painel — não há checagem automática
-> equivalente por enquanto.
+> O auditor está fixado em `gontnlfmothfglssbyyk`, o mesmo banco atualmente usado pelo portal.
+> O nome TEST no secret é histórico e não significa isolamento. O banco antigo foi apagado;
+> não copie instruções antigas de importar ou promover DDL para `lwzsxuaqqeoamukduhev`.
 
 **Quando um filho aponta para `codlinha` que não existe no pai, o portal não avisa: a tela
 simplesmente aparece vazia, sem erro.** É por isso que este passo existe.
@@ -170,7 +164,7 @@ Duas coisas ao ler a saída:
 - **Consertou dado? Rode `--atualizar-baseline`**, senão o gate segue frouxo com dívida que já não
   existe. Para ver o estado cru, sem baseline nenhum: `--sem-baseline`.
 
-> 🚫 **NÃO apague os filhos órfãos de `evento_teste`.** As 7 órfãs de lá são atos reais de
+> 🚫 **NÃO apague os filhos órfãos de `evento_teste`.** As órfãs históricas de lá incluem atos reais de
 > **1974–1996**, da época do DTC/RJ, de linhas anteriores ao cadastro atual — arquivo institucional
 > insubstituível. Linha extinta **não some** do cadastro (o hub tem a coluna `cancelado`, com 500
 > linhas marcadas assim), então órfã em `evento_teste` não é rastro de exclusão: é história mais
@@ -178,8 +172,8 @@ Duas coisas ao ler a saída:
 
 Se o import mexeu em **Realtime** (tabela nova entrando na publicação) ou em **schema**, rode também
 `node scripts/check_realtime.mjs` e `node scripts/check_deriva.mjs` — mesma ressalva do aviso
-acima: os dois também migraram para o auditor PostgreSQL e hoje auditam o projeto de TESTE, não
-produção. Mudança estrutural de banco não é ETL: passa pela skill `db-change` e por uma migração
+acima: os dois usam o auditor PostgreSQL do banco em uso. Mudança estrutural de banco passa
+pela skill `db-change` e por uma migração
 em `supabase/migrations/`.
 
 ---

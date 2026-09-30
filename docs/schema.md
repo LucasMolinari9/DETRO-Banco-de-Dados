@@ -1,4 +1,4 @@
-# Relação das Tabelas — Portal DIVAT (`bd_teste`)
+# Relação das Tabelas — Portal DIVAT (`divat - TESTE`)
 
 Mapa **relacional** do banco: como as tabelas se ligam entre si, por qual chave, e se a
 ligação é uma **FK real** (garantida pelo banco) ou uma **convenção** (join feito no código
@@ -18,6 +18,10 @@ do `app.js`, sem constraint no banco). Complementa a tabela *"Tabelas → onde a
 > inexistente. Quando isso acontece o portal **não avisa: a tela sai vazia, sem erro.** O alarme
 > é `scripts/check_data_quality.mjs` (semanal, workflow `db-checks.yml`) e a dívida atual está
 > registrada em `scripts/data_quality_baseline.json`. Ver `CLAUDE.md` §2e.
+
+O alvo vigente é `gontnlfmothfglssbyyk`, banco oficial em uso; a antiga produção
+foi apagada segundo o dono. Dados privados de importação e conciliação integram o estado a
+preservar. A recuperação integral segue [backup.md](backup.md), por dump consistente.
 
 ## Visão geral — hub-and-spoke
 
@@ -174,33 +178,21 @@ ao auditor produzir o mesmo retrato público sem receber `SELECT` direto nas tab
 | `divat_data_quality()` | `audit` | credencial PostgreSQL auditora |
 | `divat_api_shape()` | `audit` | credencial PostgreSQL auditora |
 | `divat_security_shape()` | `audit` | credencial PostgreSQL auditora |
+| `divat_security_digest()` | `audit` | credencial PostgreSQL auditora |
 | `realtime_tables()` | `audit` | credencial PostgreSQL auditora |
 | `f_unaccent(text)` | `private` | implementação de `divat_busca_logradouro` |
 | `fn_vigor_auto()` | `private` | trigger `trg_vigor_auto` |
 
-> ⚠️ **`rls_auto_enable()` voltou a existir no projeto de TESTE — medido em 22/08/2026, ao
-> configurar o auditor da migração dos gates.** Entre 09/08/2026 (quando esta nota media "não
-> existe função com esse nome" e nenhum event trigger tinha relação com RLS) e agora, alguém
-> instalou a função de verdade **e** um event trigger `ensure_rls` (`ddl_command_end`) que a
-> chama. A origem não foi determinada — não há PR, migração versionada ou registro neste repo que
-> a explique. O corpo (lido antes de aceitar): `SECURITY DEFINER`, roda em toda `CREATE TABLE` de
-> `public` e faz só `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` — nunca concede privilégio,
-> nunca lê dado. Exceção aceita e justificada em `docs/seguranca.md` § 9.4.
->
-> **Isso NÃO dispensa a disciplina.** `docs/seguranca.md` § 9.4 é explícito: **produção não foi
-> conferida** — não presuma que ela tem o mesmo trigger. **Tabela pública nova continua exigindo
-> `ENABLE ROW LEVEL SECURITY` explícito**, além do `GRANT SELECT` e da policy que o default-deny
-> já exige (skill `db-change`) — este trigger é rede de segurança medida só em teste, não
-> contrato a que o restante da documentação (nem produção) deva se ajustar.
+> `public.rls_auto_enable()` e o event trigger `ensure_rls` ligam RLS em tabelas públicas
+> novas. A exceção `SECURITY DEFINER` foi revisada; não concede acesso público e não substitui
+> RLS explícito/revokes nas migrations. Regras em [seguranca.md](seguranca.md), § 9.4.
 
-**Trigger:** `trg_vigor_auto` em `portaria_teste` — `BEFORE INSERT OR UPDATE`, executa
-`private.fn_vigor_auto()`. É o **único** trigger do projeto: os demais que aparecem no catálogo
-(`tr_check_filters` em `realtime.subscription`, e os de `storage.buckets`/`storage.objects`) são
-infraestrutura do Supabase e não entram na baseline.
+**Trigger de produto:** `trg_vigor_auto` em `portaria_teste`, `BEFORE INSERT OR UPDATE`, executa
+`private.fn_vigor_auto()`. Os triggers de `realtime` e `storage` são gerenciados pela plataforma.
 
-Produção permanece no layout anterior até uma promoção separadamente autorizada. O DDL de
-recuperação em `docs/backup_schema.sql` continua sendo a baseline pré-Fase 3; numa reconstrução,
-aplique as migrações versionadas depois dele. A reconciliação integral pertence à Fase 2.
+`docs/backup_schema.sql` é uma baseline histórica pré-Fase 3, insuficiente para reconstruir o
+estado atual. Não executá-la junto de um `pg_restore` completo. Migrations posteriores têm
+pré-requisitos de schema e dados; copiar seu histórico não recupera snapshots antigos.
 
 ## Contagem de linhas (referência — snapshot 15/07/2026)
 
@@ -269,7 +261,7 @@ inclusões promove automaticamente status, tarifa ou itinerário.
 
 ## Histórico aplicado no projeto em uso
 
-O projeto `gontnlfmothfglssbyyk` tem 17 migrations registradas. Seus identificadores foram
+O projeto `gontnlfmothfglssbyyk` tem 18 migrations registradas. Seus identificadores foram
 conciliados com `supabase/migrations/` a partir do histórico aplicado, sem reexecutar SQL nem
 alterar `supabase_migrations`. Os reparos de funções usam as versões aplicadas
 `20260822144625` e `20260822151732`; as versões antigas dos nomes de arquivo não eram outras
@@ -284,3 +276,7 @@ A conciliação do histórico não torna a baseline antiga `docs/backup_schema.s
 completo do banco atual. Migrations dependem de estrutura prévia, e dados importados fora do
 DDL dependem do dump. Recuperação exige o procedimento de `docs/backup.md` e restauração
 isolada; não usar `db push` no banco ativo para reaplicar o histórico recuperado.
+
+A migration `20260930172521_fecha_authenticated_tarifa_promocional.sql` fecha o SELECT de
+`authenticated` e restringe a policy promocional a `anon`, sem alterar registros. O histórico
+conciliado contém 18 entradas; não reexecutar a migration já aplicada no banco oficial.

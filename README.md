@@ -115,12 +115,13 @@ segurança/grants) e
 | [`docs/seguranca.md`](docs/seguranca.md) | Manual de segurança do dono: modelo de ameaça, checklist e resposta a incidente. |
 | [`docs/backup.md`](docs/backup.md) | Runbook de backup e recuperação do banco. |
 | [`docs/etl.md`](docs/etl.md) | Como o dono alimenta o banco: DETRO → CSV → Table Editor, encoding obrigatório, staging e o que rodar depois. |
-| [`docs/backup_schema.sql`](docs/backup_schema.sql) | Script que recria a estrutura do banco (tabelas, PK/FK, índices, RLS, grants, funções). |
+| [`docs/backup_schema.sql`](docs/backup_schema.sql) | Baseline histórica pré-Fase 3; não reconstrói o estado atual nem acompanha um restore completo. |
 | [`docs/semgrep.md`](docs/semgrep.md) | Runbook da análise estática e como escrever regra nova. |
 | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Cronologia do projeto — como se chegou ao estado atual. |
 | [`docs/adr/`](docs/adr/) | Decisões arquiteturais registradas (ADRs). |
 | [`docs/agents/`](docs/agents/) | Convenções para agentes: issue tracker, labels de triagem, docs de domínio. |
 | [`docs/planos/`](docs/planos/) | **Planos vivos** — somente trabalho ainda aberto; decisões permanentes migram para a fonte especializada e planos encerrados permanecem recuperáveis pelo Git. |
 
-> **Dados nunca vão para o git.** Os backups de dados (CSVs) ficam fora do repositório — ver
-> `docs/backup.md`. O `.gitignore` barra `*.csv` como rede de segurança.
+> **Dados e segredos nunca vão para o Git.** A exportação REST é parcial; uma cópia completa
+> dos schemas privados continua pendente e deve ficar em armazenamento privado.
+> Procedimento e preservação das cópias em [`docs/backup.md`](docs/backup.md).
