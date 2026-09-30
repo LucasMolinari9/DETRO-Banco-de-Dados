@@ -132,10 +132,10 @@ exibe e **atualiza ao vivo** (Realtime).
 ## Supabase
 - Banco em uso: **`divat - TESTE`** · ref **`gontnlfmothfglssbyyk`** · região sa-east-1.
   A produção antiga (`lwzsxuaqqeoamukduhev`) foi apagada segundo o dono. O banco em uso foi
-  adotado como oficial; a separação de previews segue o [plano](docs/planos/fase-3-promocao-producao.md).
+  adotado como oficial. Em 30/09/2026 o dono determinou manter banco único, sem criar outro projeto.
 - **Seleção atual:** `SITE_USA_TESTE_TEMPORARIAMENTE = true` leva todos os hosts ao banco em uso,
   inclusive previews. `SB_URL`/`SB_KEY` também apontam ao banco em uso. Não há isolamento de
-  dados hoje; a flag só sai ao configurar outro teste. Ver [ADR-0002](docs/adr/0002-ambiente-de-teste-isolado.md).
+  dados hoje; preserve a configuração vigente. Ver [ADR-0002](docs/adr/0002-ambiente-de-teste-isolado.md).
 - `SB_TESTE_URL`/`SB_TESTE_KEY` fornecem o endpoint ativo e a **JWT `anon` legada** pública.
   Preserve os literais `SB_URL`/`SB_KEY` usados pelos testes. Migrar para `sb_publishable_...`
   exige atualizar REST, Realtime e testes em conjunto; segredo administrativo nunca vai no front.
@@ -266,8 +266,8 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
   só serve arquivos estáticos.
 - **Config:** `vercel.json` autoriza REST e Realtime de `gontnlfmothfglssbyyk`; o endpoint apagado
   foi removido da CSP e do MCP. `app.js` mantém uma allowlist de **3 domínios** em `HOSTS_PROD`,
-  mas a flag temporária ainda leva todos os hosts ao banco oficial. Novo projeto de teste é
-  necessário para separar previews. Ao alterar essa matriz, rode `tests/environment.test.js`
+  mas a flag temporária ainda leva todos os hosts ao banco oficial. O dono decidiu não criar
+  outro banco nesta entrega. Ao alterar essa matriz, rode `tests/environment.test.js`
   e o smoke real; ver [ADR-0002](docs/adr/0002-ambiente-de-teste-isolado.md).
 - **Auto-deploy:** conectar o repo GitHub `LucasMolinari9/LucasCTEC` ao projeto Vercel pelo
   **dashboard** (OAuth, ação única) → **push na `main` = deploy** (e **push em branch = preview

@@ -1,53 +1,45 @@
-# Ambiente de teste deve usar um projeto Supabase isolado
+# Ambientes do portal e banco único
 
-## Decisão
+## Decisão vigente
 
-Uma branch separa código, não dados. Previews e desenvolvimento devem consultar um projeto
-Supabase distinto do oficial. `HOSTS_PROD` é a allowlist dos três domínios oficiais; hosts
-não reconhecidos devem escolher o projeto de teste e falhar fechado se faltar configuração.
+Em 30/09/2026, o dono determinou não criar outro banco. O projeto
+`divat - TESTE` (`gontnlfmothfglssbyyk`) permanece como único banco Supabase oficial nesta entrega.
+Não provisionar outro projeto ou branch do banco como parte do plano de correção.
 
-## Estado vigente
+Uma branch do Git separa código, não dados. Produção, previews e desenvolvimento compartilham
+esse projeto; previews não são ambientes isolados para experimentar com dados ou ACLs.
 
-A decisão foi adotada em 28/07/2026, mas está **temporariamente sem isolamento de dados**.
-O dono informou que a produção `lwzsxuaqqeoamukduhev` foi apagada. O projeto
-`divat - TESTE` (`gontnlfmothfglssbyyk`) já serve o portal e foi adotado como oficial.
+## Histórico e estado atual
 
-No código atual, `SITE_USA_TESTE_TEMPORARIAMENTE = true` direciona todos os hosts a
-`SB_TESTE_URL`/`SB_TESTE_KEY`. Isso inclui os três domínios de `HOSTS_PROD`, previews e
-`localhost`. O comportamento é uma exceção temporária, não isolamento comprovado.
+A decisão de 28/07/2026 previa projetos distintos para teste e produção. O dono informou que
+a antiga produção `lwzsxuaqqeoamukduhev` foi apagada, e adotou o projeto em uso como oficial.
+A orientação de criar novo teste foi retirada do escopo por sua decisão de 30/09/2026.
 
-`SB_URL`/`SB_KEY` agora apontam ao banco em uso, e o endpoint apagado foi removido de
-`vercel.json` e `.mcp.json`. O MCP principal permanece somente leitura. Não desligar a flag
-isoladamente: `SB_TESTE_URL` ainda é o mesmo projeto, e isso não criaria isolamento.
+`SITE_USA_TESTE_TEMPORARIAMENTE = true` direciona todos os hosts a `SB_TESTE_URL`/
+`SB_TESTE_KEY`: os três domínios de `HOSTS_PROD`, previews e `localhost` usam o mesmo banco.
+`SB_URL`/`SB_KEY` também apontam a ele. Preservar essa configuração; desligar a flag
+isoladamente não criaria isolamento de dados.
 
-## Implantação da separação
-
-Os critérios e a ordem de execução pertencem ao
-[plano de promoção](../planos/fase-3-promocao-producao.md). O dono adiou o backup nesta entrega.
-Configure um novo projeto de teste, com credenciais próprias; altere o endpoint de teste,
-a flag, CSP e MCP na mesma entrega. O oficial permanece em `gontnlfmothfglssbyyk`.
-
-`HOSTS_PROD` deve continuar contendo todos os domínios oficiais cadastrados na Vercel.
-O domínio novo entra nessa lista junto da mudança de configuração. Testes offline de seleção
-de ambiente e smoke real devem provar os alvos de produção, preview e localhost.
+O endpoint apagado foi removido de `vercel.json` e `.mcp.json`. O MCP principal permanece
+somente leitura. A ordem das correções e as conferências de contas pertencem ao
+[plano de promoção](../planos/fase-3-promocao-producao.md). O backup foi adiado pelo dono.
 
 ## Contratos de automação
 
 Preserve as declarações literais `const SB_URL`, `const SB_KEY`, `const SB_TESTE_URL` e
 `const SB_TESTE_KEY` usadas pelos testes. Qualquer alteração de formato exige adaptar os
-consumidores na mesma entrega.
+consumidores na mesma entrega. `HOSTS_PROD` mantém os domínios oficiais cadastrados na Vercel.
 
-Os quatro gates vivos usam `scripts/lib/audit-database.mjs` e o login `divat_auditor_ci`,
+Os gates vivos usam `scripts/lib/audit-database.mjs` e o login mínimo `divat_auditor_ci`,
 fixados em `gontnlfmothfglssbyyk`. O nome histórico do secret
-`SUPABASE_TEST_AUDIT_DATABASE_URL` não comprova separação. Criar outro projeto não muda esse
-alvo automaticamente; revisar também a configuração da auditoria do novo teste.
+`SUPABASE_TEST_AUDIT_DATABASE_URL` não comprova separação. Não trocar esse alvo por causa do nome.
+Testes de seleção de ambiente e smoke real devem confirmar a configuração compartilhada,
+sem declarar isolamento a partir de um deploy aprovado.
 
 ## Consequências
 
-Até a separação, não tratar previews como ambiente seguro para experimentar com dados ou ACLs.
-Schemas privados de importação/backup continuam privados; não publicá-los ao copiar o projeto.
-A nova instância deve receber apenas dados e configurações adequados ao teste.
-
-A decisão termina de ser implantada quando os três caminhos forem verificados contra projetos
-distintos e os gates cobrirem o banco oficial. A evidência de preview de julho é histórica e
-não comprova a matriz temporária atual.
+Não criar novo banco nem inventar endpoint de teste. Experimentos que alterem dados, estrutura
+ou permissões exigem avaliação do impacto no banco oficial e autorização correspondente.
+Schemas privados de importação e histórico permanecem privados; a decisão de banco único não
+amplia grants nem autoriza apagá-los. A evidência de preview de julho é histórica e não
+comprova separação na configuração atual.

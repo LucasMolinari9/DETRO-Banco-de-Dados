@@ -43,19 +43,20 @@ dump nesta entrega. Documentação, processo e código ficam em entregas separad
 **Saída:** configuração ativa e instruções não descrevem a produção apagada como disponível
 nem presumem isolamento de previews ou rebuild automático de ETL.
 
-## Etapa 4 — Dependências de painel e novo teste
+## Etapa 4 — Conferências de contas e manutenção do banco único
 
 A proteção da `main` foi comprovada pela API em 30/09/2026, com PR e checks obrigatórios,
 sem exclusão, force-push ou bypass; detalhes em [seguranca.md](../seguranca.md).
 Conferir MFA, membros, integrações, signup/anonymous sign-ins e secret scanning nos painéis.
 Esses controles não foram comprovados pelo catálogo SQL; zero usuários não comprova signup fechado.
 
-Criar/configurar outro projeto de teste e depois alterar `SB_TESTE_URL`/`SB_TESTE_KEY`, flag,
-CSP e MCP em conjunto. O novo ref e sua configuração ainda não estão definidos. Não inventar
-endpoint nem usar credencial administrativa do oficial no navegador. Validar produção,
-preview e localhost com projetos distintos, por teste offline e smoke real.
+Em 30/09/2026, o dono determinou não criar outro banco. Não provisionar projeto Supabase
+adicional ou branch do banco nesta entrega. Preservar `SB_URL`/`SB_KEY`, `SB_TESTE_URL`/
+`SB_TESTE_KEY`, flag, CSP e MCP no projeto oficial vigente, com chave pública `anon` no navegador.
+Produção, previews e localhost continuam compartilhando dados; validar essa configuração
+pelos testes offline e pelo smoke real, sem afirmar isolamento.
 
-**Saída:** previews isolados, contas conferidas e banco oficial documentado. A cópia integral
+**Saída:** banco único documentado, configuração verificada e conferências de contas registradas. A cópia integral
 e o exercício de recuperação permanecem trabalho adiado, sem declaração falsa de conclusão.
 
 ## Critério de interrupção
