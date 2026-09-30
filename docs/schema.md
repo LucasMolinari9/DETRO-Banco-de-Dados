@@ -266,3 +266,21 @@ Os eventos 21639–21641 foram inseridos em `evento_dados`, `evento_textos` e `e
 resultando em 625 observações não vazias. Os campos originais do evento 19953, inclusive
 sua data de publicação divergente, ficaram preservados para conferência. Nenhuma dessas
 inclusões promove automaticamente status, tarifa ou itinerário.
+
+## Histórico aplicado no projeto em uso
+
+O projeto `gontnlfmothfglssbyyk` tem 17 migrations registradas. Seus identificadores foram
+conciliados com `supabase/migrations/` a partir do histórico aplicado, sem reexecutar SQL nem
+alterar `supabase_migrations`. Os reparos de funções usam as versões aplicadas
+`20260822144625` e `20260822151732`; as versões antigas dos nomes de arquivo não eram outras
+migrations pendentes. As diferenças de texto desses dois reparos eram comentários e whitespace.
+
+O histórico inclui schemas privados de importação, histórico cadastral, tarifas de origem,
+views de conferência, `REPLICA IDENTITY FULL` e a guarda de fechamento do digest. A migration
+`backup_test_before_access_import_20260924` cria cópias com `CREATE TABLE ... AS TABLE`: ela
+registra uma operação passada; reaplicá-la não recupera os dados daquele snapshot.
+
+A conciliação do histórico não torna a baseline antiga `docs/backup_schema.sql` um retrato
+completo do banco atual. Migrations dependem de estrutura prévia, e dados importados fora do
+DDL dependem do dump. Recuperação exige o procedimento de `docs/backup.md` e restauração
+isolada; não usar `db push` no banco ativo para reaplicar o histórico recuperado.

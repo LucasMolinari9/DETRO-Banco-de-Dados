@@ -1,0 +1,1 @@
+alter table divat_historico.linha_estado_cadastral add column codlinha_origem_access text;

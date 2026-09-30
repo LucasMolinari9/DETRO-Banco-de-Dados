@@ -51,7 +51,7 @@ na última linha. **A causa do drift não foi determinada** — não há gatilho
 script neste repo que explique o reaparecimento; fica registrado como fato observado, não
 escondido atrás de um reparo silencioso.
 
-Reparado pela migração `20260822144441_phase3_repara_funcoes_publicas.sql` (idempotente, com o
+Reparado pela migração `20260822144625_phase3_repara_funcoes_publicas.sql` (idempotente, com o
 mesmo padrão de asserts + prova viva da migração original, reconfirmando as quatro funções, não
 só as duas que regrediram) — verificado independentemente depois de aplicar: as quatro em
 `audit`, `anon`/`authenticated` sem `EXECUTE`, `divat_auditor_ci` com `EXECUTE` nas quatro.
