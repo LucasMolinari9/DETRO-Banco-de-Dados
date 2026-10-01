@@ -2,7 +2,7 @@
 // Audita gontnlfmothfglssbyyk, banco atualmente em uso e candidato a oficial.
 // O nome histórico SUPABASE_TEST_AUDIT_DATABASE_URL continua sendo o contrato do CI.
 // A produção anterior foi apagada segundo o dono; não existe fallback para ela.
-// O auditor mínimo acessa apenas os diagnósticos de audit, sem SELECT direto.
+// O auditor mínimo acessa diagnósticos de audit e metadados de pg_catalog, sem SELECT de dados.
 // A senha fica no ambiente do processo filho, nunca em argv ou mensagens de erro.
 //
 // Contrato de segurança (cada regra tem teste em tests/audit-database.test.mjs):

@@ -53,6 +53,9 @@ on:
       - scripts/check_grants.mjs
       - scripts/security_baseline.json
       - scripts/lib/audit-database.mjs
+      - scripts/lib/security-policies.mjs
+      - tests/check_grants.rig.mjs
+      - tests/security-policies.test.mjs
       - docs/backup_schema.sql
       - docs/schema.md
       - .github/workflows/db-checks.yml
@@ -135,5 +138,7 @@ jobs:
           node-version: '20'
       - name: Instalar cliente PostgreSQL
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Regressao do gate (permissoes perigosas e bloqueios RESTRICTIVE)
+        run: node tests/check_grants.rig.mjs
       - name: RLS, grants, policies e privilegios de funcao
         run: node scripts/check_grants.mjs
