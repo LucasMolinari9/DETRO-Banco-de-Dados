@@ -38,6 +38,40 @@ São arquivos estáticos — basta servir a pasta:
 python3 -m http.server 8000   # depois abra http://localhost:8000
 ```
 
+## Graft — contexto para agentes
+
+O [Graft](https://github.com/trailhq/Graft) cria um mapa estrutural do código para
+Codex e outros agentes. A versão fica fixada em [`scripts/graft.sh`](scripts/graft.sh),
+usada também pelo MCP de projeto em `.codex/config.toml` e `.mcp.json`.
+Requer **Node.js 22+ e npm**; o primeiro uso baixa a ferramenta do registro npm.
+O portal continua estático e sem `package.json` ou build.
+
+**Pelo celular:** no site do GitHub, abra **Actions → Graft — mapa do código →
+Run workflow**. Abra a execução para ler o resumo; o artefato `graft-lucasctec`
+contém relatórios e `index.html`, a visualização interativa para abrir após extrair
+o ZIP. O workflow também confere a integração quando ela muda em uma PR.
+
+**Para agentes com terminal**, a partir do repositório:
+
+```bash
+bash scripts/graft.sh build
+bash scripts/graft.sh map
+bash scripts/graft.sh ask "loadTarifas sbFetch" --source
+bash scripts/graft.sh skeleton src/domain/core.mjs
+bash scripts/graft.sh callers sbFetch
+```
+
+[`AGENTS.md`](AGENTS.md) orienta o Codex a usar o mapa. Clientes com suporte a
+MCP local carregam as ferramentas ao reiniciar a sessão num projeto confiável;
+o launcher prepara o grafo na primeira inicialização. Outros ambientes usam a CLI.
+
+O modo padrão é **local, estrutural e sem chave de IA**. A telemetria está
+desativada pelo launcher. `graft/`, `.graft/` e `graft-report/` são caches/relatórios
+ignorados pelo Git e excluídos do deploy pela allowlist vigente. Os arquivos `.mjs`
+entram no grafo; HTML, CSS, SQL, docs, diretórios ocultos e `vendor/` ficam fora.
+As fontes canônicas de contexto e os testes continuam necessários. O modo `--deep`
+usa um provedor de IA e não faz parte desta configuração.
+
 ## Testes (gate de pré-publicação)
 
 A lógica pura do `app.js` tem testes em [`tests/`](tests/) (Node puro, sem dependências).
@@ -102,7 +136,7 @@ segurança/grants) e
 | `supabase/migrations/` | Migrações de schema versionadas (ver skill `db-change`). |
 | `CLAUDE.md` | Contexto detalhado do projeto para sessões de IA (mapa do código, banco, armadilhas). |
 | `CONTEXT.md` | Glossário do domínio (termos do cadastro de linhas). |
-| `.github/workflows/` | Os 10 workflows de automação e CI (ver a tabela de testes acima). |
+| `.github/workflows/` | Os 11 workflows de automação e CI (ver a tabela de testes e a seção Graft acima). |
 
 ### Documentação (`docs/`)
 

@@ -9,3 +9,9 @@ auth = "oauth"
 [mcp_servers.supabase-teste]
 url = "https://mcp.supabase.com/mcp?project_ref=gontnlfmothfglssbyyk&read_only=true&features=docs,database,debugging,development"
 auth = "oauth"
+
+# Contexto estrutural local. O launcher fixa a versão e prepara o grafo na primeira sessão.
+[mcp_servers.graft]
+command = "bash"
+args = ["scripts/graft.sh", "mcp"]
+startup_timeout_sec = 180
