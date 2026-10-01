@@ -1,0 +1,71 @@
+# Mapa estrutural sob demanda para o dono que opera pelo celular.
+# Em PR, valida somente mudanças na integração. Não integra o gate offline,
+# não exige segredos e não modifica o repositório nem o banco.
+name: Graft — mapa do código
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'AGENTS.md'
+      - '.codex/config.toml'
+      - '.mcp.json'
+      - '.gitignore'
+      - 'scripts/graft.sh'
+      - '.github/workflows/graft.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: graft-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mapa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Gerar grafo estrutural
+        run: bash scripts/graft.sh build
+      - name: Conferir cobertura de JavaScript e módulos ES
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const graph = JSON.parse(readFileSync('graft/.graph/wiring.json', 'utf8'));
+          const paths = new Set(graph.nodes.map(node => node.path));
+          for (const file of ['app.js', 'src/domain/core.mjs', 'src/data/rest.mjs', 'tests/sbFetch.test.js']) {
+            assert(paths.has(file), `Graft não indexou ${file}`);
+          }
+          assert(![...paths].some(file => file.startsWith('vendor/')), 'Código vendorado entrou no grafo');
+          console.log(`${paths.size} arquivos, ${graph.nodes.length} nós, ${graph.edges.length} arestas`);
+          NODE
+          bash scripts/graft.sh check
+      - name: Gerar relatórios e visualização
+        run: |
+          mkdir -p graft-report
+          bash scripts/graft.sh map > graft-report/mapa.txt
+          bash scripts/graft.sh ask 'loadTarifas sbFetch' --source > graft-report/consulta.txt
+          bash scripts/graft.sh skeleton src/domain/core.mjs > graft-report/core.txt
+          bash scripts/graft.sh viz --export graft-report --title 'LucasCTEC — mapa do código'
+          {
+            echo '## Mapa estrutural do LucasCTEC'
+            echo 'Relatórios e visualização HTML disponíveis no artefato graft-lucasctec.'
+            echo '```text'
+            cat graft-report/mapa.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Salvar relatórios
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: graft-lucasctec
+          path: graft-report/
+          if-no-files-found: error
+          retention-days: 7

@@ -45,6 +45,7 @@ await mkdir(`${RAIZ}/scripts/lib`, { recursive: true });
 await mkdir(`${RAIZ}/bin`, { recursive: true });
 await copyFile(`${REAL}/scripts/check_grants.mjs`, `${RAIZ}/scripts/check_grants.mjs`);
 await copyFile(`${REAL}/scripts/lib/audit-database.mjs`, `${RAIZ}/scripts/lib/audit-database.mjs`);
+await copyFile(`${REAL}/scripts/lib/security-policies.mjs`, `${RAIZ}/scripts/lib/security-policies.mjs`);
 
 // psql falso: sempre devolve o conteúdo do arquivo RESPOSTA (já preparado como a linha de JSON
 // que audit-database.mjs espera) e sai 0. Sem SQL de verdade, sem rede.
@@ -67,6 +68,10 @@ const sao = () => ({
       anon: { select: false, insert: false, update: false, delete: false, truncate: false, maintain: false },
       authenticated: { select: false, insert: false, update: false, delete: false, truncate: false, maintain: false },
       policies: [] },
+  ],
+  policy_details: [
+    { tabela: 'tabela_vista_teste', nome: 'anon_read_tabela_vista', cmd: 'r',
+      permissive: true, qual: 'true', with_check: null },
   ],
   funcoes: [
     { assinatura: 'divat_api_shape()', security_definer: false, search_path_fixo: true,
@@ -106,14 +111,40 @@ function rodar(extraArgs = []) {
 }
 
 const casos = [];
-const caso = (nome, mutar, esperado) => casos.push({ nome, mutar, esperado });
+const caso = (nome, mutar, esperado, mensagem) => casos.push({ nome, mutar, esperado, mensagem });
+
+function adicionarPolicy(f, cmd, extra = {}) {
+  const policy = {
+    tabela: f.tabelas[0].nome, nome: `divat_block_client_${cmd}`, cmd,
+    permissive: false, qual: cmd === 'a' ? null : 'false', with_check: cmd === 'd' ? null : 'false',
+    ...extra,
+  };
+  f.tabelas[0].policies.push({ nome: policy.nome, cmd });
+  f.policy_details.push(policy);
+  return f;
+}
 
 caso('estado são (só a exceção conhecida)', f => f, 0);
 caso('RLS desligada', f => { f.tabelas[0].rls = false; return f; }, 1);
 caso('grant de INSERT para anon', f => { f.tabelas[0].anon.insert = true; return f; }, 1);
 caso('grant de DELETE para authenticated', f => { f.tabelas[0].authenticated.delete = true; return f; }, 1);
 caso('MAINTAIN escondido no ACL', f => { f.tabelas[0].anon.maintain = true; return f; }, 1);
-caso('policy de escrita', f => { f.tabelas[0].policies.push({ nome: 'x', cmd: 'w' }); return f; }, 1);
+caso('policy que permite escrita', f => adicionarPolicy(f, 'w', { permissive: true, qual: 'true', with_check: 'true' }), 1, '[policy_escrita]');
+for (const cmd of ['a', 'w', 'd', '*']) {
+  caso(`bloqueio RESTRICTIVE/FALSE (${cmd})`, f => adicionarPolicy(f, cmd), 0);
+}
+caso('nome de bloqueio com condições permissivas', f => adicionarPolicy(f, 'w', { qual: 'true', with_check: 'true' }), 1, '[policy_escrita]');
+caso('PERMISSIVE/FALSE permanece achado', f => adicionarPolicy(f, 'w', { permissive: true }), 1, '[policy_escrita]');
+caso('UPDATE com bloqueio parcial', f => adicionarPolicy(f, 'w', { with_check: null }), 1, '[policy_escrita]');
+caso('grant de INSERT continua proibido com bloqueio RESTRICTIVE', f => {
+  adicionarPolicy(f, 'a'); f.tabelas[0].anon.insert = true; return f;
+}, 1, '[grant_escrita]');
+caso('TRUNCATE continua proibido com bloqueio ALL', f => {
+  adicionarPolicy(f, '*'); f.tabelas[0].authenticated.truncate = true; return f;
+}, 1, '[grant_escrita]');
+caso('metadados ausentes nunca recebem exceção', f => { delete f.policy_details; return f; }, 1, 'Catálogo de policies ausente');
+caso('catálogo incompleto aborta', f => { f.policy_details = []; return f; }, 1, 'divergem');
+caso('lista de policies ausente aborta', f => { delete f.tabelas[0].policies; return f; }, 1, 'Lista de policies ausente');
 caso('função executável por PUBLIC', f => { f.funcoes[0].public_execute = true; return f; }, 1);
 caso('função SECURITY DEFINER', f => { f.funcoes[0].security_definer = true; return f; }, 1);
 caso('função sem search_path fixo', f => { f.funcoes[0].search_path_fixo = false; return f; }, 1);
@@ -134,7 +165,7 @@ let falhas = 0;
 for (const c of casos) {
   await writeFile(RESPOSTA, JSON.stringify(c.mutar(sao())));
   const { code, out } = await rodar();
-  const ok = code === c.esperado;
+  const ok = code === c.esperado && (!c.mensagem || out.includes(c.mensagem));
   if (!ok) falhas++;
   console.log(`${ok ? '  ✓' : '  ✗'} ${c.nome} → saiu ${code}, esperado ${c.esperado}`);
   if (!ok) console.log(out.split('\n').map(l => '      ' + l).join('\n'));

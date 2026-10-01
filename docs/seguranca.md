@@ -22,7 +22,8 @@ ataques de escrita nem mudou ACLs. O estado observado foi:
 
 - 19 tabelas em `public`, todas com RLS; 15 legíveis por `anon`, quatro stagings fechadas.
 - Nenhum grant de escrita em tabelas/colunas ou sequências para `anon`/`authenticated`, nem
-  policies de escrita no schema público.
+  policies que autorizem escrita no schema público. Policies RESTRICTIVE com FALSE explícito
+  bloqueiam escrita e são preservadas pelo gate.
 - `authenticated` não tem SELECT de tabela pública nem EXECUTE de função pública. A exceção
   da projeção de tarifas foi fechada em `20260930172521`; a policy agora permite somente `anon`.
 - As duas RPCs de produto, `divat_busca_logradouro(text,integer)` e
@@ -151,7 +152,11 @@ Previews não são ambientes isolados para experimentar com dados ou ACLs.
 
 O owner das funções diagnósticas, `divat_audit_owner`, é `NOLOGIN`, sem poderes administrativos,
 e herda somente `anon`. O papel `divat_auditor` executa os diagnósticos de `audit`, sem SELECT
-direto. O login externo `divat_auditor_ci` pertence apenas a esse papel.
+direto de dados. O login externo `divat_auditor_ci` pertence apenas a esse papel. O gate de grants
+complementa o diagnóstico com `pg_policy`, `pg_class` e `pg_namespace`, já legíveis pelo auditor,
+na mesma consulta somente leitura. Confere cobertura exata; metadados ausentes ou divergentes
+abortam a auditoria. Só aceita policies de escrita RESTRICTIVE com FALSE explícito nas condições
+exigidas pelo comando. Grants de escrita continuam proibidos, inclusive com essas policies.
 
 Os validadores exigem login e projeto exatos, senha não vazia e TLS; não imprimem URL, senha
 ou stderr do cliente. Consulte [hardening moderado](planos/fase-3-hardening-moderado.md) para

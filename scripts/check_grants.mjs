@@ -40,7 +40,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { carregarConfiguracaoAuditora, executarFuncaoJson, AuditDatabaseError } from './lib/audit-database.mjs';
+import { carregarConfiguracaoAuditora, auditarJson, AuditDatabaseError } from './lib/audit-database.mjs';
+import { SECURITY_SHAPE_SQL, indexarPolicies, detalhePolicy, bloqueiaEscrita } from './lib/security-policies.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = join(ROOT, 'scripts', 'security_baseline.json');
@@ -52,7 +53,7 @@ const atualizar = args.has('--atualizar-baseline');
 let forma;
 try {
   const config = carregarConfiguracaoAuditora();
-  forma = executarFuncaoJson(config, 'divat_security_shape');
+  forma = auditarJson(config, SECURITY_SHAPE_SQL);
 } catch (e) {
   if (!(e instanceof AuditDatabaseError)) throw e;
   console.error(e.message);
@@ -94,6 +95,14 @@ for (const [campo, oQue] of Object.entries(MINIMO)) {
 // Regras. Cada uma vira um achado {tipo, alvo, detalhe, severidade}.
 // A chave (tipo + alvo) é o que o baseline indexa.
 // ---------------------------------------------------------------------------------------------
+let policies;
+try {
+  policies = indexarPolicies(forma);
+} catch (e) {
+  console.error(`${e.message} Abortando em vez de assumir segurança.`);
+  process.exit(1);
+}
+
 const ESCRITA = ['insert', 'update', 'delete', 'truncate'];
 const achados = [];
 const add = (tipo, alvo, detalhe, severidade = 'erro') => achados.push({ tipo, alvo, detalhe, severidade });
@@ -112,9 +121,11 @@ for (const t of forma.tabelas) {
     if (p.maintain) add('grant_maintain', `${t.nome}:${papel}`, `${papel} tem MAINTAIN em ${t.nome}`);
   }
 
-  for (const pol of t.policies || []) {
-    // polcmd: r=SELECT, a=INSERT, w=UPDATE, d=DELETE, *=ALL. O portal é só-leitura: só `r` passa.
-    if (pol.cmd !== 'r') {
+  for (const pol of t.policies) {
+    // polcmd: r=SELECT, a=INSERT, w=UPDATE, d=DELETE, *=ALL.
+    // RESTRICTIVE/FALSE proíbe escrita. Grants continuam verificados independentemente,
+    // inclusive TRUNCATE, que RLS não protege.
+    if (pol.cmd !== 'r' && !bloqueiaEscrita(detalhePolicy(policies, t.nome, pol.nome))) {
       add('policy_escrita', `${t.nome}:${pol.nome}`, `policy ${pol.nome} em ${t.nome} é '${pol.cmd}', não SELECT`);
     }
   }

@@ -3,6 +3,10 @@
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=gontnlfmothfglssbyyk&read_only=true&features=docs,database,debugging,development"
+    },
+    "graft": {
+      "command": "bash",
+      "args": ["scripts/graft.sh", "mcp"]
     }
   }
 }
