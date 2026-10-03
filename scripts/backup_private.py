@@ -19,8 +19,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 PROJECT_REF = "gontnlfmothfglssbyyk"
 REQUIRED_SCHEMAS = {
     "public", "divat_integracao", "divat_historico", "stage_access_20260928",
-    "codex_backup_20260924", "bkp_divat_teste_20260928_1944",
-    "codex_import_20260924", "audit", "private",
+    "audit", "private",
 }
 TABLES_SQL = """
 select n.nspname, c.relname from pg_class c

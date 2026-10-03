@@ -399,9 +399,24 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    atualizam via detector de versão. Bumpe o carimbo se quiser confirmar a chegada.
 4. Mudanças de **dados** NÃO exigem deploy — o site lê o Supabase ao vivo.
 
+## Recuperação e limpeza conferidas em 03/10/2026
+- Recuperados do snapshot público de 28/09: 52.385 itinerários, 9.553 intervalos e 25.748
+  partidas que já estavam ausentes. Conteúdo e leitura `anon` conferidos. Access bruto
+  preservado, sem promover suas diferenças; `observacao`/`bairro` de itinerários permanecem nulos.
+- Removidos somente `codex_backup_20260924`, `bkp_divat_teste_20260928_1944` e
+  `codex_import_20260924`, após checagem sem dependências externas. Banco: 438.037.651 bytes
+  (417,7 MiB), 21 migrations aplicadas. Não reaplicar as migrations de recuperação/limpeza.
+- Permanecem `public`, `divat_integracao`, `divat_historico`, `audit`, `private` e
+  `stage_access_20260928`, inclusive a FK dos textos memo para os registros Access.
+  As contagens das 19 tabelas públicas e das 16 privadas preservadas foram conferidas;
+  as 15 tabelas públicas continuam legíveis por `anon`, com RLS/grants/Realtime preservados.
+
 ## Backup
 - A rotina REST exporta 15 tabelas públicas (19 com staging), sem snapshot consistente e sem
-  schemas privados. Não chamá-la de backup completo. O dono adiou o dump nesta entrega.
+  schemas privados. Não chamá-la de backup completo. O dono cancelou a execução do dump
+  em 03/10/2026 e autorizou a limpeza acima sem novo backup externo.
+- `backup-private.yml` continua disponível para dump integral criptografado e ensaio de
+  restauração. Nesta operação não houve run desse workflow nem entrega de artifact/chave.
 - Cobertura, recuperação parcial e pendências: [docs/backup.md](docs/backup.md).
 
 ## Armadilhas / observações

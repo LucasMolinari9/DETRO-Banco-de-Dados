@@ -234,6 +234,26 @@ não as continha. Não houve integração de alterações do Access bruto nesta 
 | `tarifa_atual_teste` | 3.497 |
 | `tarifa_promocional_exibicao_teste` | 1.000 |
 
+## Limpeza dos schemas antigos — 03/10/2026
+
+A migration `20261003205009_drop_verified_legacy_duplicate_schemas.sql` removeu somente
+`codex_backup_20260924`, `bkp_divat_teste_20260928_1944` e `codex_import_20260924`.
+Antes da aplicação e dentro da migration foram verificadas dependências transitivas em
+`pg_depend`, views/regras/FKs, corpos/configurações de funções, publicações e cron.
+Nenhuma referência externa foi encontrada; `cron.job` não existia. A migration aborta com
+`RAISE EXCEPTION` caso alguma dessas condições mude, e limita espera por locks e execução.
+
+Após a recuperação, o banco tinha **642.444.435 bytes**; após a limpeza, **438.037.651 bytes**
+(612,7 → 417,7 MiB; redução de 194,9 MiB). Os três schemas estão ausentes. As 19 tabelas
+públicas conservaram suas contagens, as 15 leituras `anon` foram conferidas e o Realtime
+permanece com as mesmas tabelas. RLS continua nas 19, sem escrita pública nem SELECT de
+`authenticated`. As 16 tabelas de integração/histórico/Access preservaram suas contagens.
+
+Permanecem `public`, `divat_integracao`, `divat_historico`, `audit`, `private` e
+`stage_access_20260928`, além dos schemas gerenciados pelo Supabase. A FK de
+`divat_integracao.memo_texto_origem` para `stage_access_20260928.source_record` permanece.
+O dono autorizou essa operação sem executar o novo backup externo; isso não comprova DR.
+
 ## Integração incremental do Access — 29/09/2026
 
 No projeto TESTE (`gontnlfmothfglssbyyk`), a exportação de 28/09/2026 está preservada
@@ -289,7 +309,7 @@ inclusões promove automaticamente status, tarifa ou itinerário.
 
 ## Histórico aplicado no projeto em uso
 
-O projeto `gontnlfmothfglssbyyk` tem 20 migrations registradas, conferidas em 03/10/2026.
+O projeto `gontnlfmothfglssbyyk` tem 21 migrations registradas, conferidas em 03/10/2026.
 Seus identificadores foram
 conciliados com `supabase/migrations/` a partir do histórico aplicado, sem reexecutar SQL nem
 alterar `supabase_migrations`. Os reparos de funções usam as versões aplicadas
@@ -309,4 +329,5 @@ isolada; não usar `db push` no banco ativo para reaplicar o histórico recupera
 A migration `20260930172521_fecha_authenticated_tarifa_promocional.sql` fecha o SELECT de
 `authenticated` e restringe a policy promocional a `anon`, sem alterar registros. O histórico
 daquela conciliação continha 18 entradas. Depois foram aplicadas a guarda de segurança
-`20260930213009` e a recuperação `20261003115732`; não reexecutar migrations já aplicadas.
+`20260930213009`, a recuperação `20261003115732` e a limpeza `20261003205009`;
+não reexecutar migrations já aplicadas.

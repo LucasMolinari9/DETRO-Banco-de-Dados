@@ -4,6 +4,20 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 03/10/2026 — remoção dos três schemas antigos
+
+- Aplicada `20261003205009_drop_verified_legacy_duplicate_schemas.sql`, somente com os
+  três DROP autorizados: `codex_backup_20260924`, `bkp_divat_teste_20260928_1944` e
+  `codex_import_20260924`. Verificação prévia e guarda transacional não encontraram dependências
+  externas em pg_depend, views/regras/FKs, funções/configurações, publicações ou cron.
+- Banco passou de 642.444.435 para 438.037.651 bytes (redução de 194,9 MiB). Os três schemas
+  estão ausentes; as 19 contagens públicas e as 16 privadas preservadas não mudaram.
+- Leitura como `anon` conferida nas 15 tabelas, RLS nas 19 e publicação Realtime preservados,
+  sem escrita pública nem SELECT para `authenticated`. FK dos textos memo para o Access intacta.
+- Runbook e contexto registram a decisão do dono de dispensar o backup nesta operação.
+  O workflow integral continua disponível e deixa de exigir os três schemas removidos;
+  seu dump continua sem filtros. Nenhum backup externo novo foi executado.
+
 ## 03/10/2026 — recuperação de itinerários e horários vazios
 
 - Antes de qualquer alteração, três tabelas já estavam vazias em leituras administrativas

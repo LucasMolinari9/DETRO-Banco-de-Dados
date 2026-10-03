@@ -3,10 +3,18 @@
 ## Estado vigente
 
 O banco em uso é `divat - TESTE` (`gontnlfmothfglssbyyk`), agora adotado como oficial.
-Segundo o dono, a antiga produção `lwzsxuaqqeoamukduhev` foi apagada. Em 03/10/2026 foi
-solicitado backup integral antes da remoção de três schemas antigos. O novo workflow está
-descrito no Caminho A; sua existência não comprova um backup executado. Até registrar aqui
-um run verde e a confirmação de guarda externa, dump e recuperação continuam pendentes.
+Segundo o dono, a antiga produção `lwzsxuaqqeoamukduhev` foi apagada. Em 03/10/2026 o dono
+cancelou a execução do novo backup externo e autorizou remover os três schemas antigos.
+Antes da limpeza, foram recuperadas três tabelas públicas já vazias: 52.385 itinerários,
+9.553 intervalos e 25.748 partidas do snapshot público de 28/09. Conteúdo e leitura `anon`
+foram conferidos. Depois foram removidos somente `codex_backup_20260924`,
+`bkp_divat_teste_20260928_1944` e `codex_import_20260924`, sem dependências externas.
+O banco ficou com 438.037.651 bytes (417,7 MiB), com contagens públicas e privadas preservadas.
+
+O workflow integral permanece descrito no Caminho A. Não houve run, artifact criptografado
+ou chave privada entregue nesta operação. Sua existência e a recuperação parcial acima
+não comprovam um dump integral, ensaio completo de restauração ou guarda fora do GitHub.
+Até registrar um run verde e a confirmação de guarda externa, essas etapas continuam pendentes.
 RTO/RPO permanecem sem medição. Não criar outro projeto Supabase.
 
 A rotina existente de Actions é uma **exportação parcial de public**, sem snapshot consistente.
@@ -68,8 +76,10 @@ com **retention-days: 30**. Nenhuma conexão/credencial é escrita no manifest o
 
 Pelo celular, o dono abre o link da execução verde, desce até **Artifacts**, toca no artifact
 e baixa o ZIP. Guarda esse ZIP e a chave privada no **Google Drive**, em pasta privada.
-O agente só avança para remover `codex_backup_20260924`, `bkp_divat_teste_20260928_1944` e
-`codex_import_20260924` após a confirmação explícita dessa guarda fora do GitHub.
+Para futuras limpezas, a guarda externa deve ser confirmada antes de remover cópias locais.
+A remoção dos três schemas em 03/10/2026 foi uma exceção expressamente autorizada pelo dono,
+que dispensou o backup. O workflow não exige que schemas já removidos existam; continua
+exportando o banco inteiro sem filtros e exigindo os schemas ativos de produto/procedência.
 `stage_access_20260928` permanece: há FK de `divat_integracao.memo_texto_origem` para ele.
 
 ### Descriptografar e restaurar (o agente executa)
@@ -100,7 +110,7 @@ o banco PostgreSQL, não arquivos externos de Storage, Edge Functions ou configu
 ## Recuperação parcial e baseline histórica
 
 `docs/backup_schema.sql` é anterior à Fase 3 e às cargas privadas recentes. Não reconstrói o
-estado atual nem recupera snapshots históricos de dados. O histórico de 18 migrations está
+estado atual nem recupera snapshots históricos de dados. O histórico de 21 migrations está
 em [schema.md](schema.md); não reaplicá-las sobre o banco em uso.
 
 Qualquer exercício de reconstrução será feito em PostgreSQL local/descartável, sem sobrepor o banco

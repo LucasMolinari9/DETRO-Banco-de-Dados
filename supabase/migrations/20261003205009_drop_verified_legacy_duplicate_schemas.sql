@@ -104,3 +104,4 @@ and (object_schema is null or object_schema not in(select nspname from targets))
   DROP SCHEMA codex_import_20260924 CASCADE;
 END
 $cleanup$;
+

@@ -8,6 +8,16 @@
 [`backup.md`](backup.md) (**nada destrutivo sem backup fresco** — vale para cada passo deste
 arquivo).
 
+Em 03/10/2026, o dono dispensou o novo backup externo para remover somente três schemas antigos.
+Antes disso, a migration `20261003115732_recover_empty_itinerary_and_timetables.sql` recuperou
+as tabelas públicas vazias a partir do último snapshot público: 52.385 itinerários, 9.553 intervalos
+e 25.748 partidas. Conteúdo e leitura `anon` foram conferidos, sem promover as diferenças do
+Access bruto. Depois, `20261003205009_drop_verified_legacy_duplicate_schemas.sql` removeu
+`codex_backup_20260924`, `bkp_divat_teste_20260928_1944` e `codex_import_20260924`, com guardas
+de dependências. Esses schemas não são mais fontes para importação ou recuperação.
+`stage_access_20260928`, `divat_integracao` e `divat_historico` permanecem, com suas contagens
+preservadas e a FK de `memo_texto_origem` para `source_record` intacta. Nenhum rebuild foi criado.
+
 ---
 
 ## 1. O caminho do dado, de ponta a ponta
