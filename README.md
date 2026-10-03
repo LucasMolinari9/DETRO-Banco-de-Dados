@@ -136,7 +136,7 @@ segurança/grants) e
 | `supabase/migrations/` | Migrações de schema versionadas (ver skill `db-change`). |
 | `CLAUDE.md` | Contexto detalhado do projeto para sessões de IA (mapa do código, banco, armadilhas). |
 | `CONTEXT.md` | Glossário do domínio (termos do cadastro de linhas). |
-| `.github/workflows/` | Os 11 workflows de automação e CI (ver a tabela de testes e a seção Graft acima). |
+| `.github/workflows/` | Os 12 workflows de automação e CI (ver a tabela de testes e a seção Graft acima). |
 
 ### Documentação (`docs/`)
 

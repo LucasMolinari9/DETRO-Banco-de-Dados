@@ -6,8 +6,9 @@
 # este comentário já trocou de premissa duas vezes por causa disso). A razão é que service key
 # em variável de workflow amplia a superfície sem necessidade: quem obtiver acesso ao Actions
 # passaria a ler as tabelas de staging. Vale igual em repo público e em repo privado — por isso
-# a conclusão sobreviveu às duas trocas. O dump dos schemas de aplicação usa o workflow
-# separado backup-private.yml, criptografado — ver docs/backup.md.
+# a conclusão sobreviveu às duas trocas. O dump do banco INTEIRO usa backup-private.yml,
+# somente manual, com restauração/conferência de todas as tabelas e artifact age por 30 dias
+# (SUPABASE_BACKUP_DATABASE_URL + BACKUP_AGE_PUBLIC_KEY obrigatórios) — ver docs/backup.md.
 #
 # O dump fica como artifact do Actions por 90 dias (aba Actions → run → Artifacts).
 #

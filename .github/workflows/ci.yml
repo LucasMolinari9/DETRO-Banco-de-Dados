@@ -45,6 +45,8 @@ jobs:
           node-version: '20'
       - name: Gate de pré-publicação (sintaxe + anti-drift + testes)
         run: node tests/check.js
+      - name: Guardas offline do backup integral (contagens e sigilo)
+        run: python3 -m unittest discover -s tests -p 'backup_private_test.py'
       # NÃO declare `NO_PROXY` e `no_proxy` como duas chaves deste `env:`. O YAML aceita (são
       # chaves distintas) e o PyYAML também, mas o validador do GitHub trata nome de variável
       # de ambiente como CASE-INSENSITIVE e rejeita o par como duplicado. Workflow rejeitado
