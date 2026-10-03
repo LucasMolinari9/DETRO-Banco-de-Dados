@@ -4,6 +4,20 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 03/10/2026 — recuperação de itinerários e horários vazios
+
+- Antes de qualquer alteração, três tabelas já estavam vazias em leituras administrativas
+  sem RLS e em leitura `anon`. O dono autorizou sua recuperação.
+- Aplicada `20261003115732_recover_empty_itinerary_and_timetables.sql`: 52.385 itinerários,
+  9.553 intervalos e 25.748 partidas do snapshot público de 28/09, com os mesmos `row_id`.
+- Contagens e conteúdo por `EXCEPT ALL` conferidos nos dois sentidos, sequências reiniciadas
+  de forma transacional e leitura `anon` das 15 tabelas aprovada. As outras 16 tabelas públicas
+  mantiveram suas contagens. Colunas, grants, RLS e Realtime não foram alterados.
+- O Access bruto permanece preservado. Suas diferenças não foram promovidas durante a
+  recuperação; `observacao` e `bairro` do itinerário permanecem nulos porque faltam no snapshot.
+- O dono cancelou a execução do backup integral e autorizou a limpeza dos três schemas antigos.
+  Esta recuperação não apaga schemas nem comprova a existência de backup externo.
+
 ## 03/10/2026 — workflow de backup integral criptografado
 
 - Criado `backup-private.yml`, somente manual, com cliente PostgreSQL 17, dump custom do

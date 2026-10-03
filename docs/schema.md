@@ -206,6 +206,34 @@ pré-requisitos de schema e dados; copiar seu histórico não recupera snapshots
 | `codempresa_teste` | 133 | | `municipio_teste` | 92 |
 | `evento_linha_teste` | 82 | | `evento_empresa_teste` | 51 |
 
+## Recuperação conferida — 03/10/2026
+
+Antes desta operação, leituras como `postgres` (sem RLS) e como `anon` confirmaram três
+tabelas vazias. A migration `20261003115732_recover_empty_itinerary_and_timetables.sql`
+restaurou o snapshot público de 28/09 de `bkp_divat_teste_20260928_1944`, preservando
+`row_id` e reiniciando suas sequências. `EXCEPT ALL` nos dois sentidos confirmou conteúdo
+idêntico, inclusive multiplicidades. As outras 16 tabelas públicas mantiveram as contagens.
+As colunas atuais `observacao` e `bairro` de itinerários foram preservadas, nulas: o snapshot
+não as continha. Não houve integração de alterações do Access bruto nesta recuperação.
+
+| Tabela pública | Registros conferidos como `postgres` e `anon` |
+|---|--:|
+| `codempresa_teste` | 133 |
+| `evento_empresa_teste` | 51 |
+| `evento_linha_teste` | 83 |
+| `evento_teste` | 20.901 |
+| `itinerario_teste` | 52.385 |
+| `localidades_teste` | 751 |
+| `municipio_teste` | 92 |
+| `origem_teste` | 549 |
+| `portaria_teste` | 2.140 |
+| `qh_intervalo_teste` | 9.553 |
+| `qh_predeterminado_teste` | 25.748 |
+| `qh_teste` | 1.495 |
+| `tabela_vista_teste` | 1.885 |
+| `tarifa_atual_teste` | 3.497 |
+| `tarifa_promocional_exibicao_teste` | 1.000 |
+
 ## Integração incremental do Access — 29/09/2026
 
 No projeto TESTE (`gontnlfmothfglssbyyk`), a exportação de 28/09/2026 está preservada
@@ -261,7 +289,8 @@ inclusões promove automaticamente status, tarifa ou itinerário.
 
 ## Histórico aplicado no projeto em uso
 
-O projeto `gontnlfmothfglssbyyk` tem 18 migrations registradas. Seus identificadores foram
+O projeto `gontnlfmothfglssbyyk` tem 20 migrations registradas, conferidas em 03/10/2026.
+Seus identificadores foram
 conciliados com `supabase/migrations/` a partir do histórico aplicado, sem reexecutar SQL nem
 alterar `supabase_migrations`. Os reparos de funções usam as versões aplicadas
 `20260822144625` e `20260822151732`; as versões antigas dos nomes de arquivo não eram outras
@@ -279,4 +308,5 @@ isolada; não usar `db push` no banco ativo para reaplicar o histórico recupera
 
 A migration `20260930172521_fecha_authenticated_tarifa_promocional.sql` fecha o SELECT de
 `authenticated` e restringe a policy promocional a `anon`, sem alterar registros. O histórico
-conciliado contém 18 entradas; não reexecutar a migration já aplicada no banco oficial.
+daquela conciliação continha 18 entradas. Depois foram aplicadas a guarda de segurança
+`20260930213009` e a recuperação `20261003115732`; não reexecutar migrations já aplicadas.
