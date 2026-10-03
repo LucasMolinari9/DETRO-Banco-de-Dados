@@ -294,12 +294,12 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    armadilhas antes de escrever SQL/JS. Ajuste isolado de CSS/texto/UI pula direto pro passo 1.
 1. Edite `app.js` (JS) e/ou `index.html` (HTML/CSS). **Trabalhe numa branch**, não direto na
    `main`: push na branch → o Vercel gera **preview deploy** → confira no preview → merge na
-   `main` (que é a publicada). Existem **11 workflows**, separados por preocupação: `ci.yml`,
+   `main` (que é a publicada). Existem **12 workflows**, separados por preocupação: `ci.yml`,
    `views.yml`, `semgrep.yml`, `deriva.yml`, `db-checks.yml`, `phase3-security.yml`,
-   `deploy-smoke.yml`, `backup.yml`, `graft.yml`, `atualizar-baseline.yml` e `atualizar-semgrep-rulesets.yml`
-   (os dois últimos são **só** `workflow_dispatch` e existem pelo mesmo motivo: fazer, pela aba
-   Actions, o que de outro modo exigiria terminal — um mede um banco e abre PR com o diff do
-   baseline; o outro baixa os rulesets do Semgrep e abre PR com o diff deles). `check`, `views`,
+   `deploy-smoke.yml`, `backup.yml`, `backup-private.yml`, `graft.yml`, `atualizar-baseline.yml` e `atualizar-semgrep-rulesets.yml`
+   (`backup-private.yml` e os dois últimos são **só** `workflow_dispatch`: backup integral,
+   atualização do baseline e atualização dos rulesets do Semgrep pela aba Actions).
+   `check`, `views`,
    `semgrep`, `deriva`, `realtime`, `qualidade`, `seguranca` e `migration-contract` (o contrato
    offline da Fase 3) são **checks obrigatórios** de um ruleset da `main`: rodam em **toda PR**,
    sem filtro de caminho — desde 22/08/2026, quando o filtro saiu de `db-checks.yml`,

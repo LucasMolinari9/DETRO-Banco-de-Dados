@@ -1,0 +1,80 @@
+# Banco inteiro, sem excluir schemas. Somente o pacote age pode virar artifact.
+# A origem é somente leitura; a restauração acontece no container descartável do runner.
+name: Backup completo criptografado
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      restore:
+        image: postgres:17
+        env:
+          POSTGRES_USER: divat_restore_runner
+          POSTGRES_DB: divat_restore
+          # Container efêmero, acessível somente no runner, sem senha de produção.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd "pg_isready -U divat_restore_runner -d divat_restore"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Exigir os dois secrets antes de acessar o banco
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_BACKUP_DATABASE_URL }}
+          AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+        run: |
+          set -eu
+          test -n "$DATABASE_URL" || { echo 'Secret SUPABASE_BACKUP_DATABASE_URL ausente'; exit 1; }
+          test -n "$AGE_RECIPIENT" || { echo 'Secret BACKUP_AGE_PUBLIC_KEY ausente'; exit 1; }
+      - name: Instalar cliente PostgreSQL 17 e age
+        run: |
+          set -eu
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17 age
+          python3 -m pip install 'psycopg[binary]==3.2.10'
+          /usr/lib/postgresql/17/bin/pg_dump --version
+      - name: Preparar Vault 0.3.1 no PostgreSQL 17 descartável
+        env:
+          RESTORE_CONTAINER: ${{ job.services.restore.id }}
+        run: |
+          set -eu
+          docker exec "$RESTORE_CONTAINER" sh -eu -c '
+            apt-get update -qq
+            apt-get install -y --no-install-recommends build-essential git ca-certificates libsodium-dev postgresql-server-dev-17
+            git clone https://github.com/supabase/vault.git /tmp/vault
+            cd /tmp/vault
+            git checkout --detach 6e0cd916242d922a646e4d611cc215e09dd429f4
+            make PG_CONFIG=/usr/lib/postgresql/17/bin/pg_config
+            make install PG_CONFIG=/usr/lib/postgresql/17/bin/pg_config
+            rm -rf /tmp/vault
+          '
+      - name: Testar as guardas do backup
+        run: python3 -m unittest discover -s tests -p 'backup_private_test.py'
+      - name: Dump, restauração, todas as contagens e criptografia
+        env:
+          SUPABASE_BACKUP_DATABASE_URL: ${{ secrets.SUPABASE_BACKUP_DATABASE_URL }}
+          BACKUP_AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+          PG_BIN: /usr/lib/postgresql/17/bin
+        run: python3 scripts/backup_private.py
+      - name: Publicar somente o pacote criptografado aprovado
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: divat-backup-completo-${{ github.run_id }}
+          path: ${{ runner.temp }}/divat-backup-encrypted/divat-backup.tar.age
+          if-no-files-found: error
+          retention-days: 30

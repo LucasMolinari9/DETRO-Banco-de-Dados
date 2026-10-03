@@ -4,6 +4,18 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 03/10/2026 — workflow de backup integral criptografado
+
+- Criado `backup-private.yml`, somente manual, com cliente PostgreSQL 17, dump custom do
+  banco inteiro, roles sem senhas e snapshot compartilhado com todas as contagens.
+- Restauração estrita no service container `postgres:17`, incluindo Vault 0.3.1 de commit
+  fixado, owners/ACLs e comparação de cada tabela de cada schema. Divergência impede upload.
+- Manifest com versão, data, hashes e resultado dentro do pacote age; secrets obrigatórios,
+  somente ciphertext no artifact, retenção de 30 dias. Runbook do Caminho A atualizado.
+- A entrega do workflow não comprova backup executado nem guarda externa. Nenhum schema
+  é removido nesta entrega; a limpeza depende de run aprovado e confirmação do dono de
+  que o backup e a chave privada estão no Google Drive.
+
 ## 22/08/2026 — checks obrigatórios em toda PR
 
 - Ruleset novo na `main` exige oito checks antes do merge: `check`, `views`, `semgrep`, `deriva`,

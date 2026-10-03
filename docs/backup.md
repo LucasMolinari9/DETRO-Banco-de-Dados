@@ -3,9 +3,11 @@
 ## Estado vigente
 
 O banco em uso é `divat - TESTE` (`gontnlfmothfglssbyyk`), agora adotado como oficial.
-Segundo o dono, a antiga produção `lwzsxuaqqeoamukduhev` foi apagada. A preservação completa
-foi adiada por decisão do dono; não é pré-requisito da conciliação e do ajuste de acesso desta
-entrega. Não houve dump completo nem restauração nesta sessão. RTO/RPO permanecem sem medição.
+Segundo o dono, a antiga produção `lwzsxuaqqeoamukduhev` foi apagada. Em 03/10/2026 foi
+solicitado backup integral antes da remoção de três schemas antigos. O novo workflow está
+descrito no Caminho A; sua existência não comprova um backup executado. Até registrar aqui
+um run verde e a confirmação de guarda externa, dump e recuperação continuam pendentes.
+RTO/RPO permanecem sem medição. Não criar outro projeto Supabase.
 
 A rotina existente de Actions é uma **exportação parcial de public**, sem snapshot consistente.
 Não cobre os schemas privados de importação, auditoria de dados, conciliação e backups históricos.
@@ -31,14 +33,78 @@ O workflow [backup.yml](../.github/workflows/backup.yml) consulta o projeto em u
 pública; não publica credencial administrativa. Senhas e chaves secretas ficam fora do Git,
 logs e chat. Artifacts de Actions têm retenção limitada, não armazenamento permanente.
 
+## Caminho A — dump integral, restaurado e criptografado
+
+O workflow [backup-private.yml](../.github/workflows/backup-private.yml), **Backup completo
+criptografado**, aceita somente `workflow_dispatch`, com `contents: read`, checkout sem
+credenciais persistidas e actions presas ao SHA. Não modifica a origem.
+
+Pré-requisitos em **Settings → Secrets and variables → Actions → New repository secret**:
+
+- `SUPABASE_BACKUP_DATABASE_URL`: URI do **Connect → Session pooler**, porta **5432**, do
+  projeto oficial, com sua senha. Só o dono cadastra; nunca enviar a URI ao agente/chat.
+- `BACKUP_AGE_PUBLIC_KEY`: destinatário público age X25519. A chave privada correspondente
+  fica exclusivamente com o dono, fora do GitHub. Sem ela o backup não abre.
+
+O agente dispara e acompanha o workflow. Ele instala o cliente PostgreSQL 17, faz `pg_dump
+-Fc` **sem filtro de schema ou tabela** e `pg_dumpall --roles-only --no-role-passwords`.
+Contagens e dump compartilham um snapshot `REPEATABLE READ READ ONLY` exportado. A contagem
+cobre cada tabela de cada schema, incluindo vazias, partições e schemas internos do Supabase;
+erro de privilégio/RLS aborta em vez de omitir tabela. Os roles são capturados separadamente;
+senhas de roles não fazem parte do pacote.
+
+A restauração usa um service container `postgres:17` efêmero no runner. A extensão
+`supabase_vault` 0.3.1 é compilada do commit fixado no workflow; as demais extensões atuais
+estão no PostgreSQL 17. Primeiro restaura roles, depois o dump, com owners e ACLs, em transação
+e com parada no primeiro erro. Tabela ausente/extra ou contagem divergente reprova o job.
+Não remover objetos do dump nem ignorar erros para obter verde.
+
+O `manifest.json` registra data do snapshot, versão do servidor, tamanho da origem, commit/run,
+schemas, extensões, SHA-256 dos arquivos, contagens de origem/restauração e resultado aprovado.
+Ele fica **dentro** do pacote criptografado, junto com `database.dump` e `roles.sql`.
+Secret ausente/inválido, dump, restauração, comparação ou criptografia falhos impedem o upload.
+O único arquivo publicado é `divat-backup.tar.age`, no artifact `divat-backup-completo-<run_id>`,
+com **retention-days: 30**. Nenhuma conexão/credencial é escrita no manifest ou log.
+
+Pelo celular, o dono abre o link da execução verde, desce até **Artifacts**, toca no artifact
+e baixa o ZIP. Guarda esse ZIP e a chave privada no **Google Drive**, em pasta privada.
+O agente só avança para remover `codex_backup_20260924`, `bkp_divat_teste_20260928_1944` e
+`codex_import_20260924` após a confirmação explícita dessa guarda fora do GitHub.
+`stage_access_20260928` permanece: há FK de `divat_integracao.memo_texto_origem` para ele.
+
+### Descriptografar e restaurar (o agente executa)
+
+Extrair o ZIP do artifact fora do repo. Com age e cliente PostgreSQL 17:
+
+```bash
+age -d -i chave.txt -o divat-backup.tar divat-backup.tar.age
+tar -xf divat-backup.tar
+```
+
+Conferir SHA-256 de `database.dump` e `roles.sql` contra `manifest.json` antes de usar.
+Preparar um PostgreSQL 17 **local/descartável**, vazio, com as extensões nas versões do manifest
+e um superusuário temporário diferente dos roles da origem. Não criar projeto Supabase nem
+usar o banco oficial como destino do exercício. O agente fornece a conexão somente por
+variáveis `PG*` privadas em memória, sem URI/senha em arquivo, comando ou chat:
+
+```bash
+psql -X --set=ON_ERROR_STOP=1 --file=roles.sql
+pg_restore --exit-on-error --single-transaction --dbname=divat_restore database.dump
+```
+
+Recontar todas as tabelas e comparar com `source_counts` do manifest. Conferir também RLS,
+owners/ACLs, funções, publicação Realtime e leituras do portal antes de declarar recuperação.
+O dump já preserva sequências; não executar a baseline histórica junto dele. O pacote cobre
+o banco PostgreSQL, não arquivos externos de Storage, Edge Functions ou configurações do painel.
+
 ## Recuperação parcial e baseline histórica
 
 `docs/backup_schema.sql` é anterior à Fase 3 e às cargas privadas recentes. Não reconstrói o
 estado atual nem recupera snapshots históricos de dados. O histórico de 18 migrations está
 em [schema.md](schema.md); não reaplicá-las sobre o banco em uso.
 
-Qualquer exercício de reconstrução será feito em projeto novo e isolado, sem sobrepor o banco
-oficial. Um dump completo futuro traz sua própria estrutura e não deve ser combinado com
+Qualquer exercício de reconstrução será feito em PostgreSQL local/descartável, sem sobrepor o banco
+oficial nem criar outro projeto Supabase. O dump completo traz sua própria estrutura e não deve ser combinado com
 execução da baseline histórica no mesmo destino. Copiar as migrations não recria snapshots
 originais nem os dados privados que alimentaram CTAS/importações.
 
@@ -77,7 +143,7 @@ Confirme estrutura, contagens, hashes, PK/FK, identities, owners/ACLs, RLS, fun�
 procedência e leituras do portal. Meça RTO/RPO em restauração isolada. Não apagar órfãos históricos
 nem inferir vigência tarifária para fazer verificações passarem.
 
-Os schemas privados precisam de exportação própria consistente antes de uma recuperação integral;
-a rotina REST acima não satisfaz esse requisito. A pendência permanece documentada, sem bloquear
-as correções autorizadas desta entrega. Etapas seguintes em
+O Caminho A inclui os schemas privados no mesmo dump consistente; a rotina REST não satisfaz
+esse requisito. A execução aprovada e a guarda externa ainda precisam ser comprovadas antes
+da limpeza de schemas. O dossiê histórico permanece em
 [planos/fase-3-promocao-producao.md](planos/fase-3-promocao-producao.md).
