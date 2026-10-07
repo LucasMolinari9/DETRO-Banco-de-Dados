@@ -149,10 +149,25 @@ export function observacaoQHHTML(observacao, registro = {}){
     ${registro.observacao_fonte && registro.observacao_conferida_documentalmente === false ? '<div class="doc-foot">Observação transcrita do cadastro de origem. O documento original ainda não foi conferido.</div>' : ''}`;
 }
 
+// O cadastro de origem guarda a promoção como data inicial + prazo (inteiro). O prazo é lido em
+// DIAS — único entendimento plausível dos valores registrados (186, 310…) — e o término é a soma.
+// Feito em UTC para que horário de verão/fuso não desloque a data em um dia.
+export function dataFinalPromocional(dataInicial, prazo){
+  const m = String(dataInicial||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const dias = Number(prazo);
+  if (!m || prazo === null || prazo === '' || !Number.isInteger(dias)) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2]-1, +m[3] + dias));
+  return d.toISOString().slice(0, 10);
+}
+
 export function tarifasPromocionaisHTML(rows){
   if (!rows.length) return '';
-  const body = rows.map(r=>`<tr><td class="td-num">${esc(orDash(r.secao))}</td><td class="td-sentido">R$ ${esc(fmtMoney(r.tarifa_promocional))}</td><td class="td-num">${esc(fmtDate(r.data_inicial))}</td><td class="td-num">${esc(orDash(r.prazo_origem))}</td></tr>`).join('');
+  const body = rows.map(r=>{
+    const fim = dataFinalPromocional(r.data_inicial, r.prazo_origem);
+    const fimTxt = fim ? `${esc(fmtDate(fim))} <span class="td-sub">(${esc(r.prazo_origem)} dias)</span>` : esc(orDash(r.prazo_origem));
+    return `<tr><td class="td-num">${esc(orDash(r.secao))}</td><td class="td-sentido">R$ ${esc(fmtMoney(r.tarifa_promocional))}</td><td class="td-num">${esc(fmtDate(r.data_inicial))}</td><td class="td-num">${fimTxt}</td></tr>`;
+  }).join('');
   return `<h3 class="doc-h3">Tarifas promocionais registradas</h3>
-    <div class="doc-obs tight">Valores encontrados no cadastro de origem. A vigência atual não foi confirmada; o prazo está apresentado como registrado, sem unidade verificada.</div>
-    ${tableHTML([{t:'Seção',w:'60px'},{t:'Valor',w:'90px'},{t:'Data inicial registrada',w:'150px'},{t:'Prazo registrado',w:'150px'}], body, rows.length+' tarifa(s) promocional(is)')}`;
+    <div class="doc-obs tight">Valores encontrados no cadastro de origem. A data final é calculada somando o prazo registrado, em dias, à data inicial. A vigência atual não foi confirmada.</div>
+    ${tableHTML([{t:'Seção',w:'60px'},{t:'Valor',w:'90px'},{t:'Data inicial registrada',w:'150px'},{t:'Data final (calculada)',w:'170px'}], body, rows.length+' tarifa(s) promocional(is)')}`;
 }
