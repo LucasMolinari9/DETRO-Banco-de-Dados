@@ -379,6 +379,13 @@ t('observação e tarifa promocional preservam texto e não afirmam vigência', 
   assert.match(promo, /16\/08\/2024/);
   assert.match(promo, /vigência atual não foi confirmada/);
   assert.match(promo, />0<\/td>/);
+  assert.match(promo, /18\/02\/2025 <span class="td-sub">\(186 dias\)/);
+  assert.equal(blocos.dataFinalPromocional('2025-05-14', 310), '2026-03-20');
+  assert.equal(blocos.dataFinalPromocional('2024-12-31', 1), '2025-01-01');
+  assert.equal(blocos.dataFinalPromocional(null, 310), null);
+  assert.equal(blocos.dataFinalPromocional('2025-05-14', null), null);
+  const semPrazo = blocos.tarifasPromocionaisHTML([{ secao:1, tarifa_promocional:5, data_inicial:'2025-05-14', prazo_origem:null }]);
+  assert.match(semPrazo, /<td class="td-num">—<\/td><\/tr>/);
 });
 
 /* ================================================================
