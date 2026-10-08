@@ -359,33 +359,63 @@ t('quadroHorariosBodyHTML: predeterminado agrupa partidas por dia', () => {
   assert.match(h, /Dom · 1 partida\(s\)/);
   assert.match(h, /08:00/);
 });
-t('secoesTarifasHTML/tarifaRowHTML: vazio vira caixa vazia; status OK sem chip quando nada marcado', () => {
+t('secoesTarifasHTML/tarifaRowHTML: vazio vira caixa vazia; sem colunas de situação/criação/status', () => {
   assert.match(blocos.secoesTarifasHTML([]), /seção ou tarifa/);
-  const h = blocos.secoesTarifasHTML([{ secao:1, tarifa:5.5, piso_i:10 }]);
+  const h = blocos.secoesTarifasHTML([{ secao:1, tarifa:5.5, piso_i:10, situacao:'ATIVA', data_criacao:'2001-05-10' }]);
   assert.match(h, /R\$ 5,50/);
   assert.match(h, /10,00 km/);
-  assert.match(h, /chip-off">OK/);
+  assert.doesNotMatch(h, /Situação|Criação|Status|ATIVA|chip/);
+  assert.doesNotMatch(h, /10\/05\/2001/);
+  assert.equal(blocos.TARIFA_COLS.length, 9);
 });
-t('tarifaRowHTML: chip de status ligado traz a data do evento junto', () => {
-  const h = blocos.tarifaRowHTML({ cancelado:true, data_cancelamento:'2026-01-15' });
-  assert.match(h, /chip-on">Canc\. 15\/01\/2026/);
+t('secoesTarifasHTML: só a seção vigente aparece (cancelada, paralisada, sub judice e transferida somem)', () => {
+  const rows = [
+    { secao:1, tarifa:5.5 },
+    { secao:2, tarifa:6, cancelado:true },
+    { secao:3, tarifa:7, paralisado:true },
+    { secao:4, tarifa:8, sub_judice:true },
+    { secao:5, tarifa:9, transferido:true },
+  ];
+  const h = blocos.secoesTarifasHTML(rows);
+  assert.match(h, /R\$ 5,50/);
+  assert.doesNotMatch(h, /R\$ (6|7|8|9),00/);
+  assert.match(h, /1 seção\(ões\)/);
+  assert.deepEqual(blocos.secoesVigentes(rows).map(r=>r.secao), [1]);
+  // a linha tem tarifa cadastrada, mas nenhuma vigente: o texto não diz que não há registro
+  const nenhuma = blocos.secoesTarifasHTML([{ secao:1, tarifa:5, cancelado:true }]);
+  assert.match(nenhuma, /Nenhuma tarifa vigente/);
 });
-t('observação e tarifa promocional preservam texto e não afirmam vigência', () => {
+t('observação e tarifa promocional preservam texto; só a promoção que ainda não terminou aparece', () => {
   const obs = blocos.observacaoQHHTML('Ajuste <pendente>\n2ª linha');
   assert.match(obs, /Ajuste &lt;pendente&gt;\n2ª linha/);
   assert.equal(blocos.observacaoQHHTML('  '), '');
-  const promo = blocos.tarifasPromocionaisHTML([{ secao:0, tarifa_promocional:5.5, data_inicial:'2024-08-16', prazo_origem:186 }]);
+  const hoje = '2025-01-10';
+  const promo = blocos.tarifasPromocionaisHTML([{ secao:0, tarifa_promocional:5.5, data_inicial:'2024-08-16', prazo_origem:186 }], hoje);
   assert.match(promo, /R\$ 5,50/);
   assert.match(promo, /16\/08\/2024/);
-  assert.match(promo, /vigência atual não foi confirmada/);
   assert.match(promo, />0<\/td>/);
   assert.match(promo, /18\/02\/2025 <span class="td-sub">\(186 dias\)/);
   assert.equal(blocos.dataFinalPromocional('2025-05-14', 310), '2026-03-20');
   assert.equal(blocos.dataFinalPromocional('2024-12-31', 1), '2025-01-01');
   assert.equal(blocos.dataFinalPromocional(null, 310), null);
   assert.equal(blocos.dataFinalPromocional('2025-05-14', null), null);
-  const semPrazo = blocos.tarifasPromocionaisHTML([{ secao:1, tarifa_promocional:5, data_inicial:'2025-05-14', prazo_origem:null }]);
+  const semPrazo = blocos.tarifasPromocionaisHTML([{ secao:1, tarifa_promocional:5, data_inicial:'2025-05-14', prazo_origem:null }], hoje);
   assert.match(semPrazo, /<td class="td-num">—<\/td><\/tr>/);
+});
+t('tarifa promocional: a que já passou da data final some; o último dia ainda vale', () => {
+  const vencida = { secao:1, tarifa_promocional:4, data_inicial:'2024-08-16', prazo_origem:186 }; // fim 18/02/2025
+  const valida  = { secao:2, tarifa_promocional:6, data_inicial:'2025-05-14', prazo_origem:310 }; // fim 20/03/2026
+  assert.equal(blocos.promocionalValida(vencida, '2025-02-18'), true);
+  assert.equal(blocos.promocionalValida(vencida, '2025-02-19'), false);
+  const h = blocos.tarifasPromocionaisHTML([vencida, valida], '2026-01-01');
+  assert.doesNotMatch(h, /18\/02\/2025|R\$ 4,00/);
+  assert.match(h, /20\/03\/2026/);
+  assert.match(h, /1 tarifa\(s\) promocional\(is\)/);
+  // todas vencidas: a seção inteira some
+  assert.equal(blocos.tarifasPromocionaisHTML([vencida], '2026-10-08'), '');
+  // sem prazo não dá para dizer que terminou: continua aparecendo
+  assert.equal(blocos.promocionalValida({ data_inicial:'2020-01-01', prazo_origem:null }, '2026-10-08'), true);
+  assert.equal(blocos.hojeISO(new Date(2026, 9, 8, 23, 30)), '2026-10-08');
 });
 
 /* ================================================================
