@@ -29,7 +29,7 @@
    3º slot desde esta fase — o painel não passa pelo `searchPanel` do `app.js` (que é quem
    chamava `novoCtx` até agora), então precisa da mesma fábrica de ctx por conta própria. */
 import {
-  esc, enc, fmtCode, fmtDate, orDash, ilikeTerm, situacaoHTML, isVigente,
+  esc, enc, fmtCode, fmtDate, orDash, ilikeTerm, situacaoHTML,
 } from '../domain/core.mjs';
 import { groupBy, fmtMoney } from '../domain/agrupamento.mjs';
 import { commitViewResult, isCurrentGen, pushDetail, popDetail, withHost } from '../domain/view-state.mjs';
@@ -37,7 +37,7 @@ import { docHead, metaRows, loading, emptyBox, emptyLinha, errorBox } from '../u
 import { paginateTable } from '../ui/paginacao.mjs';
 import {
   itinerarioTableHTML, frotaBlockHTML, quadroHorariosBodyHTML,
-  secoesTarifasHTML, TARIFA_COLS, tarifaRowHTML, observacaoQHHTML, tarifasPromocionaisHTML,
+  secoesTarifasHTML, secoesVigentes, TARIFA_COLS, tarifaRowHTML, observacaoQHHTML, tarifasPromocionaisHTML,
 } from '../ui/blocos.mjs';
 import { searchEmpresas, empresaChooserHTML, bindEmpresaRows } from '../ui/empresas.mjs';
 import { getIbge, getOrigem, getEmpresas, empNome } from '../data/lookups.mjs';
@@ -88,21 +88,11 @@ export async function renderTarifas(ctx){
   ]);
   if (!rows.length) { host.innerHTML = emptyLinha('tarifa'); commitViewResult(view, gen, { pdfHTML:null }); return; }
   const meta = metaRows([['Ligação',esc(line.nome_ligacao||'—'),true],['Código',esc(fmtCode(line.codlinha))]]);
-  const promoHTML = tarifasPromocionaisHTML(promo);
-  const inner = `${meta}${secoesTarifasHTML(rows)}${promoHTML}`; // documento completo (p/ PDF)
+  // só seção vigente e promoção que ainda não terminou — o filtro mora em secoesTarifasHTML /
+  // tarifasPromocionaisHTML, então tela, PDF, Quadro e Estrutura mostram o mesmo recorte
+  const inner = `${meta}${secoesTarifasHTML(rows)}${tarifasPromocionaisHTML(promo)}`;
   commitViewResult(view, gen, { pdfHTML: ()=>`<div class="doc">${docHead('Tarifas Vigentes')}${inner}</div>` });
-  // filtro por situação da seção — reusa isVigente (critério estrito compartilhado; ver junto a isLinhaAtiva)
-  const temInativa = rows.some(r=>!isVigente(r));
-  const tools = temInativa ? `<div class="loc-tools"><label>Situação <select id="tarSit"><option value="todas">Todas</option><option value="vigentes">Vigentes</option><option value="inativas">Canceladas/inativas</option></select></label></div>` : '';
-  host.innerHTML = `${meta}${tools}<div id="tarResult"></div>${promoHTML}`;
-  const result = host.querySelector('#tarResult'), sel = host.querySelector('#tarSit');
-  const paint = ()=>{
-    const s = sel?sel.value:'todas';
-    const f = s==='vigentes' ? rows.filter(isVigente) : s==='inativas' ? rows.filter(r=>!isVigente(r)) : rows;
-    result.innerHTML = f.length ? secoesTarifasHTML(f) : emptyBox('Nenhuma seção com esse filtro.');
-  };
-  if(sel) sel.addEventListener('change', paint);
-  paint();
+  host.innerHTML = inner;
 }
 
 // Modo empresa: resolve a empresa e lista as tarifas de TODAS as linhas dela
@@ -134,11 +124,12 @@ function linhaTarifaRowHTML(l){
 export async function renderTarifasEmpresa(ctx, cod, nome){
   const { view, gen, host } = ctx;
   host.innerHTML = loading();
-  const rows = await sbFetch('tarifa_atual_teste', `codempresa=eq.${enc(cod)}&select=codlinha,secao,numero_linha,nome_ligacao,via,caracteristica,tipo_ligacao,rm,tarifa,piso_i,situacao,cancelado,paralisado,sub_judice,transferido,data_criacao,data_cancelamento,data_paralisacao,data_sub_judice,data_transferencia&order=codlinha,secao&limit=3000`);
+  // só seção vigente — mesmo recorte de secoesTarifasHTML (tabela por linha)
+  const rows = secoesVigentes(await sbFetch('tarifa_atual_teste', `codempresa=eq.${enc(cod)}&select=codlinha,${TARIFA_LINHA_FIELDS}&order=codlinha,secao&limit=3000`));
   const nomeEmp = nome || empNome(cod);
   const nLinhas = new Set(rows.map(r=>r.codlinha)).size;
   const meta = metaRows([['Empresa',esc(nomeEmp||'—'),true],['Registro','RJ-'+esc(cod)],['Total',nLinhas+' linha(s) · '+rows.length+' seção(ões)']]);
-  if(!rows.length){ host.innerHTML = meta + emptyBox('Nenhuma tarifa cadastrada para a empresa '+esc(nomeEmp||cod)+'.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
+  if(!rows.length){ host.innerHTML = meta + emptyBox('Nenhuma tarifa vigente foi localizada para a empresa '+(nomeEmp||cod)+'.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
   // agrupa por linha — cada linha aparece 1x, com a qtd. de seções e a TARIFA DA LINHA
   // (a da 1ª seção, mesma convenção da Folha de Rosto — não o intervalo das seções).
   const linhas = [...groupBy(rows, r=>r.codlinha)].map(([codlinha,secs])=>{

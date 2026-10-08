@@ -26,9 +26,9 @@
 
    Nada aqui conhece DOM, rede ou estado: entra dado, sai string de HTML. Por isso tudo aqui é
    exercitado em Node puro, em `tests/ui-data-module.test.mjs`. */
-import { esc, fmtCode, fmtDate, fmtTime, orDash } from '../domain/core.mjs';
+import { esc, fmtCode, fmtDate, fmtTime, orDash, isVigente } from '../domain/core.mjs';
 import { fmtMoney, groupBy } from '../domain/agrupamento.mjs';
-import { emptyLinha, tableHTML } from './doc.mjs';
+import { emptyBox, emptyLinha, tableHTML } from './doc.mjs';
 
 /* ---- Evento (histórico da linha e da empresa) ----
    Um evento por página: a faixa de campos em cima, descrição/observação por extenso embaixo.
@@ -126,21 +126,23 @@ export function quadroHorariosBodyHTML(interv, predet, orig){
 /* ---- Seções e Tarifas ----
    Usado por Tarifas (C2, `src/documentos/estrutura-tarifas-portaria.mjs`) e pelo Quadro de
    Horários (C3, ainda no `app.js`, no bloco "Seções e Tarifas" acima do quadro em si). */
-export const TARIFA_COLS = [{t:'Seção',w:'60px'},{t:'Nº Linha',w:'80px'},{t:'Ligação'},{t:'Via',w:'90px'},{t:'Caract.',w:'90px'},{t:'Tipo',w:'90px'},{t:'RM',w:'55px'},{t:'Tarifa',w:'80px'},{t:'Piso I (km)',w:'90px'},{t:'Situação',w:'90px'},{t:'Criação',w:'90px'},{t:'Status',w:'150px'}];
+// Só a tarifa VÁLIDA aparece: seção cancelada, paralisada, sub judice ou transferida fica fora da
+// tabela (e do PDF). Por isso as colunas Situação/Criação/Status saíram — numa lista que só tem
+// seção vigente elas repetiam "ATIVA · — · OK" em toda linha.
+export const TARIFA_COLS = [{t:'Seção',w:'60px'},{t:'Nº Linha',w:'80px'},{t:'Ligação'},{t:'Via',w:'90px'},{t:'Caract.',w:'90px'},{t:'Tipo',w:'90px'},{t:'RM',w:'55px'},{t:'Tarifa',w:'80px'},{t:'Piso I (km)',w:'90px'}];
+export const secoesVigentes = rows => rows.filter(isVigente);
 export function tarifaRowHTML(r){
-  // chip de status com a data do evento ao lado (quando a coluna de data está disponível)
-  const dChip = (v,label,date) => v ? `<span class="chip chip-on">${label}${date?' '+fmtDate(date):''}</span>` : '';
-  const st = [ dChip(r.cancelado,'Canc.',r.data_cancelamento), dChip(r.paralisado,'Paral.',r.data_paralisacao), dChip(r.sub_judice,'Sub jud.',r.data_sub_judice), dChip(r.transferido,'Transf.',r.data_transferencia) ].filter(Boolean).join(' ') || '<span class="chip chip-off">OK</span>';
   // "Piso I" é quilometragem (extensão da seção), não valor monetário — sem "R$"
   const pisoTxt = (r.piso_i===null||r.piso_i===undefined||r.piso_i==='') ? '—' : `${fmtMoney(r.piso_i)} km`;
   return `<tr><td class="td-num">${esc(orDash(r.secao))}</td><td class="td-num">${esc(orDash(r.numero_linha))}</td><td class="td-logr">${esc(orDash(r.nome_ligacao))}</td>
   <td class="td-tipo">${esc(orDash(r.via))}</td><td class="td-tipo">${esc(orDash(r.caracteristica))}</td><td class="td-tipo">${esc(orDash(r.tipo_ligacao))}</td><td class="td-num">${esc(orDash(r.rm))}</td>
-  <td class="td-sentido">R$ ${esc(fmtMoney(r.tarifa))}</td><td class="td-num">${esc(pisoTxt)}</td>
-  <td class="td-tipo">${esc(orDash(r.situacao))}</td><td class="td-num">${fmtDate(r.data_criacao)}</td><td>${st}</td></tr>`;
+  <td class="td-sentido">R$ ${esc(fmtMoney(r.tarifa))}</td><td class="td-num">${esc(pisoTxt)}</td></tr>`;
 }
 export function secoesTarifasHTML(rows){
   if(!rows.length) return emptyLinha('seção ou tarifa');
-  return tableHTML(TARIFA_COLS, rows.map(tarifaRowHTML).join(''), rows.length+' seção(ões)');
+  const vig = secoesVigentes(rows);
+  if(!vig.length) return emptyBox('Nenhuma tarifa vigente foi localizada para esta linha.');
+  return tableHTML(TARIFA_COLS, vig.map(tarifaRowHTML).join(''), vig.length+' seção(ões)');
 }
 
 export function observacaoQHHTML(observacao, registro = {}){
@@ -160,14 +162,28 @@ export function dataFinalPromocional(dataInicial, prazo){
   return d.toISOString().slice(0, 10);
 }
 
-export function tarifasPromocionaisHTML(rows){
-  if (!rows.length) return '';
-  const body = rows.map(r=>{
+// Hoje no relógio de quem está vendo, no mesmo formato AAAA-MM-DD de `dataFinalPromocional` —
+// assim a comparação é de texto, sem fuso no meio.
+export function hojeISO(d = new Date()){
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+// A promoção ainda vale se a data final calculada é hoje ou depois (o último dia conta). Sem data
+// final calculável (prazo vazio) não há como dizer que terminou, e ela continua aparecendo.
+export function promocionalValida(r, hoje = hojeISO()){
+  const fim = dataFinalPromocional(r.data_inicial, r.prazo_origem);
+  return fim === null || fim >= hoje;
+}
+
+export function tarifasPromocionaisHTML(rows, hoje = hojeISO()){
+  const validas = rows.filter(r => promocionalValida(r, hoje));
+  if (!validas.length) return '';
+  const body = validas.map(r=>{
     const fim = dataFinalPromocional(r.data_inicial, r.prazo_origem);
     const fimTxt = fim ? `${esc(fmtDate(fim))} <span class="td-sub">(${esc(r.prazo_origem)} dias)</span>` : esc(orDash(r.prazo_origem));
     return `<tr><td class="td-num">${esc(orDash(r.secao))}</td><td class="td-sentido">R$ ${esc(fmtMoney(r.tarifa_promocional))}</td><td class="td-num">${esc(fmtDate(r.data_inicial))}</td><td class="td-num">${fimTxt}</td></tr>`;
   }).join('');
-  return `<h3 class="doc-h3">Tarifas promocionais registradas</h3>
-    <div class="doc-obs tight">Valores encontrados no cadastro de origem. A data final é calculada somando o prazo registrado, em dias, à data inicial. A vigência atual não foi confirmada.</div>
-    ${tableHTML([{t:'Seção',w:'60px'},{t:'Valor',w:'90px'},{t:'Data inicial registrada',w:'150px'},{t:'Data final (calculada)',w:'170px'}], body, rows.length+' tarifa(s) promocional(is)')}`;
+  return `<h3 class="doc-h3">Tarifas promocionais</h3>
+    <div class="doc-obs tight">Valores do cadastro de origem. Só aparecem as que ainda não passaram da data final, calculada somando o prazo registrado, em dias, à data inicial.</div>
+    ${tableHTML([{t:'Seção',w:'60px'},{t:'Valor',w:'90px'},{t:'Data inicial',w:'150px'},{t:'Data final (calculada)',w:'170px'}], body, validas.length+' tarifa(s) promocional(is)')}`;
 }
