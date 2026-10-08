@@ -18,10 +18,20 @@ node -e 'if (Number(process.versions.node.split(".")[0]) < 22) {
   process.exit(1);
 }'
 
+# Caminho rápido: um `graft` global da MESMA versão (instalado pelo setup script do
+# ambiente cloud) dispensa o download do npx. Em container novo o download + build
+# estourava o timeout de conexão do MCP (30s) e o servidor nascia desconectado.
+# Versão diferente cai no npx fixado, para não rodar um graft qualquer.
+GRAFT=(npx --yes --package="$GRAFT_PACKAGE" graft)
+if command -v graft >/dev/null 2>&1 \
+  && [[ "$(graft --version 2>/dev/null)" == "${GRAFT_PACKAGE##*@}" ]]; then
+  GRAFT=(graft)
+fi
+
 # Sem grafo, o servidor upstream anuncia zero ferramentas. Preparar a primeira
 # cópia antes do handshake; stdout fica reservado ao protocolo MCP.
 if [[ "${1:-}" == 'mcp' && ! -f graft/.graph/wiring.json ]]; then
-  npx --yes --package="$GRAFT_PACKAGE" graft build >&2
+  "${GRAFT[@]}" build >&2
 fi
 
-exec npx --yes --package="$GRAFT_PACKAGE" graft "$@"
+exec "${GRAFT[@]}" "$@"
