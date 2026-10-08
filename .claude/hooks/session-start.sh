@@ -4,7 +4,7 @@
 # Por que existe: o container das sessões web é EFÊMERO (é reciclado depois de um tempo de
 # inatividade), e o repo é zero-build de propósito — não há `package.json`, e o gate
 # `node tests/check.js` é Node puro sem dependências. Essa decisão vale a pena e não muda;
-# o preço é que a única ferramenta de fora, o Semgrep, precisa ser reinstalada a cada
+# o preço é que as ferramentas de fora (Semgrep e Graft) precisam ser reinstaladas a cada
 # sessão. Sem isso, `./scripts/semgrep.sh` sai 127 e o agente conferia os padrões proibidos
 # à mão — foi exatamente o que aconteceu no PR #93.
 #
@@ -30,6 +30,17 @@ fi
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)}"
 cd "$ROOT"
+
+# Graft (servidor MCP do .mcp.json): instalado GLOBAL para o scripts/graft.sh não depender
+# do npx, cujo download estourava o timeout do handshake. A versão sai do próprio
+# scripts/graft.sh (GRAFT_PACKAGE) — um lugar só para atualizar. Falha não derruba a sessão.
+GRAFT_PACKAGE=$(sed -n "s/^readonly GRAFT_PACKAGE='\(.*\)'$/\1/p" "$ROOT/scripts/graft.sh")
+if [ -n "$GRAFT_PACKAGE" ] \
+  && [ "$(graft --version 2>/dev/null)" != "${GRAFT_PACKAGE##*@}" ]; then
+  echo "session-start: instalando $GRAFT_PACKAGE…"
+  npm install -g --silent "$GRAFT_PACKAGE" >/dev/null 2>&1 \
+    || echo "session-start: falha ao instalar o Graft; scripts/graft.sh cai no npx." >&2
+fi
 
 VENV="$ROOT/.venv-semgrep"          # o caminho que scripts/semgrep.sh procura sozinho
 WORKFLOW="$ROOT/.github/workflows/semgrep.yml"
