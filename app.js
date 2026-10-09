@@ -4,7 +4,7 @@ import {
 } from './src/domain/core.mjs';
 // `scoreEmpresa` não entra aqui de propósito: só o dedupEmpresasPorRJ a usa, e ele mora no módulo.
 import {
-  fmtMoney, byCodlinha, dedupEmpresasPorRJ, resumoFrota, filtrarFrotaEmpresas,
+  fmtMoney, byCodlinha, rjOrder, dedupEmpresasPorRJ, resumoFrota, filtrarFrotaEmpresas,
 } from './src/domain/agrupamento.mjs';
 // `yearOf` e `matchEvent` NÃO entram: quem os usa é o `paginateEvents` de src/ui/paginacao.mjs,
 // que os importa por conta própria desde a Fase B2 — aqui seriam binding morto, o mesmo motivo
@@ -1247,7 +1247,8 @@ LOADERS.empresasRegulares = async ({ view, gen, pane }) => {
   // para o nome do banner, e por isso a MESMA função: ver dedupEmpresasPorRJ, em
   // src/domain/agrupamento.mjs (o getEmpresas que a usa mora em src/data/lookups.mjs)
   const list = dedupEmpresasPorRJ(empresasList()).map(e=>({ ...e, total:(cnt[e.codempresa]?.total)||0, ativas:(cnt[e.codempresa]?.ativas)||0 }));
-  list.sort((a,b)=> b.total-a.total || String(a.nome_empresa||'').localeCompare(String(b.nome_empresa||'')));
+  // ordem pelo RJ numérico (101, 102, … 108) — a mesma das outras listas agrupadas por empresa
+  list.sort((a,b)=> rjOrder(a.codempresa, b.codempresa));
   const semLinha = list.filter(e=>!e.total).length;
   const statusCol = e => [boolChip(e.cassada,'Cassada'), boolChip(e.sob_intervencao,'Interv.')].filter(Boolean).join(' ') || `<span class="chip chip-off">${esc(orDash(e.situacao))}</span>`;
   const rowHTML = e => `<tr class="clickable" tabindex="0" role="button" data-emp="${esc(e.codempresa)}"><td class="td-num">${esc(e.codempresa)}</td><td class="td-logr">${esc(e.nome_empresa||'—')}</td><td class="td-tipo">${statusCol(e)}</td><td class="td-sentido">${e.total}</td><td class="td-tipo">${e.ativas}</td></tr>`;
