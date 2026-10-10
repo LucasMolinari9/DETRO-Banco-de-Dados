@@ -45,6 +45,11 @@ fi
 VENV="$ROOT/.venv-semgrep"          # o caminho que scripts/semgrep.sh procura sozinho
 WORKFLOW="$ROOT/.github/workflows/semgrep.yml"
 
+# `semgrep --version` consulta semgrep.dev; com o host bloqueado pela rede do ambiente, cada
+# conferência abaixo esperava ~99s, e a sessão só abre depois deste hook (medido em 10/10/2026).
+# O scripts/semgrep.sh já desliga o mesmo check nos modos offline.
+export SEMGREP_ENABLE_VERSION_CHECK=0
+
 # A versão sai do WORKFLOW, não daqui: ela já é fixa lá (`pip install semgrep==X`) e o CI é
 # quem dá o veredito. Repetir o número neste arquivo criaria um segundo lugar para atualizar
 # — e o que diverge sem ninguém ver é justamente o que o repo passa o tempo todo caçando.
