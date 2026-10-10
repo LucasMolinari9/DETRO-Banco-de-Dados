@@ -112,6 +112,12 @@ sobrevive entre sessões — sem ele o `./scripts/semgrep.sh` sai 127 e a análi
 feita à mão (foi o que aconteceu no PR #93). A versão instalada é lida do
 `.github/workflows/semgrep.yml`, para não existir um segundo lugar onde atualizar; se o PyPI
 estiver fora, o hook avisa e sai 0 — sessão sem Semgrep é ruim, sessão que não abre é pior.
+A sessão só abre quando o hook sai, então ele **não espera** o pip (~25 s): monta a venv em
+segundo plano, com o log em `.venv-semgrep.log`, e marca `.venv-semgrep/.instalando` até
+terminar. Enquanto a marca existir, o `./scripts/semgrep.sh` avisa e sai 127 em vez de usar
+uma venv pela metade. A conferência de versão roda com `SEMGREP_ENABLE_VERSION_CHECK=0`:
+sem isso, o `semgrep --version` consultava semgrep.dev (bloqueado na rede do ambiente) e
+segurava ~99 s toda abertura (medido em 10/10/2026).
 Na máquina do dono ele não faz nada (só roda com `CLAUDE_CODE_REMOTE=true`): ali quem manda
 na instalação é o dono, e o `pipx` acima já sobrevive entre sessões.
 

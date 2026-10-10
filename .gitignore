@@ -23,6 +23,7 @@ npm-debug.log*
 # === Semgrep (análise estática; binário instalado à parte, ver docs/semgrep.md) ===
 # As REGRAS (.semgrep/) são versionadas; o binário e o cache, não.
 .venv-semgrep/
+.venv-semgrep.log
 .semgrep_logs/
 .semgrep/cache/
 

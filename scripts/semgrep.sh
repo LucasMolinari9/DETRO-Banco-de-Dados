@@ -46,6 +46,13 @@ cd "$ROOT"
 # --- acha o binário: PATH, senão a venv local ---
 if command -v semgrep >/dev/null 2>&1; then
   SEMGREP=semgrep
+elif [ -e "$ROOT/.venv-semgrep/.instalando" ]; then
+  # Marca do .claude/hooks/session-start.sh: a venv ainda está sendo montada em segundo plano,
+  # e um binário pela metade pode existir antes de as dependências chegarem.
+  echo "semgrep ainda está sendo instalado em segundo plano pelo hook de início de sessão." >&2
+  echo "Acompanhe em .venv-semgrep.log e rode de novo em meio minuto. Se o log parou," >&2
+  echo "refaça com: CLAUDE_CODE_REMOTE=true .claude/hooks/session-start.sh" >&2
+  exit 127
 elif [ -x "$ROOT/.venv-semgrep/bin/semgrep" ]; then
   SEMGREP="$ROOT/.venv-semgrep/bin/semgrep"
 else
