@@ -209,6 +209,39 @@ await page.waitForTimeout(600);
 const aindaAberto = await page.locator('#modalOverlay.open').count();
 check(aindaAberto === 0, 'Voltar do navegador continua fechando o modal');
 
+// --- 6. deep link com percent-encoding inválido não derruba a 1ª renderização ---
+// `applyRoute` decodificava cada segmento com decodeURIComponent ANTES de montar o painel: um link
+// `#/linha/%E0` lançava URIError e a página abria sem nenhum card (revisão Codex, 11/10/2026).
+{
+  const errosAntes = erros.length;
+  await page.goto('about:blank');
+  await page.goto(`http://127.0.0.1:${PORT}/#/linha/%E0`);
+  const cards = await page.waitForSelector('.card[data-view]', { timeout: 8000 }).then(() => true, () => false);
+  check(cards, 'link #/linha/%E0 ainda monta o painel de cards');
+  check(erros.length === errosAntes, 'link #/linha/%E0 não gera erro de página', erros.slice(errosAntes).join(' | '));
+}
+
+// --- 7. o cliente do Realtime não fala com o Auth ---
+// O portal não tem login. Com os defaults do supabase-js, um link `#access_token=…` fazia o
+// cliente validar o token em /auth/v1/user e uma sessão vencida no localStorage era renovada em
+// /auth/v1/token (revisão Codex, 11/10/2026). Os dois gatilhos juntos: zero chamadas ao Auth.
+{
+  const auth = [];
+  const anota = r => { if (/\/auth\/v1\//.test(r.url())) auth.push(r.url()); };
+  page.on('request', anota);
+  await page.goto(`http://127.0.0.1:${PORT}/`);
+  await page.evaluate(() => localStorage.setItem('sb-gontnlfmothfglssbyyk-auth-token', JSON.stringify({
+    access_token: 'falso', refresh_token: 'falso', token_type: 'bearer', expires_in: 3600, expires_at: 1, user: { id: 'u' },
+  })));
+  await page.goto('about:blank');
+  await page.goto(`http://127.0.0.1:${PORT}/#access_token=falso&refresh_token=falso&expires_in=3600&token_type=bearer`);
+  const carregou = await page.waitForFunction(() => !!window.supabase, null, { timeout: 8000 }).then(() => true, () => false);
+  check(carregou, 'supabase-js vendorado carregou (senão a checagem abaixo seria vazia)');
+  await page.waitForTimeout(1500);
+  page.off('request', anota);
+  check(auth.length === 0, 'Realtime não chama /auth/v1 (sem sessão, sem refresh)', auth.slice(0, 2).join(' | '));
+}
+
 if (erros.length) check(false, 'sem erro de página', erros.slice(0, 3).join(' | '));
 
 await browser.close();

@@ -11,6 +11,8 @@
  * pelo hostname efetivamente publicado.
  */
 
+import { readFileSync } from 'node:fs';
+
 const [, , rawUrl, rawEnvironment = 'auto'] = process.argv;
 if (!rawUrl) {
   console.error('Uso: node scripts/check_deploy.mjs <url> [preview|production|auto]');
@@ -24,7 +26,22 @@ if (base.protocol !== 'https:') {
 base.pathname = '/';
 base.search = '';
 base.hash = '';
-const vercelBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
+// O segredo de bypass só vai a host DESTE projeto, conferido antes da primeira requisição e contra
+// a cópia LOCAL do app.js — nunca contra o app.js servido pelo próprio alvo (AUD-01, Codex
+// 11/10/2026: qualquer URL HTTPS recebia o segredo). Previews da Vercel têm a forma
+// divatdetro-<hash>-<time>.vercel.app e divatdetro-git-<branch>-<time>.vercel.app. Provar que um
+// preview é deste projeto exigiria token da API da Vercel no CI; o sufixo do time basta aqui.
+const PREVIEW_DO_PROJETO = /^divatdetro-[a-z0-9-]+-lucas-molinari-s-projects\.vercel\.app$/;
+const hostsProducaoLocais = (() => {
+  const local = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const lista = local.match(/const HOSTS_PROD\s*=\s*\[([^\]]*)\]/);
+  return lista ? [...lista[1].matchAll(/'([^']+)'/g)].map(m => m[1].toLowerCase()) : [];
+})();
+const hostDoProjeto = hostsProducaoLocais.includes(base.hostname) || PREVIEW_DO_PROJETO.test(base.hostname);
+const vercelBypassSecret = hostDoProjeto ? process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '' : '';
+if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET && !hostDoProjeto) {
+  console.log(`  ! segredo de bypass NÃO enviado: ${base.hostname} não é host deste projeto`);
+}
 const officialRef = 'gontnlfmothfglssbyyk';
 const retiredRef = 'lwzsxuaqqeoamukduhev';
 const officialUrl = `https://${officialRef}.supabase.co`;
@@ -57,7 +74,9 @@ async function request(pathname) {
   }
   try {
     return await fetch(new URL(pathname, base), {
-      redirect: 'follow',
+      // Com o segredo, nada de seguir redirecionamento: o undici do Node remove authorization/
+      // cookie/host ao trocar de origem, mas PRESERVA header personalizado como o de bypass.
+      redirect: vercelBypassSecret ? 'manual' : 'follow',
       signal: controller.signal,
       headers,
     });
@@ -114,7 +133,8 @@ const home = await expectStatus('/', 200);
 if (home) {
   const homeHtml = await home.text();
   if (
-    /vercel\.com\/(?:sso-api|login)/i.test(home.url) ||
+    // Com o segredo, o salto não é seguido: a tela de login chega como `location` de um 3xx.
+    /vercel\.com\/(?:sso-api|login)/i.test(home.headers.get('location') || home.url) ||
     /<title>[^<]*(?:Log in|Authentication Required)[^<]*Vercel/i.test(homeHtml) ||
     /Log in to Vercel/i.test(homeHtml)
   ) {

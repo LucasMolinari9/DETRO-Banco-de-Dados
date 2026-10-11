@@ -15,10 +15,10 @@ assert.match(smoke, /Configuração Supabase ausente para o ambiente de/);
 assert.match(smoke, /\.test\(restSource\)/, 'a guarda deve ser verificada no corpo de rest.mjs');
 const root = path.join(__dirname, '..');
 const fixture = path.join(__dirname, 'fixtures', 'deploy-smoke-fetch.mjs');
-const run = (scenario, url = 'https://divatdetro.vercel.app', environment = 'production') => {
+const run = (scenario, url = 'https://divatdetro.vercel.app', environment = 'production', secret = '') => {
   const result = spawnSync(process.execPath, ['--import', fixture, 'scripts/check_deploy.mjs', url, environment], {
     cwd: root,
-    env: { ...process.env, DIVAT_SMOKE_SCENARIO: scenario, VERCEL_AUTOMATION_BYPASS_SECRET: '' },
+    env: { ...process.env, DIVAT_SMOKE_SCENARIO: scenario, VERCEL_AUTOMATION_BYPASS_SECRET: secret },
     encoding: 'utf8',
     timeout: 10_000,
   });
@@ -47,4 +47,35 @@ for (const [scenario, message] of [
   assert.strictEqual(result.status, 1, `${scenario}: ${result.output}`);
   assert.match(result.output, message, `${scenario}: ${result.output}`);
 }
-console.log('==== PLACAR: 13/13 ====');
+
+// AUD-01 (Codex, 11/10/2026): o segredo de bypass só vai a host do projeto e nunca segue um
+// redirecionamento. Antes, qualquer URL HTTPS recebia o segredo em todas as requisições.
+const SEGREDO = 'segredo-ficticio-de-teste';
+{
+  const externo = run('current', 'https://coletor.invalid/', 'preview', SEGREDO);
+  assert.doesNotMatch(externo.output, /bypass → coletor\.invalid/, externo.output);
+
+  const preview = run('current', 'https://divatdetro-abc123xyz-lucas-molinari-s-projects.vercel.app', 'preview', SEGREDO);
+  assert.strictEqual(preview.status, 0, preview.output);
+  assert.match(preview.output, /bypass → divatdetro-abc123xyz-lucas-molinari-s-projects\.vercel\.app/);
+
+  const producao = run('current', 'https://divatdetro.vercel.app', 'production', SEGREDO);
+  assert.strictEqual(producao.status, 0, producao.output);
+  assert.match(producao.output, /bypass → divatdetro\.vercel\.app/);
+
+  // Um projeto alheio com nome parecido não é do projeto.
+  const parecido = run('current', 'https://divatdetro-abc123xyz-outro-time.vercel.app', 'preview', SEGREDO);
+  assert.doesNotMatch(parecido.output, /bypass → divatdetro-abc123xyz-outro-time/, parecido.output);
+
+  const salto = run('redirect-externo', 'https://divatdetro.vercel.app', 'production', SEGREDO);
+  assert.doesNotMatch(salto.output, /bypass → coletor\.invalid/, salto.output);
+  assert.strictEqual(salto.status, 1, salto.output);
+  assert.match(salto.output, /recebido 302/, salto.output);
+
+  // Sem seguir o salto, a tela de login da Vercel chega como 307 → vercel.com/sso-api; o
+  // diagnóstico explícito (exit 3) precisa continuar saindo.
+  const sso = run('sso-redirect', 'https://divatdetro-abc123xyz-lucas-molinari-s-projects.vercel.app', 'preview', SEGREDO);
+  assert.strictEqual(sso.status, 3, sso.output);
+  assert.match(sso.output, /preview protegido pela Vercel/, sso.output);
+}
+console.log('==== PLACAR: 20/20 ====');

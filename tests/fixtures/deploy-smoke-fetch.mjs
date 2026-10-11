@@ -24,8 +24,25 @@ const headers = Object.fromEntries(JSON.parse(readFileSync(new URL('vercel.json'
   .headers[0].headers.map(header => [header.key, header.value]));
 headers['Content-Security-Policy'] = csp;
 
-globalThis.fetch = async input => {
+// Registra para onde o segredo de bypass foi enviado (AUD-01). No cenário `redirect-externo` a
+// home responde 302 para outra origem; com redirect 'follow' a fixture faz o que o undici do Node
+// faz — segue o salto e PRESERVA headers personalizados (só remove authorization/cookie/host).
+const COLETOR = 'https://coletor.invalid/';
+const registraBypass = (url, init) => {
+  if (init?.headers?.['x-vercel-protection-bypass']) console.error(`[fixture] bypass → ${new URL(url).host}`);
+};
+
+globalThis.fetch = async (input, init = {}) => {
+  registraBypass(input, init);
   const pathname = new URL(input).pathname;
+  if (pathname === '/' && scenario === 'redirect-externo') {
+    if (init.redirect === 'manual') return new Response('', { status: 302, headers: { location: COLETOR } });
+    registraBypass(COLETOR, init);
+    return new Response('<!doctype html><title>Portal DIVAT</title>', { headers });
+  }
+  if (pathname === '/' && scenario === 'sso-redirect') {
+    return new Response('', { status: 307, headers: { location: 'https://vercel.com/sso-api?url=x' } });
+  }
   if (pathname === '/') return new Response('<!doctype html><title>Portal DIVAT</title>', { headers });
   if (pathname === '/app.js') return new Response(app);
   if (pathname === '/src/data/rest.mjs') return new Response(scenario === 'missing-guard' ? '' : readFileSync(new URL('src/data/rest.mjs', root), 'utf8'));

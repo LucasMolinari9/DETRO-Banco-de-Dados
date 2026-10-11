@@ -4,6 +4,29 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 11/10/2026 — achados da revisão de segurança do Codex
+
+Cada achado foi reproduzido antes da correção, e o teste que o guarda foi visto falhando.
+- **AUD-03:** `check_migrations.mjs` aprovava escrita concedida a `anon`, policy PERMISSIVE
+  FOR ALL USING(true), `GRANT EXECUTE TO PUBLIC`, `TO anon, service_role` e
+  `ON ALL FUNCTIONS … TO anon`. Também recusava a forma correta
+  `revoke all on table public.X from anon, authenticated`. Agora avalia o que cada
+  GRANT/REVOKE/POLICY concede; os casos estão em `tests/migrations-contract.test.mjs`. As 21
+  migrações seguem aprovadas.
+- **AUD-04:** o servidor da bancada (`scripts/lib/rig.mjs`) servia arquivo de fora da raiz via
+  `..%2f` e caía com `%ZZ`. Agora responde 404/400 (`tests/rig.test.js`).
+- **AUD-01:** `check_deploy.mjs` enviava o segredo de bypass a qualquer URL HTTPS e seguia
+  redirecionamentos com ele. Agora só o envia aos hosts deste projeto, conferidos pela cópia
+  local do `app.js`, e não segue salto com o segredo (`tests/deploy-smoke.test.js`). A
+  severidade foi rebaixada: a URL vem da Vercel ou de quem já tem escrita no repositório.
+- **Rota:** `#/linha/%E0` lançava URIError antes de montar o painel e a página abria sem
+  cards (`check_selecao_linha.mjs` §6).
+- **Realtime:** com os defaults do supabase-js, um link `#access_token=…` chamava
+  `/auth/v1/user`, e uma sessão vencida era renovada em `/auth/v1/token`. O cliente agora nasce
+  sem sessão (`check_selecao_linha.mjs` §7).
+- **AUD-02** (TLS `require` do auditor) ficou pendente por decisão do dono, com caminho em
+  [seguranca.md](seguranca.md) §9.5.
+
 ## 03/10/2026 — remoção dos três schemas antigos
 
 - Aplicada `20261003205009_drop_verified_legacy_duplicate_schemas.sql`, somente com os

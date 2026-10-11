@@ -58,8 +58,10 @@ O alvo de todos é o banco em uso. O nome TESTE no secret não cria isolamento. 
 agregada compara os nomes de Realtime com `RT_TABLES`, sem fixar a contagem histórica de 14.
 Jobs verdes que pularam a auditoria viva não comprovam o estado do banco.
 
-`scripts/check_migrations.mjs` rejeita tabela pública sem RLS/revokes, EXECUTE implícito
-público, RPC anônima fora da allowlist e senha versionada. Defaults controláveis de `postgres`
+`scripts/check_migrations.mjs` rejeita tabela pública sem RLS/`REVOKE ALL`, EXECUTE implícito
+público, RPC anônima fora da allowlist e senha versionada. Desde 11/10/2026 avalia o que cada
+GRANT/POLICY concede: recusa escrita para anon/authenticated/PUBLIC, policy de escrita PERMISSIVE
+e `GRANT EXECUTE` para PUBLIC (achado AUD-03 da revisão Codex). Defaults controláveis de `postgres`
 estão fechados; defaults de `supabase_admin` persistem e exigem o gate vivo complementar.
 
 ## Evidência histórica

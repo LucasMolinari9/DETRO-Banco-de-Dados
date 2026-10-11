@@ -50,6 +50,46 @@
   const r7 = serve('rpc/divat_busca_logradouro', 'p_termo=vargas&p_limite=10');
   t('rpc devolve {status,body}',     r7.status === 200 && Array.isArray(r7.body));
 
+  /* --- servidor estático: não sai da raiz e não cai com URL malformada (AUD-04, Codex
+         11/10/2026). O handler decodificava `req.url` e juntava com ROOT sem conferir: um
+         `..%2f` lia arquivo fora do repositório, e um `%ZZ` lançava URIError fora de qualquer
+         try — derrubando a bancada no meio do gate. --- */
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const http = require('http');
+    const { startServer, ROOT } = await import('../scripts/lib/rig.mjs');
+    const fora = fs.mkdtempSync(path.join(os.tmpdir(), 'divat-fora-da-raiz-'));
+    const sentinela = path.join(fora, 'sentinela.txt');
+    fs.writeFileSync(sentinela, 'SENTINELA-FORA-DA-RAIZ');
+    const server = await startServer(0);
+    const porta = server.address().port;
+    const pedir = caminho => new Promise(resolve => {
+      const rq = http.request({ host: '127.0.0.1', port: porta, path: caminho }, res => {
+        let corpo = '';
+        res.on('data', c => { corpo += c; });
+        res.on('end', () => resolve({ status: res.statusCode, corpo }));
+      });
+      rq.on('error', e => resolve({ status: 0, corpo: String(e) }));
+      rq.end();
+    });
+    try {
+      const traversal = '/' + path.relative(ROOT, sentinela).split(path.sep).join('%2f');
+      const s1 = await pedir(traversal);
+      t('..%2f não lê arquivo fora da raiz', s1.status !== 200 && !s1.corpo.includes('SENTINELA'));
+      const s2 = await pedir('/%ZZ');
+      t('URL malformada → 400',            s2.status === 400);
+      const s3 = await pedir('/index.html');
+      t('servidor segue de pé depois',     s3.status === 200);
+      const s4 = await pedir('/src/domain/core.mjs');
+      t('módulo dentro da raiz continua servido', s4.status === 200);
+    } finally {
+      server.close();
+      fs.rmSync(fora, { recursive: true, force: true });
+    }
+  }
+
   console.log('\n==== PLACAR:', pass + '/' + (pass + fails.length), '====');
   if (fails.length){ console.log('FALHAS:'); fails.forEach(f => console.log('  -', f)); process.exit(1); }
 })();
