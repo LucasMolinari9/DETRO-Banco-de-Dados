@@ -144,6 +144,15 @@ as correções desta entrega. RTO/RPO continuam sem medição; cobertura em [bac
 RLS em tabelas públicas novas, sem conceder acesso público. Não substitui RLS explícito e
 revokes na migration. `anon`/`authenticated` não devem poder executar essa função.
 
+**9.5 — TLS do auditor sem verificação do servidor (AUD-02, revisão Codex de 11/10/2026).**
+`scripts/lib/audit-database.mjs` aceita `sslmode=require`, que cifra sem conferir o certificado.
+Pendente por decisão do dono. Não basta exigir `verify-full` no validador: sem trocar o secret
+junto, os checks obrigatórios `realtime`, `seguranca`, `deriva` e `qualidade` ficam vermelhos.
+A documentação da Supabase usa o certificado baixado do painel, e não há confirmação de que
+`sslrootcert=system` funcione. Caminho: versionar o certificado público,
+apontar `PGSSLROOTCERT` para ele, validar num run manual e só então trocar o secret e recusar
+`require`.
+
 O compartilhamento entre previews e o banco oficial é uma decisão registrada na
 [ADR-0002](adr/0002-ambiente-de-teste-isolado.md), sem criação de outro banco nesta entrega.
 Previews não são ambientes isolados para experimentar com dados ou ACLs.

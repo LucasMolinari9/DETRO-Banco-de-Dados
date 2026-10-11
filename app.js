@@ -1601,7 +1601,13 @@ function onRealtime(table, payload){
 }
 function initRealtime(){
   try {
-    const sbClient = supabase.createClient(SB.url, SB.key, { realtime:{ params:{ eventsPerSecond:5 } } });
+    // O portal não tem login: com os defaults, um link `#access_token=…` era validado em
+    // /auth/v1/user e sessão vencida no localStorage era renovada em /auth/v1/token
+    // (check_selecao_linha.mjs §7).
+    const sbClient = supabase.createClient(SB.url, SB.key, {
+      auth:{ persistSession:false, autoRefreshToken:false, detectSessionInUrl:false },
+      realtime:{ params:{ eventsPerSecond:5 } },
+    });
     const channel = sbClient.channel('divat-rt');
     RT_TABLES.forEach(t => channel.on('postgres_changes', { event:'*', schema:'public', table:t }, p => onRealtime(t, p)));
     channel.subscribe(status => {
@@ -1695,10 +1701,13 @@ function syncHash({ push = false } = {}){
 async function applyRoute(){
   const seg = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   let cod = null, view = null, topico = null;
+  // Percent-encoding inválido (`#/linha/%E0`) lançava URIError antes de o painel ser montado e a
+  // página abria sem cards; segmento ilegível vale como ausente (check_selecao_linha.mjs §6).
+  const dec = s => { try { return decodeURIComponent(s); } catch { return null; } };
   for (let i = 0; i < seg.length; i++){
-    if (seg[i] === 'linha'    && seg[i+1]) cod    = decodeURIComponent(seg[++i]);
-    else if (seg[i] === 'topico'   && seg[i+1]) topico = decodeURIComponent(seg[++i]);
-    else if (seg[i] === 'consulta' && seg[i+1]) view   = decodeURIComponent(seg[++i]);
+    if (seg[i] === 'linha'    && seg[i+1]) cod    = dec(seg[++i]);
+    else if (seg[i] === 'topico'   && seg[i+1]) topico = dec(seg[++i]);
+    else if (seg[i] === 'consulta' && seg[i+1]) view   = dec(seg[++i]);
   }
   _applyingRoute = true;
   try {

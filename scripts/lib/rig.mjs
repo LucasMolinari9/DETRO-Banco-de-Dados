@@ -69,8 +69,13 @@ function cspDeProducao(port) {
 export async function startServer(port) {
   const csp = cspDeProducao(port);
   const server = http.createServer((req, res) => {
-    const url = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
-    const file = path.join(ROOT, url === '/' ? 'index.html' : url);
+    // URL malformada lançava URIError fora de qualquer try e derrubava a bancada; `..%2f`
+    // saía da raiz (AUD-04, Codex 11/10/2026 — guardado em tests/rig.test.js).
+    let url;
+    try { url = decodeURIComponent(req.url.split('?')[0].split('#')[0]); }
+    catch { res.writeHead(400); res.end('400'); return; }
+    const file = path.resolve(ROOT, '.' + (url === '/' ? '/index.html' : url));
+    if (!file.startsWith(ROOT + path.sep)) { res.writeHead(404); res.end('404'); return; }
     fs.readFile(file, (err, buf) => {
       if (err) { res.writeHead(404); res.end('404'); return; }
       res.writeHead(200, {

@@ -12,9 +12,32 @@ const ALLOWED_ANON_EXECUTE = new Set([
   'private.f_unaccent',
 ]);
 
+// PUBLIC alcança anon e authenticated; os três recebem no máximo leitura. EXECUTE tem regra
+// própria (allowlist) logo abaixo.
+const PAPEIS_PUBLICOS = new Set(['anon', 'authenticated', 'public']);
+const PRIVILEGIOS_LEITURA = new Set(['select', 'usage', 'execute']);
+
 const failures = [];
 const fail = (file, message) => failures.push(`${file}: ${message}`);
 const compact = sql => sql.replace(/--.*$/gm, '').replace(/\s+/g, ' ').trim();
+
+// O gate avalia o que cada GRANT/REVOKE/POLICY concede, não a presença de palavras: até a revisão
+// AUD-03 (11/10/2026), `revoke select … ; grant insert … to anon` e uma policy PERMISSIVE FOR ALL
+// USING(true) passavam verdes. O hardening monta SQL dinâmico com format('… TO anon', …), por
+// isso a lista de papéis é cortada na primeira aspa ou parêntese.
+const papeis = trecho => trecho
+  .replace(/\s+(?:with\s+grant\s+option|granted\s+by)\b.*$/i, '')
+  .split(/['()]/)[0]
+  .split(',')
+  .map(p => p.trim().replace(/^"|"$/g, '').toLowerCase())
+  .filter(Boolean);
+const privilegios = trecho => trecho
+  .replace(/\([^)]*\)/g, '')
+  .split(',')
+  .map(p => p.trim().split(/\s+/)[0].toLowerCase())
+  .filter(Boolean);
+const publicos = lista => lista.filter(p => PAPEIS_PUBLICOS.has(p));
+const comandos = (sql, re) => [...sql.matchAll(re)].map(m => m.slice(1));
 
 let files;
 try {
@@ -36,16 +59,45 @@ for (const file of files) {
     fail(file, 'credenciais/senhas não podem ser versionadas em migrações');
   }
 
+  const grants = comandos(sql, /\bgrant\s+([^;]+?)\s+on\s+([^;]+?)\s+to\s+([^;]+)/gi)
+    .map(([privs, objeto, para]) => ({ privs: privilegios(privs), objeto: objeto.trim(), para: papeis(para) }));
+  const revokes = comandos(sql, /\brevoke\s+([^;]+?)\s+on\s+([^;]+?)\s+from\s+([^;]+)/gi)
+    .map(([privs, objeto, de]) => ({ privs: privilegios(privs), objeto: objeto.trim().toLowerCase(), de: papeis(de) }));
+
   const tables = [...sql.matchAll(/\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?public\.([a-z0-9_]+)/gi)]
     .map(match => match[1]);
   for (const table of tables) {
     const escaped = table.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const rls = new RegExp(`alter table(?: if exists)? public\\.${escaped} enable row level security`, 'i');
-    const revokeObject = new RegExp(`revoke [^;]+ on (?:table )?public\\.${escaped}[^;]+ from anon\\s*,\\s*authenticated`, 'i');
-    const revokeAll = /revoke [^;]+ on all tables in schema public from anon\s*,\s*authenticated/i;
     if (!rls.test(sql)) fail(file, `public.${table} é criada sem ENABLE ROW LEVEL SECURITY na mesma migração`);
-    if (!revokeObject.test(sql) && !revokeAll.test(sql)) {
-      fail(file, `public.${table} é criada sem REVOKE explícito de anon/authenticated na mesma migração`);
+    // REVOKE só de SELECT deixaria a escrita herdada de default privileges: precisa ser ALL.
+    const fecha = revokes.some(({ privs, objeto, de }) =>
+      privs[0] === 'all'
+      && (objeto === 'all tables in schema public'
+        || objeto.replace(/^table\s+/, '').split(/\s*,\s*/).includes(`public.${table.toLowerCase()}`))
+      && de.includes('anon') && de.includes('authenticated'));
+    if (!fecha) {
+      fail(file, `public.${table} é criada sem REVOKE ALL explícito de anon/authenticated na mesma migração`);
+    }
+  }
+
+  for (const { privs, para } of grants) {
+    const alvo = publicos(para);
+    const escrita = privs.filter(p => !PRIVILEGIOS_LEITURA.has(p));
+    if (alvo.length && escrita.length) {
+      fail(file, `GRANT de escrita (${escrita.join(', ')}) para ${alvo.join(', ')} — papéis públicos só recebem SELECT/USAGE/EXECUTE`);
+    }
+  }
+
+  for (const [nome, resto] of comandos(sql, /\bcreate\s+policy\s+(\S+)\s+on\s+\S+([^;]*)/gi)) {
+    // Só o cabeçalho (antes de USING/WITH CHECK) declara AS/FOR/TO; sem FOR vale ALL, sem TO vale PUBLIC.
+    const cabecalho = resto.split(/\busing\b|\bwith\s+check\b/i)[0];
+    if (/^\s*as\s+restrictive\b/i.test(cabecalho)) continue;
+    const comando = (cabecalho.match(/\bfor\s+(all|select|insert|update|delete)\b/i)?.[1] || 'all').toLowerCase();
+    const para = cabecalho.match(/\bto\s+(.+)$/i);
+    const alvo = publicos(para ? papeis(para[1]) : ['public']);
+    if (comando !== 'select' && alvo.length) {
+      fail(file, `policy ${nome} é PERMISSIVE para ${comando.toUpperCase()} e alcança ${alvo.join(', ')} — escrita só com policy AS RESTRICTIVE`);
     }
   }
 
@@ -55,17 +107,26 @@ for (const file of files) {
     fail(file, 'função public é criada sem REVOKE EXECUTE de PUBLIC na mesma migração');
   }
 
-  for (const match of sql.matchAll(/grant\s+execute\s+on\s+function\s+([^;]*?)\s+to\s+anon\s*;/gi)) {
-    const targets = [...match[1].matchAll(/((?:public|audit|private)\.[a-z0-9_]+)\s*\(/gi)]
+  for (const { privs, objeto, para } of grants) {
+    if (!privs.includes('execute')) continue;
+    if (para.includes('public')) {
+      fail(file, `GRANT EXECUTE para PUBLIC em ${objeto} — PUBLIC inclui anon e authenticated`);
+      continue;
+    }
+    if (!para.includes('anon')) continue;
+    if (para.includes('authenticated')) fail(file, 'authenticated não pode acompanhar anon em GRANT EXECUTE');
+    if (/^all\s+(?:functions|routines|procedures)\b/i.test(objeto)) {
+      fail(file, 'GRANT EXECUTE ON ALL FUNCTIONS para anon — conceda função a função, pela allowlist');
+      continue;
+    }
+    const targets = [...objeto.matchAll(/((?:public|audit|private)\.[a-z0-9_]+)\s*\(/gi)]
       .map(target => target[1].toLowerCase());
-    if (!targets.length) fail(file, 'GRANT EXECUTE TO anon não pôde ser interpretado de forma segura');
+    if (!/^function\s/i.test(objeto) || !targets.length) {
+      fail(file, 'GRANT EXECUTE TO anon não pôde ser interpretado de forma segura');
+    }
     for (const target of targets) {
       if (!ALLOWED_ANON_EXECUTE.has(target)) fail(file, `${target} não está na allowlist anônima de execução`);
     }
-  }
-
-  if (/grant\s+execute\s+on\s+function[^;]*?to\s+(?:anon\s*,\s*authenticated|authenticated\s*,\s*anon)/i.test(sql)) {
-    fail(file, 'authenticated não pode acompanhar anon em GRANT EXECUTE');
   }
 }
 
