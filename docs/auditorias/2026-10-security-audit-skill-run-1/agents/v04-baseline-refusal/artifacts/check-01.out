@@ -1,0 +1,33 @@
+=== RUN1 normal (before): node scripts/check_grants.mjs  -> exit 1
+· Exceção conhecida, dentro do baseline (2) — ver docs/seguranca.md §9:
+    [funcao_security_definer] rls_auto_enable() é SECURITY DEFINER
+    [default_privilege_permissivo] objeto novo (r) criado por supabase_admin em public já nasce com anon=DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE authenticated=DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+
+✓ Resolvido desde o baseline (2) — rode --atualizar-baseline para apertar o gate:
+    default_privilege_permissivo → supabase_admin:public:f
+    default_privilege_permissivo → supabase_admin:public:S
+
+✗ POSTURA DE SEGURANÇA REGREDIU — achado(s) fora do baseline:
+    [grant_escrita] anon tem INSERT/UPDATE/DELETE/TRUNCATE em tabela_vista_teste
+    [policy_escrita] policy anon_write_all em tabela_vista_teste é 'w', não SELECT
+    [rls_off] RLS desligada em evento_dados
+    [funcao_public_execute] divat_api_shape() é executável por PUBLIC
+
+O que fazer: REVOGUE o privilégio. Só use --atualizar-baseline se a exceção for
+deliberada e você a documentar em docs/seguranca.md §9.
+Para ver o estado cru do banco: node scripts/check_grants.mjs --sem-baseline
+=== RUN2 update: node scripts/check_grants.mjs --atualizar-baseline -> exit 0
+✓ Baseline reescrito com 6 exceção(ões) → scripts/security_baseline.json
+  · Confira o diff antes de commitar. Toda entrada nova precisa de justificativa em docs/seguranca.md §9.
+=== baseline changed: true
+=== baseline keys after: default_privilege_permissivo supabase_admin:public:r | funcao_public_execute divat_api_shape() | funcao_security_definer rls_auto_enable() | grant_escrita tabela_vista_teste:anon | policy_escrita tabela_vista_teste:anon_write_all | rls_off evento_dados
+=== RUN3 normal (after): node scripts/check_grants.mjs  -> exit 0
+· Exceção conhecida, dentro do baseline (6) — ver docs/seguranca.md §9:
+    [grant_escrita] anon tem INSERT/UPDATE/DELETE/TRUNCATE em tabela_vista_teste
+    [policy_escrita] policy anon_write_all em tabela_vista_teste é 'w', não SELECT
+    [rls_off] RLS desligada em evento_dados
+    [funcao_public_execute] divat_api_shape() é executável por PUBLIC
+    [funcao_security_definer] rls_auto_enable() é SECURITY DEFINER
+    [default_privilege_permissivo] objeto novo (r) criado por supabase_admin em public já nasce com anon=DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE authenticated=DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+
+✓ Postura de segurança: nenhum achado novo. (2 tabelas, 2 funções conferidas.)

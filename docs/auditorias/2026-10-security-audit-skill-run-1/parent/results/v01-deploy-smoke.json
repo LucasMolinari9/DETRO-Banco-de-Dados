@@ -1,0 +1,103 @@
+{
+  "decision": "needs_validation",
+  "record": {
+    "verdict": "needs_validation",
+    "fingerprint": "deploy-smoke.yml:deployment-status:checkout-deployment-sha-with-bypass-secret",
+    "title": "Deploy smoke runs the deployed commit's code with VERCEL_AUTOMATION_BYPASS_SECRET on any successful deployment_status, with no fork, creator or trusted-ref guard",
+    "description": "The `smoke` job in .github/workflows/deploy-smoke.yml (at 539abe2) runs on every `deployment_status` event. Its `if:` only requires state == 'success' and a non-empty environment_url or target_url (lines 30-34). It has no creator, head-repository, fork or trusted-ref condition and no `environment:` approval gate. The secret-bearing jobs in db-checks.yml (line 79) and deriva.yml do have such a guard: they skip pull_request runs whose head repository is not this one.\n\nVERCEL_AUTOMATION_BYPASS_SECRET is placed in job-level env (line 41), so every step sees it. actions/checkout (line 61) has no `ref:`, so it checks out the event's GITHUB_SHA, which for deployment_status is the commit being deployed. The last step (line 100) then runs `node scripts/check_deploy.mjs` from that checkout. The AUD-01 host allowlist that is supposed to confine the secret lives inside the same checked-out script. Its production hosts are read from the same checkout's app.js (check_deploy.mjs:35-41). It therefore constrains only an honest commit. Even the honest script sends the secret as `x-vercel-protection-bypass` (line 61) to the deployment under test, and a fork-built preview of this Vercel project matches PREVIEW_DO_PROJETO (line 34).\n\nI re-read every cited line at 539abe2 and confirmed each one. vercel.json has no git/github integration settings that would disable deployments. The retained hunter artifact agents/h07-deploy-edge/artifacts/check-05.out shows three things: the rendered `if:` has no guard tokens, there is no environment, and a fixture check_deploy.mjs that differs from main receives the dummy secret through the job env. No further local reproduction was decisive: the source path is complete and unrefuted.\n\nWhether a lower-trust actor can actually reach this job is unobserved, and so is what it would get. That depends on four things. First, whether the Vercel GitHub integration is connected; CLAUDE.md:272 only instructs connecting it. Second, whether Vercel deploys fork pull requests, automatically or after a team member authorizes them under Git Fork Protection. Third, whether GitHub then raises a success deployment_status in this repository for the fork's sha and runs this workflow with repository secrets, and whether that run uses the default-branch workflow file or the one in the deployment commit. If it uses the deployment commit's file, exposure extends to every repository secret. Fourth, whether the repository is public: ADR-0003 says so, but run metadata reports it private. These are Vercel and GitHub hosted facts. The changelog downgraded AUD-01 because the URL comes from Vercel or from repository writers (docs/CHANGELOG.md:21). That rationale does not address who authored the commit being deployed and executed.",
+    "claimed_root_cause": "A privileged deployment_status job trusts both the code and the deployment of whatever commit the event names. Secret confinement (the host allowlist in scripts/check_deploy.mjs, fed by HOSTS_PROD from the same checkout's app.js) is implemented in the checked-out deployment-commit code instead of in trusted workflow configuration. The job has no condition excluding deployments of commits not authored on this repository's own branches: no fork, creator or trusted-ref guard and no environment gate. Its sibling secret-bearing PR jobs do exclude forks.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": ".github/workflows/deploy-smoke.yml",
+        "line": 8,
+        "scope": "on.deployment_status",
+        "description": "Any deployment_status event in the repository triggers the workflow. Whether the Vercel app creates one for an authorized or unprotected fork-PR preview, and with which sha, is a hosted fact (see blockers)."
+      },
+      {
+        "kind": "propagation",
+        "file": ".github/workflows/deploy-smoke.yml",
+        "line": 30,
+        "scope": "jobs.smoke.if",
+        "description": "The guard checks only deployment_status.state == 'success' and a non-empty environment_url or target_url (lines 30-34). It has no creator, head-repository/fork or trusted-ref condition."
+      },
+      {
+        "kind": "propagation",
+        "file": ".github/workflows/deploy-smoke.yml",
+        "line": 41,
+        "scope": "jobs.smoke.env",
+        "description": "VERCEL_AUTOMATION_BYPASS_SECRET is pulled from repository secrets into job-level env and is visible to every step. No `environment:` key requires reviewer approval."
+      },
+      {
+        "kind": "propagation",
+        "file": ".github/workflows/deploy-smoke.yml",
+        "line": 61,
+        "scope": "jobs.smoke.steps[0] actions/checkout",
+        "description": "Checkout sets only persist-credentials: false and no `ref:`, so it uses the event default (GITHUB_SHA). For deployment_status that is the commit being deployed."
+      },
+      {
+        "kind": "propagation",
+        "file": ".github/workflows/deploy-smoke.yml",
+        "line": 100,
+        "scope": "jobs.smoke.steps[3] run",
+        "description": "Runs `node scripts/check_deploy.mjs` from that checkout while the secret is in the process environment. For a non-production deployment, DEPLOY_URL stays the deployment's own preview URL (lines 74-78)."
+      },
+      {
+        "kind": "sink",
+        "file": "scripts/check_deploy.mjs",
+        "line": 41,
+        "scope": "vercelBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET",
+        "description": "The deployed commit's own script reads the secret. Its host allowlist (lines 34-40) comes from the same commit's app.js, so an altered commit is unconstrained. The unaltered script sends the secret as a request header (line 61) to the deployment built from that commit."
+      }
+    ],
+    "evidence": [
+      {
+        "file": ".github/workflows/db-checks.yml",
+        "line": 79,
+        "description": "The sibling secret-bearing jobs exclude forks with `github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository`. deploy-smoke has no equivalent for deployment events."
+      },
+      {
+        "file": "scripts/check_deploy.mjs",
+        "line": 36,
+        "description": "HOSTS_PROD for the secret allowlist is read from the LOCAL (checked-out) app.js, the same commit whose deployment is being tested."
+      },
+      {
+        "file": "scripts/check_deploy.mjs",
+        "line": 61,
+        "description": "Every request to an allowlisted deployment carries `x-vercel-protection-bypass`. A fork-built preview of this project matches PREVIEW_DO_PROJETO (line 34), so it receives the secret even when the script is honest."
+      },
+      {
+        "file": "docs/CHANGELOG.md",
+        "line": 21,
+        "description": "AUD-01 severity was lowered because the URL comes from Vercel or from repository writers. The author of the deployed and executed commit is not considered."
+      },
+      {
+        "file": "docs/adr/0003-repositorio-publico.md",
+        "line": 10,
+        "description": "The decision record says the repository is public and stays public, so any GitHub user could open a fork pull request. Current visibility is unobserved; run metadata reports it private."
+      },
+      {
+        "file": "CLAUDE.md",
+        "line": 272,
+        "description": "The Vercel-GitHub auto-deploy connection is described as a dashboard action to perform. Whether it is connected, and therefore whether Vercel emits deployment_status here at all, is not visible in the repository."
+      },
+      {
+        "file": "tests/deploy-smoke.test.js",
+        "line": 58,
+        "description": "The AUD-01 regression suite only exercises the host allowlist inside a trusted copy of the script. Nothing covers the provenance of the commit the workflow checks out and executes."
+      }
+    ],
+    "blockers": [
+      "Vercel project state, a dashboard fact absent from the repository: whether the GitHub integration is connected, and the Git Fork Protection setting (Project Settings > Security). The setting decides whether fork-PR previews deploy automatically or only after a team member authorizes them.",
+      "Whether the Vercel GitHub integration creates a GitHub Deployment and a success deployment_status in this repository for a fork-PR preview, and with which sha and ref. This is provider behavior that cannot be observed offline.",
+      "Whether GitHub Actions starts deployment_status workflows for such a fork-authored sha with repository secrets. Also whether it reads the workflow definition from the deployment commit, which would extend exposure from the bypass secret to every repository secret, or from the default branch. Both are hosted GitHub facts.",
+      "Current repository visibility and fork policy. ADR-0003 records the repository as public, while run metadata reports it private. This determines whether any GitHub user or only collaborators with read access can open a fork PR.",
+      "Whether Vercel forwards the `x-vercel-protection-bypass` request header to Functions or Middleware a fork could add to its own deployment. This decides the second leg: the secret reaching fork-built deployment code even if the checkout were pinned to trusted code.",
+      "Which deployments the configured Protection Bypass for Automation unlocks. This bounds the impact of disclosing it."
+    ],
+    "validation_plan": {
+      "local": "After a fix, re-run a policy rendering like agents/h07-deploy-edge check-05 (PyYAML over deploy-smoke.yml) inside the sandbox and assert three things. First, the step that holds VERCEL_AUTOMATION_BYPASS_SECRET runs only code from a trusted ref, for example a second actions/checkout of the default branch for scripts/ and app.js, with the deployment commit never executed. Second, the secret is scoped to that single step's env, not job env. Third, the job either requires an `environment:` with required reviewers, or has an `if:` that admits only deployments whose creator is the Vercel app and whose sha is on a branch of this repository. Add a case to tests/deploy-smoke.test.js that fails if the workflow checks out the event commit while exposing the secret.",
+      "deployment": "Owner-observed only; do not probe anyone else's infrastructure.\n1. In Vercel, read Project Settings > Git (is the GitHub repository connected?) and Settings > Security > Git Fork Protection.\n2. In GitHub, confirm the repository's visibility and fork policy. In the Actions tab, open a past 'Deploy smoke' run triggered by deployment_status and note deployment.creator.login, deployment.sha and deployment.ref from the event payload.\n3. From an owner-controlled second GitHub account, open a fork PR whose only change makes scripts/check_deploy.mjs print `Boolean(process.env.VERCEL_AUTOMATION_BYPASS_SECRET)` and `git rev-parse HEAD`, never the value. Authorize the Vercel preview if prompted.\n4. In the resulting 'Deploy smoke' run, check whether it was triggered by deployment_status, whether the checked-out sha is the fork commit, and whether the boolean is true.\n5. To learn whether workflow definitions come from the deployment commit, the same fork commit may add a workflow `on: deployment_status` that prints only `${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL != '' }}`.\n6. Close the PR and delete the fork afterwards. Rotate the bypass secret, plus any secret shown as present to fork code."
+    }
+  }
+}

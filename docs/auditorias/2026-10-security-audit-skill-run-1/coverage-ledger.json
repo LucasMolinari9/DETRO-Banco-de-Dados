@@ -307,7 +307,11 @@
       "docs/backup.md",
       "docs/CHANGELOG.md",
       ".github/workflows/backup.yml",
-      "scripts/backup_rest.mjs"
+      "scripts/backup_rest.mjs",
+      ".github/workflows/db-checks.yml",
+      ".github/workflows/phase3-security.yml",
+      "docs/seguranca.md",
+      "agents/v04-baseline-refusal/artifacts/check-01.out"
     ],
     "local_checks": [
       {
@@ -382,6 +386,46 @@
         "method": "local",
         "result": "No job declares `environment:`. backup-private passes SUPABASE_BACKUP_DATABASE_URL and BACKUP_AGE_PUBLIC_KEY to the step running scripts/backup_private.py from the event ref. Both atualizar-* workflows check out with the default persisted credentials under contents/pull-requests write.",
         "artifact": "agents/h17-ci-secrets/artifacts/check-02.out"
+      },
+      {
+        "agent_id": "v03-backup-secret",
+        "reviewed_paths": [
+          ".github/workflows/backup-private.yml",
+          ".github/workflows/db-checks.yml",
+          ".github/workflows/phase3-security.yml",
+          "docs/CHANGELOG.md",
+          "docs/backup.md",
+          "docs/seguranca.md",
+          "scripts/backup_private.py"
+        ],
+        "invariant": "Phase 3 independent validation of candidate github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref",
+        "method": "source",
+        "result": "verifier decision: needs_validation",
+        "artifact": null
+      },
+      {
+        "agent_id": "v04-baseline-refusal",
+        "reviewed_paths": [
+          ".github/workflows/atualizar-baseline.yml",
+          "agents/v04-baseline-refusal/artifacts/check-01.out",
+          "scripts/check_grants.mjs"
+        ],
+        "invariant": "Phase 3 independent validation of candidate scripts/check_grants.mjs:--atualizar-baseline:grave-findings-baselined-without-refusal",
+        "method": "source",
+        "result": "verifier decision: rejected",
+        "artifact": null
+      },
+      {
+        "agent_id": "v04-baseline-refusal",
+        "reviewed_paths": [
+          ".github/workflows/atualizar-baseline.yml",
+          "agents/v04-baseline-refusal/artifacts/check-01.out",
+          "scripts/check_grants.mjs"
+        ],
+        "invariant": "Phase 3 independent local reproduction for scripts/check_grants.mjs:--atualizar-baseline:grave-findings-baselined-without-refusal",
+        "method": "local",
+        "result": "see artifact; verifier decision: rejected",
+        "artifact": "agents/v04-baseline-refusal/artifacts/check-01.out"
       }
     ],
     "result_fingerprints": [
@@ -400,7 +444,17 @@
       "For fork PRs, the secret-bearing required checks (realtime, qualidade, seguranca, deriva) are skipped by the `if:`, and GitHub counts skipped jobs as passing required checks. Fork PRs therefore satisfy those four checks without any live audit (a writer still has to merge).",
       "PRs opened with GITHUB_TOKEN by the two updater workflows do not trigger pull_request workflows, so the eight required checks never report on them until a human pushes or reopens.",
       "backup_private.py:45 accepts only the `postgres` owner login. A dedicated read-only backup login (read-all-data, no write, no role administration) would shrink the blast radius of any exposure of SUPABASE_BACKUP_DATABASE_URL."
-    ]
+    ],
+    "x_phase3": {
+      "github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref": {
+        "verifier": "v03-backup-secret",
+        "decision": "needs_validation"
+      },
+      "scripts/check_grants.mjs:--atualizar-baseline:grave-findings-baselined-without-refusal": {
+        "verifier": "v04-baseline-refusal",
+        "decision": "rejected"
+      }
+    }
   },
   {
     "coverage_id": ".github%2Fworkflows%2Fdb-checks.yml%20%2B%20deriva.yml%20pull_request::fork-exclusion%20if%3A%20%2B%20secrets.SUPABASE_TEST_AUDIT_DATABASE_URL::.github%2Fworkflows::SUPPLY-CHAIN-AND-RELEASE.md%23Untrusted%20code%20in%20a%20privileged%20workflow",
@@ -455,7 +509,11 @@
       ".github/workflows/ci.yml",
       ".github/workflows/views.yml",
       ".github/workflows/graft.yml",
-      ".github/workflows/semgrep.yml"
+      ".github/workflows/semgrep.yml",
+      ".github/workflows/backup-private.yml",
+      "docs/CHANGELOG.md",
+      "docs/backup.md",
+      "scripts/backup_private.py"
     ],
     "local_checks": [
       {
@@ -509,6 +567,22 @@
         "method": "local",
         "result": "No job declares `environment:`. realtime, qualidade, seguranca and deriva expose SUPABASE_TEST_AUDIT_DATABASE_URL at job scope to every step, including the PR-controlled scripts/check_realtime.mjs, check_data_quality.mjs, check_grants.mjs, check_deriva.mjs and tests/check_grants.rig.mjs. ci, views, graft and semgrep hold no secrets.",
         "artifact": "agents/h17-ci-secrets/artifacts/check-02.out"
+      },
+      {
+        "agent_id": "v03-backup-secret",
+        "reviewed_paths": [
+          ".github/workflows/backup-private.yml",
+          ".github/workflows/db-checks.yml",
+          ".github/workflows/phase3-security.yml",
+          "docs/CHANGELOG.md",
+          "docs/backup.md",
+          "docs/seguranca.md",
+          "scripts/backup_private.py"
+        ],
+        "invariant": "Phase 3 independent validation of candidate github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref",
+        "method": "source",
+        "result": "verifier decision: needs_validation",
+        "artifact": null
       }
     ],
     "result_fingerprints": [
@@ -526,7 +600,13 @@
       "For fork PRs, the secret-bearing required checks (realtime, qualidade, seguranca, deriva) are skipped by the `if:`, and GitHub counts skipped jobs as passing required checks. Fork PRs therefore satisfy those four checks without any live audit (a writer still has to merge).",
       "PRs opened with GITHUB_TOKEN by the two updater workflows do not trigger pull_request workflows, so the eight required checks never report on them until a human pushes or reopens.",
       "backup_private.py:45 accepts only the `postgres` owner login. A dedicated read-only backup login (read-all-data, no write, no role administration) would shrink the blast radius of any exposure of SUPABASE_BACKUP_DATABASE_URL."
-    ]
+    ],
+    "x_phase3": {
+      "github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref": {
+        "verifier": "v03-backup-secret",
+        "decision": "needs_validation"
+      }
+    }
   },
   {
     "coverage_id": ".github%2Fworkflows%2Fdeploy-smoke.yml%20deployment_status%20%2B%20inputs.url::scripts%2Fcheck_deploy.mjs%20host%20allowlist%20for%20VERCEL_AUTOMATION_BYPASS_SECRET::.github%2Fworkflows::SUPPLY-CHAIN-AND-RELEASE.md%23Workflow%20command%20and%20expression%20confusion",
@@ -579,7 +659,8 @@
       "tests/fixtures/deploy-smoke-fetch.mjs",
       "app.js",
       "docs/CHANGELOG.md",
-      "docs/adr/0003-repositorio-publico.md"
+      "docs/adr/0003-repositorio-publico.md",
+      "CLAUDE.md"
     ],
     "local_checks": [
       {
@@ -649,6 +730,22 @@
         "method": "source",
         "result": "The served app.js and rest.mjs are only matched with regexes and JWT payloads are only JSON.parse'd, with no eval or import. The extracted literals are printed to the log. Because `'([^']*)'` (line 294) can span newlines, served content could inject `::workflow-command::` lines into the last step's log. No later step consumes them (hardening note).",
         "artifact": null
+      },
+      {
+        "agent_id": "v01-deploy-smoke",
+        "reviewed_paths": [
+          ".github/workflows/db-checks.yml",
+          ".github/workflows/deploy-smoke.yml",
+          "CLAUDE.md",
+          "docs/CHANGELOG.md",
+          "docs/adr/0003-repositorio-publico.md",
+          "scripts/check_deploy.mjs",
+          "tests/deploy-smoke.test.js"
+        ],
+        "invariant": "Phase 3 independent validation of candidate deploy-smoke.yml:deployment-status:checkout-deployment-sha-with-bypass-secret",
+        "method": "source",
+        "result": "verifier decision: needs_validation",
+        "artifact": null
       }
     ],
     "result_fingerprints": [
@@ -662,7 +759,13 @@
       "scripts/check_deploy.mjs:294,324,337: strings taken from the served app.js, such as the SB_URL literal (whose regex `'([^']*)'` spans newlines), the HOSTS_PROD list and the JWT role/ref, are printed to the Actions log unescaped. Deployed content can therefore emit `::workflow-command::` lines. It is the last step, so the effect is limited to the log. Strip CR/LF, or wrap the output in `::stop-commands::`.",
       "scripts/check_deploy.mjs:22-28: an explicit port is kept (`https://divatdetro.vercel.app:8443` receives the secret on that port). The host is still Vercel-owned, but requiring the default port would narrow the destination to exactly the deployment URL.",
       ".vercelignore:35: vercel.json is reopened and probably served. Its content only repeats public response headers, so publishing it discloses nothing new. Removing it from the allowlist is optional."
-    ]
+    ],
+    "x_phase3": {
+      "deploy-smoke.yml:deployment-status:checkout-deployment-sha-with-bypass-secret": {
+        "verifier": "v01-deploy-smoke",
+        "decision": "needs_validation"
+      }
+    }
   },
   {
     "coverage_id": "CI%20and%20runtime%20dependency%20inputs%20%28npm%2Fpip%2Fregistry%20rules%2Factions%2Fvendored%20code%29::version%20pins%2C%20SHA%20pins%2C%20vendored%20integrity::.github%2Fworkflows::SUPPLY-CHAIN-AND-RELEASE.md%23Mutable%20and%20unbound%20build%20inputs",
@@ -1488,6 +1591,172 @@
     ]
   },
   {
+    "coverage_id": "app.js%23initRealtime%20anon%20postgres_changes%20subscriptions%20%28public%20anon%20key%29::Supabase%20Realtime%20connection%2Fchannel%20quotas%20%2B%20supabase_realtime%20publication%20scope::supabase%20realtime::RESOURCE-EXHAUSTION-AND-AVAILABILITY.md%23Database%20and%20downstream%20query%20amplification",
+    "canonical_refs": {
+      "surface": "app.js#initRealtime anon postgres_changes subscriptions (public anon key)",
+      "boundary": "Supabase Realtime connection/channel quotas + supabase_realtime publication scope",
+      "subsystem": "supabase realtime",
+      "attack_class": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Database and downstream query amplification"
+    },
+    "surface": "anon Realtime postgres_changes subscriptions opened with the public anon key (app.js initRealtime: one public channel 'divat-rt' per visitor with 15 unfiltered event:'*' bindings), and the server-side authorization and delivery work that each owner WAL change triggers for every subscription",
+    "boundary": "Supabase Realtime per-project connection, channel and join quotas; client-only eventsPerSecond:5; publication scope of 15 tables, including the bulk-loaded itinerario_teste/qh_intervalo_teste/qh_predeterminado_teste; REPLICA IDENTITY FULL on tabela_vista_teste. Neither the anon statement_timeout nor",
+    "subsystem": "supabase realtime / frontend app.js REALTIME section",
+    "attack_class": "Database and downstream query amplification (Realtime)",
+    "starting_paths": [
+      "app.js",
+      "docs/backup_schema.sql",
+      "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+      "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+      "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+      "docs/etl.md",
+      "scripts/check_realtime.mjs",
+      "vendor/supabase-js-2.110.7.min.js"
+    ],
+    "ordinary_attack_class_block": null,
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Database and downstream query amplification",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Unbounded buffering and cardinality",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Quota-accounting scope and reset gaps",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Retry storm and fail-open amplification",
+        "reason": "The app.js#initRealtime coverage unit already settles client reload/retry fan-out on Realtime events: active-tab reloads are debounced, background tabs are only marked stale, and sbFetch retries are bounded (its check 4)."
+      },
+      {
+        "block": "PROTOCOLS-RPC-AND-MESSAGING.md#Topic, routing-key, and subscription scope gaps",
+        "reason": "The app.js#initRealtime unit already settles subscription authorization scope: the publication holds only anon-readable catalog tables, and broadcast/presence have no binding (its checks 1-2)."
+      },
+      {
+        "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Decompression and representation amplification",
+        "reason": "No decompression or document parsing on the Realtime path."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "h25-realtime-quota",
+    "reviewed_paths": [
+      "app.js",
+      "vendor/supabase-js-2.110.7.min.js",
+      "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+      "docs/backup_schema.sql",
+      "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+      "docs/etl.md",
+      "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+      "scripts/check_realtime.mjs",
+      "docs/CHANGELOG.md"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h25-realtime-quota",
+        "reviewed_paths": [
+          "app.js",
+          "vendor/supabase-js-2.110.7.min.js"
+        ],
+        "invariant": "The client option realtime.params.eventsPerSecond:5 (app.js:1609) is an effective server-enforced bound on Realtime work per visitor.",
+        "method": "source",
+        "result": "Not a bound. The vendored realtime-js stores socket `params` (this.params=t.params) and endPointURL() appends them to the WebSocket URL as query parameters (vendor/supabase-js-2.110.7.min.js:2); the bundle contains no occurrence of `eventsPerSecond` and no client-side throttle keyed on it. The value is a hint chosen by whoever opens the socket, so an attacker's own client omits or raises it; it also concerns client pushes, not server delivery of postgres_changes.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h25-realtime-quota",
+        "reviewed_paths": [
+          "app.js",
+          "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql"
+        ],
+        "invariant": "A repo-visible control bounds how many postgres_changes subscriptions (connections x channels x bindings) an anonymous principal can create against the shared project.",
+        "method": "source",
+        "result": "None in source. The anon JWT (role anon, exp 2036) ships in the public bundle (app.js:148-149, 174-175) and is selected for every host (app.js:170, 177-184). initRealtime opens one public channel 'divat-rt' with 15 unfiltered event:'*' postgres_changes bindings (app.js:1611-1612). No migration defines private channels, realtime.messages policies or any Realtime setting; RLS is enabled on all public tables (harden migration :29) and anon SELECT stays open, so postgres_changes joins with the public key are authorized. The only bounds are the hosted Realtime per-project quotas (max concurrent clients, channels per client, joins/s, events/s), which are plan/panel facts not observable here.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h25-realtime-quota",
+        "reviewed_paths": [
+          "docs/backup_schema.sql",
+          "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+          "docs/etl.md"
+        ],
+        "invariant": "The supabase_realtime publication excludes bulk-reloaded tables, so an owner bulk write is not turned into per-row changes fanned out to every subscriber.",
+        "method": "source",
+        "result": "Fails. The publication includes itinerario_teste, qh_intervalo_teste and qh_predeterminado_teste (docs/backup_schema.sql:747-750; check_realtime enforces publication == RT_TABLES). The 03/10/2026 recovery migration inserted 52,385 + 9,553 + 25,748 rows into exactly those tables in one transaction (recover migration :20-23, :43-61), and the documented ETL path is CSV import through the Table Editor with Realtime updating open screens (docs/etl.md:26, 32-33). Every inserted row becomes a Realtime change processed for every matching subscription.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h25-realtime-quota",
+        "reviewed_paths": [
+          "docs/backup_schema.sql",
+          "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql"
+        ],
+        "invariant": "The anon statement_timeout or the PostgREST db_max_rows cap bounds the database work Realtime performs to authorize postgres_changes for anon subscribers.",
+        "method": "source",
+        "result": "Neither applies. statement_timeout and pgrst.db_max_rows are set per login role / for PostgREST (docs/backup_schema.sql:783-787), whereas postgres_changes authorization runs inside Realtime's own replication poller connection (role switched per subscription, not a new anon login). With RLS enabled (harden migration :29) and anon SELECT USING (true) (docs/backup_schema.sql:644-653), the per-subscription check is a cheap primary-key lookup, but the count of checks is linear in attacker-controlled subscription cardinality times owner row changes. The exact hosted algorithm and any internal timeout are upstream facts.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h25-realtime-quota",
+        "reviewed_paths": [
+          "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+          "docs/backup_schema.sql"
+        ],
+        "invariant": "REPLICA IDENTITY FULL on tabela_vista_teste (and the five FULL tables in the baseline) does not create an independent amplification path.",
+        "method": "source",
+        "result": "No separate issue. FULL only makes UPDATE/DELETE WAL records and payloads carry the whole old row (migration :1; baseline :753-757), enlarging bytes per delivered message on those tables; tabela_vista_teste is not part of the bulk recovery. Per-record payload size is capped upstream by Realtime's record-size limit (unobserved). Folded into the candidate as a payload-size factor, not a distinct root cause.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h25-realtime-quota",
+        "reviewed_paths": [
+          "scripts/check_realtime.mjs"
+        ],
+        "invariant": "A repository gate watches Realtime subscription or quota posture.",
+        "method": "source",
+        "result": "No. check_realtime.mjs only compares RT_TABLES with the publication via the auditor (scripts/check_realtime.mjs:33-55) and fails on any drift, so it actively requires the bulk tables to stay published; it reads neither realtime.subscription cardinality nor any quota.",
+        "artifact": null
+      },
+      {
+        "agent_id": "v05-realtime-quota",
+        "reviewed_paths": [
+          "app.js",
+          "docs/CHANGELOG.md",
+          "docs/backup_schema.sql",
+          "docs/etl.md",
+          "scripts/check_realtime.mjs",
+          "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+          "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+          "vendor/supabase-js-2.110.7.min.js"
+        ],
+        "invariant": "Phase 3 independent validation of candidate realtime:anon-postgres-changes:bulk-publication-subscription-amplification",
+        "method": "source",
+        "result": "verifier decision: needs_validation",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "realtime:anon-postgres-changes:bulk-publication-subscription-amplification"
+    ],
+    "unresolved": [],
+    "x_notes": [
+      "added from post-wave critic c01-postwave (source-backed gap): Source-backed gap (lead from h21-postgrest-filters, verified). app.js:1607-1612 creates a supabase-js client with the public anon key for every visitor and subscribes one public channel 'divat-rt' to 15 unfiltered postgres_changes '*' bindings. The eventsPerSecond:5 limit is enforced only by the client. docs/backup_schema.sql:738-751 publishes those 15 tables, including itinerario_teste and the qh_* tables, with anon SELECT policies USING(true) (backup_schema.sql:640-644). Migration 20261003115732 bulk-inserts into itinerario_teste, qh_intervalo_teste and qh_predeterminado_teste: tens of thous"
+    ],
+    "x_hardening": [
+      "app.js:1609 eventsPerSecond:5 is only a WebSocket URL query hint in the vendored realtime-js 2.110.7 (no client throttle by that name exists in the bundle); docs or reviews should not treat it as a rate limit.",
+      "Owner bulk imports into itinerario_teste/qh_intervalo_teste/qh_predeterminado_teste push one postgres_changes message per changed row to every legitimate open tab (tens of thousands per import), each running invalidateCaches + dispatchRealtime client-side; dropping these tables from supabase_realtime during large imports (ALTER PUBLICATION ... DROP/ADD TABLE in docs/etl.md) or replacing per-row changes with a statement-level 'data version' row bumped once per import would cut both legitimate and attacker-multiplied fan-out. check_realtime.mjs and RT_TABLES/VIEW_TABLES must be changed together with any publication change.",
+      "The repository records no Realtime quota or settings posture (max clients, channels per client, joins/s, spend cap); adding the observed panel values to docs/seguranca.md would let future reviews settle Realtime exhaustion questions without live access."
+    ],
+    "x_phase3": {
+      "realtime:anon-postgres-changes:bulk-publication-subscription-amplification": {
+        "verifier": "v05-realtime-quota",
+        "decision": "needs_validation"
+      }
+    }
+  },
+  {
     "coverage_id": "app.js%23initRealtime%20postgres_changes%20%2B%20app.js%23checarNovaVersao::Realtime%20channel%20authorization%20%2B%20same-origin%20version.json::frontend::ATTACK-CLASSES.md%23Business%20logic",
     "canonical_refs": {
       "surface": "app.js#initRealtime postgres_changes + app.js#checarNovaVersao",
@@ -1684,7 +1953,9 @@
       "scripts/check_deploy.mjs",
       "scripts/update_superpowers.sh",
       "tests/check.js",
-      "scripts/semgrep.sh"
+      "scripts/semgrep.sh",
+      ".github/workflows/db-checks.yml",
+      "agents/v02-sslmode/artifacts/check-01.out"
     ],
     "local_checks": [
       {
@@ -1788,6 +2059,40 @@
         "method": "source",
         "result": "update_superpowers.sh runs rm -rf \"$DEST/${nome:?}\" on every name in .superpowers-manifest.json. tests/check.js:383-384 only counts those names, and no step validates them, so an entry like '../..' would delete outside the skills directory. That manifest is repo content, and repo writers already get code execution through hooks and scripts, so there is no privilege gain; recorded as hardening. semgrep.sh passes \"$@\" through and resolves the binary from PATH or .venv-semgrep. No untrusted input.",
         "artifact": null
+      },
+      {
+        "agent_id": "v02-sslmode",
+        "reviewed_paths": [
+          ".github/workflows/db-checks.yml",
+          "agents/v02-sslmode/artifacts/check-01.out",
+          "docs/seguranca.md",
+          "scripts/backup_private.py",
+          "scripts/check_phase3_audit.mjs",
+          "scripts/check_realtime.mjs",
+          "scripts/lib/audit-database.mjs",
+          "tests/audit-database.test.mjs"
+        ],
+        "invariant": "Phase 3 independent validation of candidate scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server",
+        "method": "source",
+        "result": "verifier decision: confirmed",
+        "artifact": null
+      },
+      {
+        "agent_id": "v02-sslmode",
+        "reviewed_paths": [
+          ".github/workflows/db-checks.yml",
+          "agents/v02-sslmode/artifacts/check-01.out",
+          "docs/seguranca.md",
+          "scripts/backup_private.py",
+          "scripts/check_phase3_audit.mjs",
+          "scripts/check_realtime.mjs",
+          "scripts/lib/audit-database.mjs",
+          "tests/audit-database.test.mjs"
+        ],
+        "invariant": "Phase 3 independent local reproduction for scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server",
+        "method": "local",
+        "result": "validator accepts sslmode=require; real module + psql 16.15 sent dummy password to self-signed loopback peer; verify-full/verify-ca controls sent nothing",
+        "artifact": "agents/v02-sslmode/artifacts/check-01.out"
       }
     ],
     "result_fingerprints": [
@@ -1802,7 +2107,13 @@
       "scripts/backup_rest.mjs:114 and scripts/restore_rest.mjs:215,229: fetch uses the default redirect:'follow' while sending a secret or service key in the custom apikey header, which undici keeps across cross-origin redirects (as noted in scripts/check_deploy.mjs:77-78). Use redirect:'error'.",
       "scripts/backup_rest.mjs:131,173: writeFile uses the default 'w' flag after a one-time empty-directory check, so a symlink planted later in a shared OUT directory is followed and truncated. Use flag 'wx'. The composite keyset or=(...) at lines 83-93 also interpolates values that PostgREST URL-decodes before parsing; quote them.",
       "scripts/recover_access_memos.py:13-46,62: binary-structure validation relies on assert, which python -O strips (removing the cycle and size guards), and table['file'] from the export manifest is joined without confinement to the export directory."
-    ]
+    ],
+    "x_phase3": {
+      "scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server": {
+        "verifier": "v02-sslmode",
+        "decision": "confirmed"
+      }
+    }
   },
   {
     "coverage_id": "src%2Fdata%2Frest.mjs%23sbFetch%20response%20rows%20rendered%20via%20innerHTML::src%2Fdomain%2Fcore.mjs%23esc::frontend::ATTACK-CLASSES.md%23Injection",

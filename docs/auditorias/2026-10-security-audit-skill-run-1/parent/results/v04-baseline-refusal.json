@@ -1,0 +1,87 @@
+{
+  "decision": "rejected",
+  "record": {
+    "verdict": "rejected",
+    "fingerprint": "scripts/check_grants.mjs:--atualizar-baseline:grave-findings-baselined-without-refusal",
+    "title": "'Atualizar baseline' says grave security findings cannot be baselined, but check_grants.mjs --atualizar-baseline writes them and the daily gate then passes",
+    "description": "The dispatch-only workflow `Atualizar baseline` runs `node scripts/check_grants.mjs --atualizar-baseline` (atualizar-baseline.yml:103) and opens a PR with the diff. Its header (lines 19-21) and the PR body it generates (line 159) both say check_grants.mjs refuses to baseline the six grave indicators and exits 1 before writing. No such refusal exists, and none ever has. Line 163 filters findings only on severity 'erro', line 167 writes them all to scripts/security_baseline.json and line 170 exits 0. The read side (lines 173-186) honors any key in the file. The mechanics reproduce exactly. Every step, though, needs a trusted principal acting deliberately: a repository writer dispatches the workflow and the owner merges a PR whose diff names each grave finding. That actor can already edit the baseline or the script directly, so the path grants nobody a new capability. It produces no unauthorized disclosure, mutation, publication or execution.",
+    "claimed_root_cause": "The --atualizar-baseline branch of check_grants.mjs filters only on severity and has no deny-list of non-baselinable types (rls_off, grant_escrita, grant_maintain, policy_escrita, funcao_public_execute, non-supabase_admin default privileges). The read side honors any baselined key. The workflow comment and PR body describe a refusal that was never implemented.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": ".github/workflows/atualizar-baseline.yml",
+        "line": 38,
+        "scope": "on.workflow_dispatch (input baseline=seguranca)",
+        "description": "The only trigger is a manual dispatch. It requires repository write access, so the actor is a trusted writer (or an agent acting for one), not a lower-trust principal."
+      },
+      {
+        "kind": "propagation",
+        "file": ".github/workflows/atualizar-baseline.yml",
+        "line": 103,
+        "scope": "steps['Medir e escrever o slot']",
+        "description": "Runs `node scripts/check_grants.mjs --atualizar-baseline` against the database through the auditor credential."
+      },
+      {
+        "kind": "propagation",
+        "file": "scripts/check_grants.mjs",
+        "line": 117,
+        "scope": "rule loop over forma.tabelas",
+        "description": "Anon/authenticated write grants become `grant_escrita` findings with severity 'erro'. rls_off (111), policy_escrita (129) and funcao_public_execute (135) are built the same way."
+      },
+      {
+        "kind": "propagation",
+        "file": "scripts/check_grants.mjs",
+        "line": 163,
+        "scope": "if (atualizar) { ... }",
+        "description": "The only filter is `a.severidade === 'erro'`. All grave findings are written to security_baseline.json (167) and the process exits 0 (170). No type-based refusal exists in the current file or anywhere in its git history."
+      },
+      {
+        "kind": "propagation",
+        "file": ".github/workflows/atualizar-baseline.yml",
+        "line": 159,
+        "scope": "steps['Abrir o PR com o diff'] gh pr create --body",
+        "description": "The PR body falsely says the six grave indicators are refused, next to a diff and step summary (lines 115-125) that list the grave keys verbatim."
+      },
+      {
+        "kind": "sink",
+        "file": "scripts/check_grants.mjs",
+        "line": 197,
+        "scope": "normal-mode verdict (db-checks.yml:144 daily seguranca job)",
+        "description": "Only after a human merges, the baselined grave keys count as known exceptions. The gate exits 0 and still prints each one under 'Exceção conhecida'."
+      }
+    ],
+    "evidence": [
+      {
+        "file": ".github/workflows/atualizar-baseline.yml",
+        "line": 19,
+        "description": "Asserted control: check_grants.mjs 'recusa e sai 1 antes de escrever' for the six grave indicators. This is false. It is the only place in the repo, besides line 159, that claims it."
+      },
+      {
+        "file": "scripts/check_grants.mjs",
+        "line": 158,
+        "description": "The --atualizar-baseline block writes every severity-'erro' finding and exits 0. `git log --all -p -- scripts/check_grants.mjs` shows no grave or refusal logic ever added."
+      },
+      {
+        "file": "scripts/check_grants.mjs",
+        "line": 36,
+        "description": "The script's own documented contract: --atualizar-baseline records an exception the operator DECIDED to accept, and a new write grant should be revoked, not baselined. Baselining is designed as a trusted human decision, not a guard."
+      },
+      {
+        "file": "scripts/check_grants.mjs",
+        "line": 24,
+        "description": "The script header still says '--atualizar-baseline # SÓ LOCAL, nunca no CI', which contradicts the workflow. This is another documentation inconsistency, not a capability change."
+      },
+      {
+        "file": ".github/workflows/atualizar-baseline.yml",
+        "line": 15,
+        "description": "The workflow never writes the branch. It opens a PR, and the merge is a second deliberate act by the owner, who sees the diff in the PR and in the step summary (lines 115-125)."
+      },
+      {
+        "file": "agents/v04-baseline-refusal/artifacts/check-01.out",
+        "line": 23,
+        "description": "Sandboxed reproduction with real script copies, a fake psql and a dummy auditor URL. The normal gate exits 1 listing grant_escrita, policy_escrita, rls_off and funcao_public_execute (lines 1-18). --atualizar-baseline exits 0 and writes those keys (lines 19-23). The normal gate then exits 0 'nenhum achado novo' (lines 24-33). The mechanics are confirmed. The rejection rests on actor and impact, not on mechanics."
+      }
+    ],
+    "reason": "The mechanics reproduce (agents/v04-baseline-refusal/artifacts/check-01.out). Refuted for missing meaningful security impact and no lower-trust actor. Both companion validation rules (SUPPLY-CHAIN #1, DATA-ISOLATION #1) require a lower-trust principal and an unauthorized outcome caused by the path, and neither exists. (1) workflow_dispatch requires repository write access. The PR is merged by the owner. That same principal can already edit scripts/security_baseline.json or scripts/check_grants.mjs directly, so the missing refusal gives nobody a new capability. The contents/pull-requests write token is used only to push a new branch and open a PR, so there is no automation-identity overreach. (2) No lower-trust principal can cause the grave state: anon and authenticated cannot change grants, RLS or default privileges. It comes only from the owner or platform actions, and the anonymous-write exposure in that state is a separate root cause that exists whatever the gate says. (3) Until a human merges, the gate does its job: it exits 1 and prints 'REVOGUE o privilégio'. The PR diff and step summary list each grave key with its detail ('anon tem INSERT/UPDATE/DELETE/TRUNCATE em …'). Even after the merge, the gate prints each one as a known exception every day. The effect is a false assurance sentence shown to a trusted approver, sitting next to the truthful diff. That is a documentation and hardening defect in a detective control, not a vulnerability. As non-finding hardening, it is still worth fixing as the hunter proposed: implement the deny-list on the write and read sides with rig cases, or at minimum correct atualizar-baseline.yml:19-21 and :159 and check_grants.mjs:24. Calibration: the comparable anon-key + RLS SPA has no such gate at all. This was noted only as calibration, not as grounds for rejection."
+  }
+}

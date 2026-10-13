@@ -1,0 +1,201 @@
+{
+  "units": [
+    {
+      "coverage_id": "app.js%23initRealtime%20anon%20postgres_changes%20subscriptions%20%28public%20anon%20key%29::Supabase%20Realtime%20connection%2Fchannel%20quotas%20%2B%20supabase_realtime%20publication%20scope::supabase%20realtime::RESOURCE-EXHAUSTION-AND-AVAILABILITY.md%23Database%20and%20downstream%20query%20amplification",
+      "disposition": "candidate",
+      "reviewed_paths": [
+        "app.js",
+        "vendor/supabase-js-2.110.7.min.js",
+        "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+        "docs/backup_schema.sql",
+        "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+        "docs/etl.md",
+        "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+        "scripts/check_realtime.mjs"
+      ],
+      "checks": [
+        {
+          "agent_id": "h25-realtime-quota",
+          "reviewed_paths": [
+            "app.js",
+            "vendor/supabase-js-2.110.7.min.js"
+          ],
+          "invariant": "The client option realtime.params.eventsPerSecond:5 (app.js:1609) is an effective server-enforced bound on Realtime work per visitor.",
+          "method": "source",
+          "result": "Not a bound. The vendored realtime-js stores socket `params` (this.params=t.params) and endPointURL() appends them to the WebSocket URL as query parameters (vendor/supabase-js-2.110.7.min.js:2); the bundle contains no occurrence of `eventsPerSecond` and no client-side throttle keyed on it. The value is a hint chosen by whoever opens the socket, so an attacker's own client omits or raises it; it also concerns client pushes, not server delivery of postgres_changes.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h25-realtime-quota",
+          "reviewed_paths": [
+            "app.js",
+            "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql"
+          ],
+          "invariant": "A repo-visible control bounds how many postgres_changes subscriptions (connections x channels x bindings) an anonymous principal can create against the shared project.",
+          "method": "source",
+          "result": "None in source. The anon JWT (role anon, exp 2036) ships in the public bundle (app.js:148-149, 174-175) and is selected for every host (app.js:170, 177-184). initRealtime opens one public channel 'divat-rt' with 15 unfiltered event:'*' postgres_changes bindings (app.js:1611-1612). No migration defines private channels, realtime.messages policies or any Realtime setting; RLS is enabled on all public tables (harden migration :29) and anon SELECT stays open, so postgres_changes joins with the public key are authorized. The only bounds are the hosted Realtime per-project quotas (max concurrent clients, channels per client, joins/s, events/s), which are plan/panel facts not observable here.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h25-realtime-quota",
+          "reviewed_paths": [
+            "docs/backup_schema.sql",
+            "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+            "docs/etl.md"
+          ],
+          "invariant": "The supabase_realtime publication excludes bulk-reloaded tables, so an owner bulk write is not turned into per-row changes fanned out to every subscriber.",
+          "method": "source",
+          "result": "Fails. The publication includes itinerario_teste, qh_intervalo_teste and qh_predeterminado_teste (docs/backup_schema.sql:747-750; check_realtime enforces publication == RT_TABLES). The 03/10/2026 recovery migration inserted 52,385 + 9,553 + 25,748 rows into exactly those tables in one transaction (recover migration :20-23, :43-61), and the documented ETL path is CSV import through the Table Editor with Realtime updating open screens (docs/etl.md:26, 32-33). Every inserted row becomes a Realtime change processed for every matching subscription.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h25-realtime-quota",
+          "reviewed_paths": [
+            "docs/backup_schema.sql",
+            "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql"
+          ],
+          "invariant": "The anon statement_timeout or the PostgREST db_max_rows cap bounds the database work Realtime performs to authorize postgres_changes for anon subscribers.",
+          "method": "source",
+          "result": "Neither applies. statement_timeout and pgrst.db_max_rows are set per login role / for PostgREST (docs/backup_schema.sql:783-787), whereas postgres_changes authorization runs inside Realtime's own replication poller connection (role switched per subscription, not a new anon login). With RLS enabled (harden migration :29) and anon SELECT USING (true) (docs/backup_schema.sql:644-653), the per-subscription check is a cheap primary-key lookup, but the count of checks is linear in attacker-controlled subscription cardinality times owner row changes. The exact hosted algorithm and any internal timeout are upstream facts.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h25-realtime-quota",
+          "reviewed_paths": [
+            "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+            "docs/backup_schema.sql"
+          ],
+          "invariant": "REPLICA IDENTITY FULL on tabela_vista_teste (and the five FULL tables in the baseline) does not create an independent amplification path.",
+          "method": "source",
+          "result": "No separate issue. FULL only makes UPDATE/DELETE WAL records and payloads carry the whole old row (migration :1; baseline :753-757), enlarging bytes per delivered message on those tables; tabela_vista_teste is not part of the bulk recovery. Per-record payload size is capped upstream by Realtime's record-size limit (unobserved). Folded into the candidate as a payload-size factor, not a distinct root cause.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h25-realtime-quota",
+          "reviewed_paths": [
+            "scripts/check_realtime.mjs"
+          ],
+          "invariant": "A repository gate watches Realtime subscription or quota posture.",
+          "method": "source",
+          "result": "No. check_realtime.mjs only compares RT_TABLES with the publication via the auditor (scripts/check_realtime.mjs:33-55) and fails on any drift, so it actively requires the bulk tables to stay published; it reads neither realtime.subscription cardinality nor any quota.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [
+        "realtime:anon-postgres-changes:bulk-publication-subscription-amplification"
+      ],
+      "unresolved": []
+    }
+  ],
+  "candidates": [
+    {
+      "proposed_verdict": "needs_validation",
+      "fingerprint": "realtime:anon-postgres-changes:bulk-publication-subscription-amplification",
+      "title": "Anonymous Realtime subscriptions multiply every owner bulk import on the single shared Supabase project, bounded only by unobserved platform quotas",
+      "description": "Anyone holding the public anon key shipped in app.js can open Realtime WebSockets to project gontnlfmothfglssbyyk and join postgres_changes bindings on the 15 published tables, exactly as initRealtime does (one public channel, 15 unfiltered event:'*' bindings), but with as many connections, channels and duplicate bindings as the hosted quotas allow. The publication includes the bulk-reloaded tables itinerario_teste, qh_intervalo_teste and qh_predeterminado_teste, which the owner reloads in tens of thousands of rows at a time (87,686 rows in the 03/10/2026 recovery transaction; CSV imports via the Table Editor). Hosted Realtime authorizes each change separately for each subscription (RLS is on for every public table) and delivers one message per matching channel, so the attacker's retained subscription count multiplies each owner write into per-subscription authorization work on the same database that serves every visitor's REST reads, delays the single-ordered postgres_changes stream for legitimate visitors, and consumes the project-wide Realtime connection and message allocation (operator-owned quota/spend; on a Free-plan organization a quota overrun can restrict the project). Attacker cost is holding idle WebSockets; the attacker cannot write data, so amplification occurs on owner writes, and join-time subscription inserts are a smaller attacker-driven variant. The client eventsPerSecond:5 is only a URL hint and the anon statement_timeout/db_max_rows do not apply on this path. Whether the hosted quotas make this material is not observable from source.",
+      "claimed_root_cause": "The portal exposes postgres_changes to the anonymous role on a publication that includes bulk-reloaded tables, with no repo-side control on subscription cardinality (no private channel/authorization, no statement-level change signal, no step that removes bulk tables from the publication during imports). The cost of each owner bulk write therefore scales with attacker-chosen subscription count, and the only effective bounds are hosted per-project Realtime quotas that the repository neither sets nor records.",
+      "trace": [
+        {
+          "kind": "entrypoint",
+          "file": "app.js",
+          "line": 149,
+          "scope": "SUPABASE CONFIG: SB_KEY (and SB_TESTE_KEY at line 175)",
+          "description": "The legacy anon JWT for gontnlfmothfglssbyyk (role anon, exp 2036) is a literal in the public bundle and is selected for every host (SITE_USA_TESTE_TEMPORARIAMENTE = true), so any anonymous party can authenticate Realtime WebSockets with it from its own client."
+        },
+        {
+          "kind": "propagation",
+          "file": "app.js",
+          "line": 1612,
+          "scope": "REALTIME: initRealtime",
+          "description": "The reference subscription pattern: one public channel 'divat-rt' with 15 unfiltered event:'*' postgres_changes bindings, one per RT_TABLES entry. Nothing server-side limits a client to this shape; an attacker can repeat it across connections and channels and duplicate bindings on the bulk tables."
+        },
+        {
+          "kind": "propagation",
+          "file": "app.js",
+          "line": 1609,
+          "scope": "REALTIME: initRealtime createClient options",
+          "description": "eventsPerSecond:5 is passed as realtime params, which the vendored realtime-js only appends to the WebSocket URL (vendor/supabase-js-2.110.7.min.js:2); it is a requester-chosen hint, not a server-side bound on postgres_changes delivery."
+        },
+        {
+          "kind": "propagation",
+          "file": "docs/backup_schema.sql",
+          "line": 747,
+          "scope": "8) REALTIME publication supabase_realtime",
+          "description": "itinerario_teste (line 747) plus qh_intervalo_teste and qh_predeterminado_teste (lines 749-750) are in the publication, so every inserted, updated or deleted row in these bulk tables becomes a Realtime change."
+        },
+        {
+          "kind": "propagation",
+          "file": "docs/backup_schema.sql",
+          "line": 646,
+          "scope": "anon SELECT policies (USING (true))",
+          "description": "RLS is enabled on every public table and anon may SELECT, so postgres_changes joins with the anon key are accepted and hosted Realtime runs an authorization check per subscription per change; the anon statement_timeout (line 786) and pgrst.db_max_rows (line 783) are login/PostgREST settings that do not bound this path."
+        },
+        {
+          "kind": "sink",
+          "file": "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+          "line": 43,
+          "scope": "recovery DO block: INSERT INTO public.itinerario_teste (and lines 50, 57)",
+          "description": "One owner transaction wrote 52,385 + 9,553 + 25,748 rows into published tables on the single shared project; each row is authorized and delivered once per matching subscription, so the shared database and project-wide Realtime allocation absorb owner-rows x attacker-subscriptions work. Routine CSV imports via the Table Editor (docs/etl.md:32-33) take the same path."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "app.js",
+          "line": 1611,
+          "description": "sbClient.channel('divat-rt') is a public channel; no private:true config and no Realtime Authorization is used, so the anon key alone authorizes the join."
+        },
+        {
+          "file": "vendor/supabase-js-2.110.7.min.js",
+          "line": 2,
+          "description": "Socket constructor sets this.params=t.params and endPointURL() appends them to the WebSocket URL; the bundle has no occurrence of `eventsPerSecond`, so the 5/s value is never enforced client-side and is attacker-controllable."
+        },
+        {
+          "file": "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+          "line": 20,
+          "description": "Expected row counts 52,385 / 9,553 / 25,748 for the three published bulk tables reinserted in one transaction."
+        },
+        {
+          "file": "docs/etl.md",
+          "line": 32,
+          "description": "Owner loads data by CSV import through the Supabase Table Editor, and line 33 states Realtime then updates open screens: bulk writes to published tables are the normal operating mode."
+        },
+        {
+          "file": "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+          "line": 29,
+          "description": "RLS is enabled on every public table, so hosted Realtime performs per-subscription RLS evaluation for each change instead of a single shared delivery."
+        },
+        {
+          "file": "docs/backup_schema.sql",
+          "line": 786,
+          "description": "ALTER ROLE anon SET statement_timeout = '3s' is a login-role setting; it does not bound authorization work executed inside Realtime's replication poller."
+        },
+        {
+          "file": "scripts/check_realtime.mjs",
+          "line": 53,
+          "description": "The only Realtime gate requires publication == RT_TABLES and inspects neither subscription cardinality nor quota usage."
+        },
+        {
+          "file": "docs/backup_schema.sql",
+          "line": 753,
+          "description": "REPLICA IDENTITY FULL on several published tables (and on tabela_vista_teste via migration 20260929152011) enlarges UPDATE/DELETE payloads per delivered message."
+        }
+      ],
+      "blockers": [
+        "Hosted Realtime limits for project gontnlfmothfglssbyyk are not in source: plan tier, max concurrent clients, max channels per client, max channel joins per second, max events/messages per second, and any per-join or per-tenant cap on postgres_changes bindings. docs/CHANGELOG.md (16/07/2026) records 'plano Free' for an earlier project state; the current organization plan is unverified.",
+        "Whether the hosted Realtime version authorizes each postgres_changes change once per subscription row (realtime.apply_rls style) and inserts one realtime.subscription row per joined binding is server behaviour outside the repository and must not be probed from the audit environment.",
+        "Whether delivered postgres_changes messages count against the project's Realtime message quota, whether the organization spend cap is on, and whether a Free-plan quota overrun restricts the whole project (including REST) are billing/panel facts.",
+        "The actual database and Realtime cost of the 03/10/2026 87,686-row recovery and of routine CSV imports under current subscriber counts is only visible in Supabase usage reports and logs, which this hunter may not read."
+      ],
+      "validation_plan": {
+        "local": "On an isolated local Supabase stack with its own throwaway anon key (never the real project), create itinerario_teste with RLS enabled and an anon SELECT USING (true) policy, add it to supabase_realtime, open K anon postgres_changes bindings (K = 1, 10, 100) from a local client, insert 1,000 rows in one statement, and record realtime.subscription row count, total time of realtime.list_changes/apply_rls in pg_stat_statements, and messages delivered. Linear growth in K of authorization executions and messages per owner row confirms the amplification; flat cost refutes it.",
+        "deployment": "Owner, in the Supabase dashboard (no probing from outside): (1) read the organization plan, spend-cap state and the Realtime settings page (max concurrent clients, events per second, joins per second, channels per client, private-only/public access); (2) open the Usage report for Realtime peak connections and messages around 03/10/2026 and the last CSV imports; (3) in the SQL editor run read-only `select count(*) from realtime.subscription` and `select count(*), entity from realtime.subscription group by entity` while the portal is idle to see live subscription cardinality; (4) check Realtime and Postgres logs for rate-limit or slow list_changes entries during imports. Material quota headroom per anonymous connection and per-subscription authorization cost confirm the finding; enforced low per-project caps with spend cap on and no restriction risk downgrade it to hardening."
+      }
+    }
+  ],
+  "hardening": [
+    "app.js:1609 eventsPerSecond:5 is only a WebSocket URL query hint in the vendored realtime-js 2.110.7 (no client throttle by that name exists in the bundle); docs or reviews should not treat it as a rate limit.",
+    "Owner bulk imports into itinerario_teste/qh_intervalo_teste/qh_predeterminado_teste push one postgres_changes message per changed row to every legitimate open tab (tens of thousands per import), each running invalidateCaches + dispatchRealtime client-side; dropping these tables from supabase_realtime during large imports (ALTER PUBLICATION ... DROP/ADD TABLE in docs/etl.md) or replacing per-row changes with a statement-level 'data version' row bumped once per import would cut both legitimate and attacker-multiplied fan-out. check_realtime.mjs and RT_TABLES/VIEW_TABLES must be changed together with any publication change.",
+    "The repository records no Realtime quota or settings posture (max clients, channels per client, joins/s, spend cap); adding the observed panel values to docs/seguranca.md would let future reviews settle Realtime exhaustion questions without live access."
+  ],
+  "uncovered": []
+}
