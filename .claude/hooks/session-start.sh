@@ -78,8 +78,10 @@ instalar_semgrep() {
   if python3 -m venv "$venv" \
     && "$venv/bin/pip" install --quiet --disable-pip-version-check "semgrep==$versao" \
     && "$venv/bin/semgrep" --version 2>/dev/null | grep -qx "$versao"; then
-    rm -f "$venv/.instalando"
+    # O log antes da marca: quem espera a marca sumir lê o log em seguida e precisa achar o
+    # "pronto" (na ordem inversa, o teste do hook falhava no CI com a máquina carregada).
     echo "session-start: semgrep $versao pronto — use ./scripts/semgrep.sh ($(date -u +%FT%TZ))"
+    rm -f "$venv/.instalando"
   else
     rm -rf "$venv"    # venv pela metade engana o scripts/semgrep.sh, que só testa se o binário existe
     echo "session-start: falha ao instalar o Semgrep (rede/PyPI?). A sessão segue sem ele;"

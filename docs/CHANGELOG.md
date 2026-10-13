@@ -29,6 +29,11 @@ guarda foi visto falhando. O que depende do painel ficou em [seguranca.md](segur
   `.git/config` e o entregam só ao `git push`; `check_grants.mjs` não tem mais bytes NUL
   literais; `scripts/rollback_phase3_test.sql` saiu do repositório porque devolveria acessos
   fechados pela Fase 3.
+- **Teste do hook de sessão (observação operacional do relatório):** não era instabilidade. A
+  instalação em segundo plano apagava a marca `.instalando` antes de escrever "pronto" no log, e
+  o teste lê o log assim que a marca some. Com o CI carregado ele lia antes do "pronto" e falhava
+  — foi o que reprovou o check `check` deste PR. A ordem foi invertida; com uma pausa de 1 s
+  entre as duas linhas, a ordem antiga reprova e a nova passa.
 
 ## 11/10/2026 — achados da revisão de segurança do Codex
 
