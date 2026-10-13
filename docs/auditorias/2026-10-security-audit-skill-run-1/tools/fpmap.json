@@ -7,5 +7,9 @@
  "r01-sslmode": "scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server",
  "r02-deploy-smoke": "deploy-smoke.yml:deployment-status:checkout-deployment-sha-with-bypass-secret",
  "r03-backup-secret": "github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref",
- "r04-realtime-quota": "realtime:anon-postgres-changes:bulk-publication-subscription-amplification"
+ "r04-realtime-quota": "realtime:anon-postgres-changes:bulk-publication-subscription-amplification",
+ "r05-sslmode": "scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server",
+ "r06-deploy-smoke": "deploy-smoke.yml:deployment-status:checkout-deployment-sha-with-bypass-secret",
+ "r07-backup-secret": "github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref",
+ "r08-realtime-quota": "realtime:anon-postgres-changes:bulk-publication-subscription-amplification"
 }

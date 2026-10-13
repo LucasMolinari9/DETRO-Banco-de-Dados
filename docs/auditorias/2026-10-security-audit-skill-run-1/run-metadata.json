@@ -40,12 +40,19 @@
     "FINDINGS-DETAIL.md": "parent",
     "NEEDS-VALIDATION.md": "parent"
   },
-  "run_status": "in_progress",
+  "run_status": "complete",
   "sandbox": {
     "runner": "tools/run_check.py (trusted parent code)",
     "self_test": "agents/sbx-selftest/artifacts/check-0{1,2,3}.*",
     "controls": "new mount/net/pid/ipc/uts ns; RO filesystem except 64MiB tmpfs scratch; uid 65534 no caps no_new_privs; env -i allowlist; cgroup mem 2GiB pids 256 cpu 1; rlimits cpu 120s fsize 16MiB nofile 1024 nproc 256; wall clock <=600s; descriptor-based no-follow promotion with per-file 128KiB / cumulative 2MiB bounds"
   },
   "resumed_at": "2026-10-13",
-  "phase5_note": "2026-10-13: first Phase 5 verifiers (r01-r04) killed by API session limit before returning; re-run with fresh verifiers"
+  "phase5_note": "2026-10-13: first Phase 5 verifiers (r01-r04) killed by API session limit before returning; re-run with fresh verifiers",
+  "completed_at": "2026-10-13",
+  "agents": {
+    "launched": 45,
+    "completed": 29,
+    "killed_by_api_limit": 12,
+    "stopped_at_owner_request": 4
+  }
 }

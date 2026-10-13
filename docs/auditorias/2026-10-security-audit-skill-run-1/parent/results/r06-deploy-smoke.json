@@ -1,0 +1,4 @@
+{
+  "decision": "verified",
+  "fingerprint": "deploy-smoke.yml:deployment-status:checkout-deployment-sha-with-bypass-secret"
+}

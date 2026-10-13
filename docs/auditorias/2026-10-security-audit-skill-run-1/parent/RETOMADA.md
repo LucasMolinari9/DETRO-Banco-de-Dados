@@ -1,5 +1,7 @@
 # Retomada da run-1 (pausada em 13/10/2026)
 
+> **Histórico:** a run foi retomada e **concluída em 13/10/2026** — este roteiro registra só como a pausa foi tratada.
+
 **Por que pausou:** o dono pediu para pausar com 77% do limite de uso consumido. Nada foi perdido do que
 terminou: tudo o que está no `coverage-ledger.json` como `covered`/`candidate`/`blocked` tem evidência
 salva aqui.

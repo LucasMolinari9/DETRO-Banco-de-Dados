@@ -81,8 +81,7 @@ lines = [
     "| status | unidades |", "|---|---|",
 ] + [f"| {k} | {v} |" for k, v in sorted(c.items())] + [
     f"| **total** | **{len(L)}** |", "",
-    "## Candidatos até agora (não verificados)", "",
-] + ([f"- `{fp}` — proposto **{pv}** — {t}" for fp, pv, t in cands] or ["- nenhum"]) + [
+] + ((["## Registros finais (`findings.json`, verificados nas Fases 3 e 5)", ""] + [f"- **{x['verdict']}**" + (f" ({x['severity']['overall_severity']})" if x['verdict'] == 'confirmed' else "") + f" — `{x['fingerprint']}`" for x in json.load(open(os.path.join(OUT, "findings.json")))] + ["", "Leia primeiro o `REPORT.md` (em português). Detalhes: `FINDINGS-DETAIL.md` e `NEEDS-VALIDATION.md`."]) if final else (["## Candidatos até agora (não verificados)", ""] + ([f"- `{fp}` — proposto **{pv}** — {t}" for fp, pv, t in cands] or ["- nenhum"]))) + [
     "", "## Onde está cada coisa", "",
     "- `architecture.md` — mapa do sistema, fronteiras de confiança, escolha das classes de ataque.",
     "- `coverage-ledger.json` — uma unidade por superfície × fronteira × subsistema × classe; quem revisou, o quê e com que evidência.",

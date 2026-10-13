@@ -1,0 +1,4 @@
+{
+  "decision": "verified",
+  "fingerprint": "scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server"
+}

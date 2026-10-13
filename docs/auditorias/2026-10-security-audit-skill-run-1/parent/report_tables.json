@@ -1,0 +1,16 @@
+{
+  "confirmed_table": "| severidade | título | fronteira afetada | resultado observado |\n|---|---|---|---|\n| low | The auditor DB credential can be sent over unauthenticated TLS (sslmode=require), so an impersonating peer receives it in cleartext | credencial de CI `divat_auditor_ci` ↔ servidor Postgres | The validator accepted host db.gontnlfmothfglssbyyk.supabase.co with sslmode=require. The fake peer logged sslrequest=true, TLSv1.3, startup_user divat_auditor_ci, msg_type 'p' and password_received 'DUMMY-V02-REQUIRE'. … |",
+  "nv_table": "| # | título | bloqueio principal | próximo passo |\n|---|---|---|---|\n| NV-1 | Deploy smoke runs the deployed commit's code with VERCEL_AUTOMATION_BYPASS_SECRET on any successful deployment_status, with no fork, creator or trusted-ref guard | Vercel project state, a dashboard fact absent from the repository: whether the GitHub integration is connected, and the Git Fork Protection setting (Project Settings > Security). T… | ver `NEEDS-VALIDATION.md` §NV-1 |\n| NV-2 | Owner-only `postgres` backup credential can reach code from any ref an agent or other writer pushes or dispatches (repository secret, no environment or ref binding) | Not source-observable: whether SUPABASE_BACKUP_DATABASE_URL and BACKUP_AGE_PUBLIC_KEY are currently configured, and whether they are repository or organization secrets or are restr… | ver `NEEDS-VALIDATION.md` §NV-2 |\n| NV-3 | Anonymous Realtime subscriptions multiply owner bulk writes on the single shared Supabase project; only unobserved hosted quotas limit this | Hosted Realtime limits for project gontnlfmothfglssbyyk are not in source: plan tier, max concurrent clients, max channels per client, max channel joins per second, max events/mess… | ver `NEEDS-VALIDATION.md` §NV-3 |",
+  "coverage": {
+    "covered": 15,
+    "candidate": 5,
+    "blocked": 2
+  },
+  "n_units": 22,
+  "rejected": [
+    [
+      "scripts/check_grants.mjs:--atualizar-baseline:grave-findings-baselined-without-refusal",
+      "'Atualizar baseline' says grave security findings cannot be baselined, but check_grants.mjs --atualizar-baseline writes them and the daily gate then passes"
+    ]
+  ]
+}
