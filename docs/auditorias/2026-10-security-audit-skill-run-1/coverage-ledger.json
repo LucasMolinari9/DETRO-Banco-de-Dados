@@ -37,15 +37,117 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "planned",
-    "agent_id": null,
-    "reviewed_paths": [],
-    "local_checks": [],
+    "status": "covered",
+    "agent_id": "h22-supply-inputs",
+    "reviewed_paths": [
+      ".claude/settings.json",
+      ".claude/hooks/session-start.sh",
+      ".gitignore",
+      "scripts/graft.sh",
+      ".github/workflows/semgrep.yml",
+      ".mcp.json",
+      ".codex/config.toml",
+      ".claude/hooks/superpowers-session-start.sh",
+      ".claude/skills/.superpowers-manifest.json",
+      "scripts/update_superpowers.sh",
+      "skills-lock.json",
+      "tests/session-start-hook.test.mjs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          ".claude/settings.json",
+          ".claude/hooks/session-start.sh",
+          ".gitignore"
+        ],
+        "invariant": "SessionStart hooks run only code and inputs that are controlled by the same trust level as the hook itself, and the install hook stays behind the CLAUDE_CODE_REMOTE gate",
+        "method": "source",
+        "result": "settings.json registers two SessionStart commands that both come from the same checkout ($CLAUDE_PROJECT_DIR/.claude/hooks/*). session-start.sh:29-31 exits 0 unless CLAUDE_CODE_REMOTE=true. Everything it uses comes from the same repo writers who control the hook: GRAFT_PACKAGE is read from scripts/graft.sh (line 39) and passed quoted to npm, so there is no shell injection. The semgrep version is read from semgrep.yml with the regex [0-9][0-9.]* (line 59). .venv-semgrep sits inside the gitignored working tree. No lower-trust writer can change what runs at session start without also being able to edit the hook. Installing plugins of the same user's choice is not a privilege boundary.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          ".claude/hooks/session-start.sh",
+          "scripts/graft.sh",
+          ".github/workflows/semgrep.yml"
+        ],
+        "invariant": "Top-level tool versions installed at session start are exact pins with a single source of truth",
+        "method": "source",
+        "result": "Running the hook's own sed expressions gives '@nanonets/graft@0.21.1' (scripts/graft.sh:6) and '1.171.0' (semgrep.yml:63, which matches atualizar-semgrep-rulesets.yml:68). Both are exact versions from one source. The installed graft binary is accepted only when `graft --version` equals the pin; otherwise it is reinstalled or the launcher falls back to npx with the exact spec. Transitive dependencies are not locked; see hardening.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          "scripts/graft.sh",
+          ".mcp.json",
+          ".codex/config.toml"
+        ],
+        "invariant": "The graft MCP launcher cannot resolve a different package or source than the pinned scoped package",
+        "method": "source",
+        "result": "The launcher runs `npx --yes --package=@nanonets/graft@0.21.1 graft`: a scoped package at an exact version from the default public registry. The repo has no .npmrc, package.json or registry override, so there is no fallback or namespace-confusion path. The npm cache .graft/npm is gitignored (/.graft/). .mcp.json and .codex/config.toml both start it with `bash scripts/graft.sh mcp`. The Supabase MCP entries need OAuth and are read_only=true.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          ".claude/hooks/superpowers-session-start.sh",
+          ".claude/skills/.superpowers-manifest.json"
+        ],
+        "invariant": "Third-party skill text injected as top-priority context changes only through reviewed commits",
+        "method": "source",
+        "result": "The hook only reads the committed .claude/skills/using-superpowers/SKILL.md and JSON-encodes it as additionalContext. It makes no network call and runs nothing from the skill. The vendored content is pinned in the manifest to upstream commit 44c9b2d6e889982ac18c27d05a19fefe335194e1 (v6.2.0). Upstream text can reach agents only through update_superpowers.sh followed by a commit or PR diff. Giving this text instruction authority is the owner's deliberate choice, not a trust expansion past a declared scope.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          "scripts/update_superpowers.sh"
+        ],
+        "invariant": "The skill updater does not execute or publish unreviewed upstream content",
+        "method": "source",
+        "result": "The updater clones from a mutable default branch or a given ref and records the resolved SHA. The only upstream file it evaluates is plugin.json, through require() of a .json path, which parses JSON and does not execute code. It writes only to the working tree for diff review, and deletes only the names listed in the committed manifest. No automatic consumer runs before review. The updater has no name-collision or symlink guard (see hardening), but that path still passes through the git diff review.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          "skills-lock.json"
+        ],
+        "invariant": "Integrity locks for vendored agent skills are enforced",
+        "method": "source",
+        "result": "skills-lock.json holds 21 computedHash entries (sources mattpocock/skills and supabase/agent-skills). No script, test or workflow in the repo reads or verifies them; a grep over js/mjs/sh/yml/py found no consumer. The skill content itself is committed, so the lock records provenance only and is not a runtime trust root. Noted as hardening.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          "tests/session-start-hook.test.mjs"
+        ],
+        "invariant": "Existing tests cover the hook's behavior",
+        "method": "source",
+        "result": "The test checks background install, lock handling, reinstall after a dead install, version match against the CI pin, and SEMGREP_ENABLE_VERSION_CHECK=0. It does not and cannot check the integrity of transitive dependencies. It has no security-relevant gap beyond the hardening noted.",
+        "artifact": null
+      }
+    ],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
       "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
+    ],
+    "x_hardening": [
+      ".claude/hooks/session-start.sh:43 runs `npm install -g @nanonets/graft@0.21.1` with lifecycle scripts enabled in every remote session whose global version differs. The installed copy has 18 caret-ranged dependencies, including native tree-sitter packages, and no npm-shrinkwrap.json, so transitive versions are resolved fresh each time. The background `pip install semgrep==1.171.0` (lines 78-80) also resolves unhashed transitive ranges, for example attrs>=21.3, rich>=13.5.2, ruamel.yaml>=0.18.15, packaging>=21.0 and glom>=23.3 (from the installed dist-info). Consider a committed hash-locked requirements file used with --require-hashes, plus a locked or --ignore-scripts npm install.",
+      ".claude/hooks/session-start.sh:43 does not export DO_NOT_TRACK, although scripts/graft.sh:11 sets it to keep graft from sending telemetry. Graft's package postinstall (scripts/postinstall.mjs inside the installed package) records an install event and spawns a detached telemetry flush unless CI or DO_NOT_TRACK is set. Export DO_NOT_TRACK=1 before the install.",
+      ".github/workflows/atualizar-semgrep-rulesets.yml:58 checks out without persist-credentials: false. The contents:write and pull-requests:write GITHUB_TOKEN therefore sits in .git/config while unhashed PyPI dependencies are installed (line 68) and semgrep runs (lines 167-187). Set persist-credentials: false and supply the token only in the push/PR step (lines 258-301).",
+      ".github/workflows/backup-private.yml:21 uses the mutable Docker tag postgres:17 for the service container that receives the full plaintext restore of the database; pin it by digest. backup-private.yml:49 pins psycopg[binary]==3.2.10 but leaves typing-extensions unhashed and floating. The step at lines 68-73 imports that dependency with SUPABASE_BACKUP_DATABASE_URL in its environment; use --require-hashes.",
+      "vendor/supabase-js-2.110.7.min.js (sha256 2697f51bb3efa5f10b5b0bca2a39b3772b1b8f810e6885e3bb8d69c3242d5e07) has no recorded expected digest, and no gate compares it with the npm tarball's dist/umd/supabase.js. docs/CHANGELOG.md:1123 confirms it was never rechecked. Record the upstream sha256 or integrity value next to the file and assert it in tests/check.js. The owner can check it with `npm pack @supabase/supabase-js@2.110.7` and sha256sum.",
+      "scripts/update_superpowers.sh:66-72 runs `cp -r` on every upstream skill directory into both .claude/skills and .agents/skills. It does not check whether the name is already owned by the mattpocock/supabase set, where .claude/skills/<name> is a symlink to .agents/skills/<name>. A colliding upstream name would be nested into the other publisher's directory, and the next run's `rm -rf` (line 56) would delete it. That contradicts CLAUDE.md's claim that the updater never touches those skills. Symlinks inside upstream directories are also copied as symlinks, and the hook reads SKILL.md through them. Add refusal checks for name collisions and symlinks; for now the git diff review is the only mitigation.",
+      "skills-lock.json computedHash values are not verified by any in-repo script, test or workflow. Either add a verification gate or document that the lock is provenance only.",
+      ".codex/config.toml:2 still points the Codex Supabase MCP server at the deleted project lwzsxuaqqeoamukduhev. Access is OAuth-gated and read_only=true. The entry is stale and should be removed.",
+      "Action SHA pins cannot be checked offline against the tags in their `# vN` comments; for example, actions/checkout@11d5960a326750d5838078e36cf38b85af677262 is labelled v4. The owner can confirm through GitHub's API that each pinned SHA is reachable from the labelled upstream tag. That rules out fork-network impostor commits introduced in review."
     ]
   },
   {
@@ -601,15 +703,111 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "planned",
-    "agent_id": null,
-    "reviewed_paths": [],
-    "local_checks": [],
+    "status": "covered",
+    "agent_id": "h22-supply-inputs",
+    "reviewed_paths": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/views.yml",
+      ".github/workflows/semgrep.yml",
+      ".github/workflows/deriva.yml",
+      ".github/workflows/db-checks.yml",
+      ".github/workflows/phase3-security.yml",
+      ".github/workflows/deploy-smoke.yml",
+      ".github/workflows/backup.yml",
+      ".github/workflows/backup-private.yml",
+      ".github/workflows/graft.yml",
+      ".github/workflows/atualizar-baseline.yml",
+      ".github/workflows/atualizar-semgrep-rulesets.yml",
+      "scripts/semgrep.sh",
+      "index.html",
+      "app.js",
+      "vendor/supabase-js-2.110.7.min.js",
+      ".vercelignore",
+      "docs/CHANGELOG.md"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/views.yml",
+          ".github/workflows/semgrep.yml",
+          ".github/workflows/deriva.yml",
+          ".github/workflows/db-checks.yml",
+          ".github/workflows/phase3-security.yml",
+          ".github/workflows/deploy-smoke.yml",
+          ".github/workflows/backup.yml",
+          ".github/workflows/backup-private.yml",
+          ".github/workflows/graft.yml",
+          ".github/workflows/atualizar-baseline.yml",
+          ".github/workflows/atualizar-semgrep-rulesets.yml"
+        ],
+        "invariant": "Every third-party action is pinned to an immutable commit SHA, and write tokens exist only in dispatch-only workflows",
+        "method": "source",
+        "result": "All 12 workflows pin every uses: line to a full 40-hex SHA: actions/checkout 11d5960a…, actions/setup-node 49933ea5…, actions/setup-python a26af69b…, actions/upload-artifact ea165f8d…. There are no tag or branch references and no third-party or composite actions. Every workflow declares top-level permissions contents: read, except atualizar-baseline.yml and atualizar-semgrep-rulesets.yml, which are workflow_dispatch only. Whether each SHA belongs to the named upstream tag cannot be observed offline (see hardening).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          ".github/workflows/views.yml",
+          ".github/workflows/semgrep.yml",
+          ".github/workflows/atualizar-semgrep-rulesets.yml",
+          ".github/workflows/backup-private.yml",
+          ".github/workflows/db-checks.yml",
+          ".github/workflows/deriva.yml",
+          ".github/workflows/atualizar-baseline.yml",
+          ".github/workflows/deploy-smoke.yml",
+          ".github/workflows/graft.yml"
+        ],
+        "invariant": "Package installs in CI use exact versions from default, non-confusable sources",
+        "method": "source",
+        "result": "The installs are pinned as follows. views.yml:81 runs npm i -g playwright@1.56.1; that package pins playwright-core exactly, and the job has no secrets and a read-only token. semgrep.yml:63 and atualizar-semgrep-rulesets.yml:68 run pip install semgrep==1.171.0. backup-private.yml:49 installs psycopg[binary]==3.2.10. backup-private.yml:59-61 builds supabase/vault from detached commit 6e0cd916…. Several jobs apt-get postgresql-client from signed Ubuntu repos. deploy-smoke.yml installs nothing. The repo has no .npmrc, pip.conf, requirements or extra-index config, so there is no namespace or fallback confusion. Transitive PyPI dependencies are unhashed and range-resolved, and backup-private.yml:21 uses the mutable image tag postgres:17 (see hardening). In every case the actor would have to be an upstream registry publisher, and no lower-trust in-repo writer is involved.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          ".github/workflows/semgrep.yml",
+          ".github/workflows/atualizar-semgrep-rulesets.yml",
+          "scripts/semgrep.sh"
+        ],
+        "invariant": "Mutable registry rules cannot silently weaken the required semgrep gate or inject into the write-token workflow",
+        "method": "source",
+        "result": "semgrep.yml runs the local rules [1] and the vendored .semgrep/vendor rules [2] with --error before the live registry rules p/javascript, xss, secrets and github-actions [3]. A registry change can only affect step [3]; it cannot remove the vendored enforcement. The updater downloads rule YAML with curl -f and checks that it is non-empty and contains rules:. It refuses to continue if the vendored and live scans diverge. Registry-derived values that reach GITHUB_ENV and the PR title are numeric counts from grep -c and Rules run:. No ${{ }} interpolation of registry content reaches run scripts. Changes are pushed to a new branch and proposed as a PR. scripts/semgrep.sh uses the same ruleset list and runs offline by default.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h22-supply-inputs",
+        "reviewed_paths": [
+          "index.html",
+          "app.js",
+          "vendor/supabase-js-2.110.7.min.js",
+          ".vercelignore",
+          "docs/CHANGELOG.md"
+        ],
+        "invariant": "Visitor-facing runtime code comes only from same-origin vendored files, with no third-party fetch at runtime",
+        "method": "source",
+        "result": "index.html references only styles.css, manifest.webmanifest, app.js (line 385) and a data: favicon. app.js:1628 injects the same-origin vendor/supabase-js-2.110.7.min.js, and .vercelignore:36 publishes /vendor. No CDN or remote include exists. The vendored blob (sha256 2697f51bb3efa5f10b5b0bca2a39b3772b1b8f810e6885e3bb8d69c3242d5e07) has no recorded upstream integrity, and docs/CHANGELOG.md:1123 states that it was not rechecked against the npm package. Only repo writers can change it, so this is a provenance gap and not a lower-trust path (see hardening).",
+        "artifact": null
+      }
+    ],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
       "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
+    ],
+    "x_hardening": [
+      ".claude/hooks/session-start.sh:43 runs `npm install -g @nanonets/graft@0.21.1` with lifecycle scripts enabled in every remote session whose global version differs. The installed copy has 18 caret-ranged dependencies, including native tree-sitter packages, and no npm-shrinkwrap.json, so transitive versions are resolved fresh each time. The background `pip install semgrep==1.171.0` (lines 78-80) also resolves unhashed transitive ranges, for example attrs>=21.3, rich>=13.5.2, ruamel.yaml>=0.18.15, packaging>=21.0 and glom>=23.3 (from the installed dist-info). Consider a committed hash-locked requirements file used with --require-hashes, plus a locked or --ignore-scripts npm install.",
+      ".claude/hooks/session-start.sh:43 does not export DO_NOT_TRACK, although scripts/graft.sh:11 sets it to keep graft from sending telemetry. Graft's package postinstall (scripts/postinstall.mjs inside the installed package) records an install event and spawns a detached telemetry flush unless CI or DO_NOT_TRACK is set. Export DO_NOT_TRACK=1 before the install.",
+      ".github/workflows/atualizar-semgrep-rulesets.yml:58 checks out without persist-credentials: false. The contents:write and pull-requests:write GITHUB_TOKEN therefore sits in .git/config while unhashed PyPI dependencies are installed (line 68) and semgrep runs (lines 167-187). Set persist-credentials: false and supply the token only in the push/PR step (lines 258-301).",
+      ".github/workflows/backup-private.yml:21 uses the mutable Docker tag postgres:17 for the service container that receives the full plaintext restore of the database; pin it by digest. backup-private.yml:49 pins psycopg[binary]==3.2.10 but leaves typing-extensions unhashed and floating. The step at lines 68-73 imports that dependency with SUPABASE_BACKUP_DATABASE_URL in its environment; use --require-hashes.",
+      "vendor/supabase-js-2.110.7.min.js (sha256 2697f51bb3efa5f10b5b0bca2a39b3772b1b8f810e6885e3bb8d69c3242d5e07) has no recorded expected digest, and no gate compares it with the npm tarball's dist/umd/supabase.js. docs/CHANGELOG.md:1123 confirms it was never rechecked. Record the upstream sha256 or integrity value next to the file and assert it in tests/check.js. The owner can check it with `npm pack @supabase/supabase-js@2.110.7` and sha256sum.",
+      "scripts/update_superpowers.sh:66-72 runs `cp -r` on every upstream skill directory into both .claude/skills and .agents/skills. It does not check whether the name is already owned by the mattpocock/supabase set, where .claude/skills/<name> is a symlink to .agents/skills/<name>. A colliding upstream name would be nested into the other publisher's directory, and the next run's `rm -rf` (line 56) would delete it. That contradicts CLAUDE.md's claim that the updater never touches those skills. Symlinks inside upstream directories are also copied as symlinks, and the hook reads SKILL.md through them. Add refusal checks for name collisions and symlinks; for now the git diff review is the only mitigation.",
+      "skills-lock.json computedHash values are not verified by any in-repo script, test or workflow. Either add a verification gate or document that the lock is provenance only.",
+      ".codex/config.toml:2 still points the Codex Supabase MCP server at the deleted project lwzsxuaqqeoamukduhev. Access is OAuth-gated and read_only=true. The entry is stale and should be removed.",
+      "Action SHA pins cannot be checked offline against the tags in their `# vN` comments; for example, actions/checkout@11d5960a326750d5838078e36cf38b85af677262 is labelled v4. The owner can confirm through GitHub's API that each pinned SHA is reachable from the labelled upstream tag. That rules out fork-network impostor commits introduced in review."
     ]
   },
   {
@@ -965,15 +1163,64 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "planned",
-    "agent_id": null,
-    "reviewed_paths": [],
-    "local_checks": [],
+    "status": "covered",
+    "agent_id": "h21-postgrest-filters",
+    "reviewed_paths": [
+      "docs/backup_schema.sql",
+      "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+      "src/documentos/municipios-localidades.mjs",
+      "app.js",
+      "docs/seguranca.md",
+      "src/data/rest.mjs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h21-postgrest-filters",
+        "reviewed_paths": [
+          "docs/backup_schema.sql",
+          "supabase/migrations/20260729034018_phase3_moderate_hardening.sql"
+        ],
+        "invariant": "Every anon-reachable PostgREST statement, RPCs included, is capped per statement by a role timeout, and response rows are capped by pgrst.db_max_rows. No anon-executable function overrides the timeout or escalates privilege.",
+        "method": "source",
+        "result": "Settled. docs/backup_schema.sql:783-787 sets pgrst.db_max_rows=30000, authenticator statement_timeout=8s and lock_timeout=8s, anon statement_timeout=3s and authenticated statement_timeout=8s. These match the Supabase defaults. The only anon-executable RPCs are divat_busca_logradouro and divat_linhas_regiao; the assertion at 20260729034018:105-115 enforces that allowlist. Both are LANGUAGE sql STABLE with the default SECURITY INVOKER, and their only SET clause is search_path, which redefinition at 20260729034018:50-60 and baseline 328-364 both show. So the anon or authenticator timeout applies inside them. The audit.* SECURITY DEFINER functions are revoked from anon (20260729034018:79-84). Even if the anon-specific 3s were missing in the live database, the authenticator 8s session timeout still bounds each statement. The live role config cannot be observed here, but that fact does not decide any candidate (see the hardening notes).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h21-postgrest-filters",
+        "reviewed_paths": [
+          "src/documentos/municipios-localidades.mjs",
+          "app.js",
+          "docs/seguranca.md",
+          "docs/backup_schema.sql"
+        ],
+        "invariant": "No anon-callable filter or RPC lets a small request cause work beyond what direct anon REST access to the same public tables already allows, which is the comparable Supabase anon+RLS baseline.",
+        "method": "source",
+        "result": "Settled with no finding. Input-to-cost table: (1) divat_linhas_regiao (baseline 343-362; called at municipios-localidades.mjs:108) does a full-table GROUP BY codlinha with an ordered array_agg over itinerario_teste on every call, whatever the input. The cost is linear and capped by the 3s timeout. An anon client can already make an equal full scan or sort directly, e.g. itinerario_teste?order=nome_logradouro&limit=30000. (2) divat_busca_logradouro (20260729034018:50-60; municipios-localidades.mjs:54) runs an f_unaccent ilike with the user's wildcards left unescaped. Short or wildcard-only terms skip the trgm GIN index and force a seq scan, which is linear and capped at 3s. (3) Client limits (app.js:1241,1342; municipios-localidades.mjs:158,197,272) are at most 30000, equal to db_max_rows. (4) Embedding fan-out is negligible: the only FK is tarifa_atual_teste to tabela_vista_teste (baseline 244-251). (5) Plain request volume against the shared pool is the owner-accepted residual risk SEC-02 (docs/seguranca.md:132-135) and matches the comparable. No anon write path exists, so no anon principal can trigger Realtime-driven reload fan-out to other visitors. No superlinear or persistent shared effect is specific to this repo.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h21-postgrest-filters",
+        "reviewed_paths": [
+          "src/data/rest.mjs"
+        ],
+        "invariant": "The client does not re-run deterministic server-side timeouts, which would multiply shared DB work per visitor action.",
+        "method": "local",
+        "result": "A sandboxed harness ran the real sbFetch against a stub fetch that returns HTTP 500 with code 57014 (statement timeout). The client made 3 fetches in about 1.2s and then raised the error (rest.mjs:5,75-80 retries on 5xx and 429; rest.mjs:88-93 also retries AbortError after the 20s client timeout). The same request therefore runs up to 3x when the DB is already slow. The extra load is self-traffic from each visitor, not something an attacker controls across principals, so it is recorded as hardening only.",
+        "artifact": "agents/h21-postgrest-filters/artifacts/check-01.out"
+      }
+    ],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
       "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
+    ],
+    "x_hardening": [
+      "ilikeTerm (src/domain/core.mjs:16) strips only ( ) *. Commas and double quotes in a user's own search term (e.g. 'Rio, Niterói' in hero search, searchLines, Portarias text, or Localidades) survive percent-decoding and split the or=() logic tree. The result is a PostgREST 400 or a self-broadened query. The scope is the visitor's own request and is reachable directly via REST, so this is not a security finding. Fix: emit each logic-tree value double-quoted with \\\\ and \\\" escaped, e.g. col.ilike.\"*term*\", or strip , \" \\\\ in ilikeTerm. Add a tests/ case for ilikeTerm('a,b') and orIlike(['c'],['a,b']).",
+      "ilike wildcards % and _ are not escaped (ilikeTerm and the divat_busca_logradouro termo). Terms shorter than 3 characters or made only of wildcards defeat the pg_trgm GIN indexes and force seq scans; divat_busca_logradouro also calls f_unaccent per row. The anon 3s timeout and LIMIT early termination bound this. For predictable cost, enforce a minimum term length and escape % and _ (\\\\% and \\\\_).",
+      "divat_linhas_regiao (docs/backup_schema.sql:343-362, live definition not in migrations) aggregates the whole itinerario_teste table (GROUP BY codlinha with an array_agg ordered by id) on every anon call, regardless of p_regiao or p_modo. db_max_rows caps rows returned, not work done. A precomputed per-codlinha table, refreshed on import, would turn the anon RPC into an index lookup.",
+      "sbFetch (src/data/rest.mjs:75-93) retries HTTP 500, including PostgREST 57014 statement-timeout errors, plus 429 and the 20s AbortError, up to 2 times with fixed backoff and no jitter. A deterministic timeout therefore costs up to 3x DB time per visitor action exactly when the shared DB is degraded (check-01 [4]). Retry only 502, 503, 504 and 429 with jitter, and never when the body code is 57014.",
+      "The anon 3s, authenticator 8s and pgrst.db_max_rows=30000 settings exist only in the historical baseline docs/backup_schema.sql:783-787, not in supabase/migrations, and no gate verifies them (scripts/check_grants.mjs covers grants only). The owner should periodically confirm `select rolname, rolconfig from pg_roles where rolname in ('anon','authenticated','authenticator')` and consider adding it to the daily db-checks job. Raw anon request volume against the shared pool remains the documented accepted residual risk SEC-02 (docs/seguranca.md:132-135)."
     ]
   },
   {
@@ -1772,15 +2019,56 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "planned",
-    "agent_id": null,
-    "reviewed_paths": [],
-    "local_checks": [],
+    "status": "covered",
+    "agent_id": "h21-postgrest-filters",
+    "reviewed_paths": [
+      "src/domain/core.mjs",
+      "src/domain/busca.mjs",
+      "src/data/rest.mjs",
+      "app.js",
+      "src/documentos/municipios-localidades.mjs",
+      "src/documentos/estrutura-tarifas-portaria.mjs",
+      "src/documentos/quadro-empresas.mjs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h21-postgrest-filters",
+        "reviewed_paths": [
+          "src/domain/core.mjs",
+          "src/domain/busca.mjs",
+          "src/data/rest.mjs"
+        ],
+        "invariant": "A search term that reaches PostgREST through ilikeTerm, orIlike or enc cannot escape its query-parameter value. It cannot add or override select, limit, order or other params, and cannot change the table, RPC or method.",
+        "method": "local",
+        "result": "A sandboxed harness imported the real ilikeTerm, orIlike, enc and sbFetch with a stub fetch. The captured URLs were parsed the way PostgREST parses them (split on & and ;, + becomes a space, then percent-decode). Characters & ; = + # stayed inside the value: params were always [or, select, order, limit] or [termo, select, limit]. ( ) * are replaced with spaces. However , and \" survive decoding inside or=(...). For example, 'Rio, Niteroi' becomes '(nome_ligacao.ilike.*Rio, Niteroi*,...)', which splits the logic tree. The wildcards % and _ also pass through. The #/linha/<cod> value goes through enc into codlinha=eq.<literal>, where a comma has no meaning. The URL path and the GET method stay constant.",
+        "artifact": "agents/h21-postgrest-filters/artifacts/check-01.out"
+      },
+      {
+        "agent_id": "h21-postgrest-filters",
+        "reviewed_paths": [
+          "app.js",
+          "src/documentos/municipios-localidades.mjs",
+          "src/documentos/estrutura-tarifas-portaria.mjs",
+          "src/documentos/quadro-empresas.mjs"
+        ],
+        "invariant": "Filter fragments built from untrusted input never run with a principal or data scope other than the one who supplied the input. Anon RLS and grants stay the only authority.",
+        "method": "source",
+        "result": "Settled with no finding. Every filter-building input falls into one of three groups. (a) Text the visitor types: hero doSearch at app.js:521-534, searchLines at app.js:1169-1171, Portarias at estrutura-tarifas-portaria.mjs:245-248, the Logradouro RPC at municipios-localidades.mjs:53-54, Localidades via orIlike at municipios-localidades.mjs:396-398, 421-423 and 466, and empresa eq./in. at quadro-empresas.mjs:258-267. (b) Owner-controlled DB rows: the localidades list, codlinha in.() lists, and the line prefill at app.js:972 and 1158. (c) The attacker-linkable hash route at app.js:1702-1717, which only reaches an eq. literal. A visitor can inject comma-separated conditions into or=(), but only into their own anon request. They could send that same request directly with the public anon key (the comparable baseline). RLS and grants are enforced server-side, and no other principal's request is affected.",
+        "artifact": null
+      }
+    ],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
       "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
+    ],
+    "x_hardening": [
+      "ilikeTerm (src/domain/core.mjs:16) strips only ( ) *. Commas and double quotes in a user's own search term (e.g. 'Rio, Niterói' in hero search, searchLines, Portarias text, or Localidades) survive percent-decoding and split the or=() logic tree. The result is a PostgREST 400 or a self-broadened query. The scope is the visitor's own request and is reachable directly via REST, so this is not a security finding. Fix: emit each logic-tree value double-quoted with \\\\ and \\\" escaped, e.g. col.ilike.\"*term*\", or strip , \" \\\\ in ilikeTerm. Add a tests/ case for ilikeTerm('a,b') and orIlike(['c'],['a,b']).",
+      "ilike wildcards % and _ are not escaped (ilikeTerm and the divat_busca_logradouro termo). Terms shorter than 3 characters or made only of wildcards defeat the pg_trgm GIN indexes and force seq scans; divat_busca_logradouro also calls f_unaccent per row. The anon 3s timeout and LIMIT early termination bound this. For predictable cost, enforce a minimum term length and escape % and _ (\\\\% and \\\\_).",
+      "divat_linhas_regiao (docs/backup_schema.sql:343-362, live definition not in migrations) aggregates the whole itinerario_teste table (GROUP BY codlinha with an array_agg ordered by id) on every anon call, regardless of p_regiao or p_modo. db_max_rows caps rows returned, not work done. A precomputed per-codlinha table, refreshed on import, would turn the anon RPC into an index lookup.",
+      "sbFetch (src/data/rest.mjs:75-93) retries HTTP 500, including PostgREST 57014 statement-timeout errors, plus 429 and the 20s AbortError, up to 2 times with fixed backoff and no jitter. A deterministic timeout therefore costs up to 3x DB time per visitor action exactly when the shared DB is degraded (check-01 [4]). Retry only 502, 503, 504 and 429 with jitter, and never when the body code is 57014.",
+      "The anon 3s, authenticator 8s and pgrst.db_max_rows=30000 settings exist only in the historical baseline docs/backup_schema.sql:783-787, not in supabase/migrations, and no gate verifies them (scripts/check_grants.mjs covers grants only). The owner should periodically confirm `select rolname, rolconfig from pg_roles where rolname in ('anon','authenticated','authenticator')` and consider adding it to the daily db-checks job. Raw anon request volume against the shared pool remains the documented accepted residual risk SEC-02 (docs/seguranca.md:132-135)."
     ]
   },
   {
@@ -2221,15 +2509,122 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "planned",
-    "agent_id": null,
-    "reviewed_paths": [],
-    "local_checks": [],
+    "status": "blocked",
+    "agent_id": "h23-secrets-obvious",
+    "reviewed_paths": [
+      "app.js",
+      ".github/workflows/backup.yml",
+      "tests/restore_rest.rig.mjs",
+      "tests/check_grants.rig.mjs",
+      "tests/audit-database.test.mjs",
+      "scripts/bootstrap_phase3_auditor.sql",
+      ".gitignore",
+      "scripts/lib/audit-database.mjs",
+      "scripts/backup_private.py",
+      "scripts/check_deploy.mjs",
+      "scripts/backup_rest.mjs",
+      "scripts/restore_rest.mjs",
+      ".github/workflows/backup-private.yml",
+      ".github/workflows/deploy-smoke.yml",
+      ".github/workflows/atualizar-baseline.yml",
+      ".github/workflows/graft.yml",
+      ".github/workflows/db-checks.yml",
+      "docs/seguranca.md",
+      "src/data/rest.mjs",
+      ".mcp.json",
+      ".codex/config.toml",
+      ".claude/settings.json",
+      ".claude/hooks/session-start.sh"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          "app.js",
+          ".github/workflows/backup.yml",
+          "tests/restore_rest.rig.mjs",
+          "tests/check_grants.rig.mjs",
+          "tests/audit-database.test.mjs",
+          "scripts/bootstrap_phase3_auditor.sql"
+        ],
+        "invariant": "No privileged credential (service_role/sb_secret key, DB password, PAT, private key, Vercel bypass value) is hardcoded in the tracked tree at 539abe2.",
+        "method": "source",
+        "result": "Only credential literals are the legacy anon JWT of gontnlfmothfglssbyyk (app.js:149, app.js:175, .github/workflows/backup.yml:49), public by design and the same key the browser must hold. All other hits are fixtures: 'sb_secret_teste' (tests/restore_rest.rig.mjs:82,103), 'senha-de-teste-do-rig' (tests/check_grants.rig.mjs:39), 'SEGREDO-DE-TESTE-NUNCA-DEVE-VAZAR-9f8a2c' (tests/audit-database.test.mjs:33). The auditor password reaches SQL only as a psql variable (scripts/bootstrap_phase3_auditor.sql:4,22), never as a literal.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          ".gitignore",
+          "app.js",
+          ".github/workflows/backup.yml"
+        ],
+        "invariant": "No privileged secret appears in any reachable revision, no sensitive file type was ever tracked, and .gitignore covers the outputs that the repo's own scripts write.",
+        "method": "local",
+        "result": "Sandboxed read-only git scan of all 144 revisions reachable from 539abe2. The history is shallow, with the oldest commit fc9cd49 dated 2026-08-08. The scan found exactly 2 distinct JWTs, both role=anon: the current ref gontnlfmothfglssbyyk and the deleted ref lwzsxuaqqeoamukduhev. There are no PEM private keys, AGE-SECRET-KEY, real sb_secret_, GitHub/AWS/OpenAI/Slack/sbp_ tokens, or postgres URLs with passwords; the only hits are dummy test fixtures. No .env, .pem, .key, credentials, .dump, .age or settings.local.json file was ever tracked. .gitignore ignores .env, .env.local, backup_*/, *.dump, *.sql.gz and divat_security_snapshot_*.sql. These outputs are written by backup_rest.mjs (default ./backup_<date>, scripts/backup_rest.mjs:41) and the snapshot runbook. It does NOT ignore *.pem, *.key, credentials.json, service-account.json, *.age or .claude/settings.local.json.",
+        "artifact": "agents/h23-secrets-obvious/artifacts/check-01.out"
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          "scripts/lib/audit-database.mjs",
+          "scripts/backup_private.py",
+          "scripts/check_deploy.mjs",
+          "scripts/backup_rest.mjs",
+          "scripts/restore_rest.mjs",
+          ".github/workflows/backup-private.yml",
+          ".github/workflows/deploy-smoke.yml",
+          ".github/workflows/atualizar-baseline.yml",
+          ".github/workflows/graft.yml",
+          ".github/workflows/db-checks.yml",
+          "docs/seguranca.md"
+        ],
+        "invariant": "Secrets (auditor DB URL/password, backup DB URL, age recipient, Vercel bypass, REST secret keys) are never written to CI logs, step summaries, argv or error messages, including in derived/decoded form that GitHub masking would miss.",
+        "method": "source",
+        "result": "audit-database.mjs sends the decoded password only through the PGPASSWORD env of the child process (lines 120-132). Every error is a fixed string through falhar() (lines 48-52), and psql stderr is never echoed (lines 141-145). backup_private.py strips the secret env vars (lines 53-55). It maps stderr to fixed categories (lines 72-85) and replaces tracebacks with a generic message (lines 225-228); its log line has aggregates only (lines 212-213). check_deploy.mjs sends the bypass only as a header, and only to allowlisted hosts (lines 29-44, 62-63). It disables redirect following when the bypass is set (line 82) and never prints the bypass. The workflows only test -n the secrets (backup-private.yml:42-43, phase3-security.yml:76). Step summaries carry only the semgrep manifest, the graft map and the git diff of versioned baseline JSON (atualizar-baseline.yml:117-125), with no secret material. Every secret-consuming job uses persist-credentials:false. No leak path found.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          "scripts/backup_private.py",
+          "scripts/backup_rest.mjs",
+          "scripts/restore_rest.mjs",
+          "app.js",
+          "src/data/rest.mjs"
+        ],
+        "invariant": "No weak randomness, crypto-primitive misuse, timing-sensitive secret comparison or fail-open crypto path.",
+        "method": "source",
+        "result": "No security-relevant randomness or secret comparison exists in the client or scripts; the grep for Math.random and getRandomValues has no hits. SHA-256 serves only as a corruption check on backup files and is documented as such (backup_rest.mjs:136,188; restore_rest.mjs:142,176). The full backup uses age X25519 (authenticated encryption). The recipient is regex-validated and a preflight runs before any dump (backup_private.py:124-125,140-142). If age output is missing or empty, the job aborts and deletes the partial artifact (backup_private.py:209-210,218-220), so there is no fallback to plaintext. Only the .tar.age is uploaded (backup-private.yml:78).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          ".mcp.json",
+          ".codex/config.toml",
+          ".claude/settings.json",
+          ".claude/hooks/session-start.sh"
+        ],
+        "invariant": "Agent/MCP configuration checked into the repo carries no access tokens or PATs (current and historical).",
+        "method": "source",
+        "result": "The Supabase MCP entries carry only a project_ref with read_only=true, and auth is OAuth performed by the owner (.mcp.json:4-5; .codex/config.toml:1-3,9-11). The git log -p of these files shows no token or header ever added. The hooks print no environment variables and handle no credentials.",
+        "artifact": null
+      }
+    ],
     "result_fingerprints": [],
-    "unresolved": [],
+    "unresolved": [
+      "The local clone is shallow (oldest reachable commit fc9cd49, 2026-08-08), but the project has history from at least July 2026 (CLAUDE.md, docs/historico). Commits before the shallow boundary cannot be observed locally, so a privileged secret committed and later removed before 2026-08-08 cannot be ruled out. Owner-observed check: on a full clone, run a history secret scanner such as gitleaks/trufflehog over all refs, or review GitHub secret-scanning alerts. Confirm that only role=anon JWTs appear."
+    ],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
       "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
+    ],
+    "x_hardening": [
+      ".gitignore (lines 9-11) ignores only .env and .env.*. Add *.pem, *.key, *.p12, credentials*.json, service-account*.json, *.age, divat-backup*/ and .claude/settings.local.json so that an operator's local key file, a downloaded encrypted backup artifact, or Claude Code local permission rules (which can embed command lines carrying credentials) cannot be committed by accident. Verified uncovered by git check-ignore (agents/h23-secrets-obvious/artifacts/check-01.out).",
+      "scripts/lib/audit-database.mjs:37 accepts sslmode=require, which does not verify the server certificate. Without require_auth=scram-sha-256, libpq also honors a cleartext-password request from an impostor server. An on-path attacker between the runner and Supabase could therefore obtain the divat_auditor_ci password, which grants read-only metadata/audit diagnostics. The sibling backup_private.py:59,153 already uses verify-full with sslrootcert=system. This is owner-pending per docs/seguranca.md:148-152. Fix: accept only verify-full and set PGREQUIREAUTH=scram-sha-256 in the child env.",
+      "scripts/restore_rest.mjs:234 prints the full PostgREST INSERT error body, which can quote row values from the backup, and :206 echoes the JSON.parse message of a malformed legacy key payload. This is a local operator tool, so there is no CI exposure. Prefer status plus code only.",
+      "The deleted project's anon JWT (ref lwzsxuaqqeoamukduhev, role=anon) remains in reachable history, and .codex/config.toml:2 still points an MCP server at that ref. The project is reported deleted, so the authority is nil; remove the stale config entry for hygiene."
     ]
   },
   {
@@ -2273,15 +2668,151 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "planned",
-    "agent_id": null,
-    "reviewed_paths": [],
-    "local_checks": [],
+    "status": "covered",
+    "agent_id": "h23-secrets-obvious",
+    "reviewed_paths": [
+      "app.js",
+      "index.html",
+      "manifest.webmanifest",
+      ".github/workflows/backup.yml",
+      ".github/workflows/ci.yml",
+      "tests/check_grants.rig.mjs",
+      "src/data/rest.mjs",
+      ".vercelignore",
+      "vercel.json",
+      "version.json",
+      ".gitignore",
+      "scripts/lib/audit-database.mjs",
+      "scripts/lib/rig.mjs",
+      "tests/realtime.test.js",
+      "scripts/check_deploy.mjs",
+      "docs/seguranca.md",
+      "src/ui/doc.mjs",
+      "scripts/restore_rest.mjs",
+      "scripts/backup_private.py",
+      ".github/workflows/backup-private.yml"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          "app.js",
+          "index.html",
+          "manifest.webmanifest",
+          ".github/workflows/backup.yml"
+        ],
+        "invariant": "Checklist item: no hardcoded passwords/API keys/tokens/Bearer/BEGIN blocks in the published sources.",
+        "method": "source",
+        "result": "The only key is the anon JWT (role=anon, app.js:149,175), which is public by design for the anon+RLS model. index.html and manifest.webmanifest hold no keys or tokens. The only http:// string is the SVG xmlns inside a data: favicon (index.html:10).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          ".github/workflows/ci.yml",
+          "tests/check_grants.rig.mjs"
+        ],
+        "invariant": "Checklist item: no TODO/FIXME/HACK/XXX comment that references a missing security control.",
+        "method": "source",
+        "result": "Outside vendored rule packs and skills there are only 2 TODO hits (.github/workflows/ci.yml:11, tests/check_grants.rig.mjs:17). Both are the Portuguese word 'todo' ('every') in prose, not task markers.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          "app.js",
+          "src/data/rest.mjs"
+        ],
+        "invariant": "Checklist item: no debug or dev mode that a query parameter, header, hash or storage value can enable in production; no test or seed credentials that work in production.",
+        "method": "source",
+        "result": "No debug or dev flag exists. The grep finds no debug, DEBUG, URLSearchParams, location.search parsing or localStorage flag. window.__divatReload (app.js:1082,1652) is only the auto-update reload latch. SITE_USA_TESTE_TEMPORARIAMENTE (app.js:170) is a compile-time const, not runtime-switchable, and it points every host at the single official DB with the same anon key. supabase-js auth is disabled (persistSession, autoRefreshToken and detectSessionInUrl all false, app.js:1607-1609), so #access_token has no effect. The test credentials (sb_secret_teste and similar) exist only in local rigs.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          ".vercelignore",
+          "vercel.json",
+          "version.json"
+        ],
+        "invariant": "Checklist item: no unprotected /debug, /admin, /test, /status, /health, /metrics, /env, /.env or /config endpoint, and no non-public file in the published set.",
+        "method": "source",
+        "result": "The site is static with no server code. The deny-all .vercelignore (/* then explicit reopens, lines 30-62) publishes only index.html, app.js, styles.css, manifest.webmanifest, vercel.json, version.json, vendor/ and 17 named src modules. vercel.json defines headers only, with no rewrites or functions. version.json exposes only {\"version\":17}. No .env/config/admin path is servable.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          ".gitignore"
+        ],
+        "invariant": "Checklist items: no .env/credentials.json/*.pem/*.key checked in, and .gitignore covers secrets and local config.",
+        "method": "local",
+        "result": "None of these file types was ever tracked in any reachable revision. .gitignore covers .env, .env.* and the data/backup outputs, but not *.pem, *.key, credentials.json, service-account.json, *.age or .claude/settings.local.json; see the hardening note.",
+        "artifact": "agents/h23-secrets-obvious/artifacts/check-01.out"
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          "app.js",
+          "scripts/lib/audit-database.mjs",
+          "scripts/lib/rig.mjs",
+          "tests/realtime.test.js"
+        ],
+        "invariant": "Checklist item: no eval/Function/exec/child_process/dynamic import() fed by external input.",
+        "method": "source",
+        "result": "The client has no eval, new Function, string-timer, dynamic import() or postMessage handler. The only runtime script injection is the fixed same-origin vendor path (app.js:1630). spawnSync is called with an argv array and no shell (scripts/lib/audit-database.mjs:120). The function name is regex-validated before SQL composition (lines 168-174). execSync('npm root -g') is a constant in a local rig (scripts/lib/rig.mjs:32). new Function in tests/realtime.test.js:34 evaluates repo-owned literals in an offline test.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          "vercel.json",
+          "app.js",
+          "scripts/check_deploy.mjs",
+          "scripts/lib/audit-database.mjs",
+          "docs/seguranca.md"
+        ],
+        "invariant": "Checklist items: no wildcard CORS with credentials, no cookie without attributes, no open redirect, TLS enforced.",
+        "method": "source",
+        "result": "vercel.json sets no CORS header; the site serves only public static files and has no credentialed endpoint. The app sets no cookies. There is no redirect sink: hash routing only does same-origin history and replaceState (app.js:1691-1738), with no location.href, assign or window.open. HSTS is max-age=31536000; includeSubDomains (vercel.json:10). The CSP connect-src allows only https:// and wss:// to the project (vercel.json:12). check_deploy refuses non-HTTPS targets (lines 22-25). The only weak-transport spot is the auditor psql connection accepting sslmode=require; it is a documented, owner-pending residual risk (docs/seguranca.md:148-152) and is recorded under hardening.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          "src/data/rest.mjs",
+          "src/ui/doc.mjs",
+          "scripts/restore_rest.mjs",
+          "scripts/backup_private.py"
+        ],
+        "invariant": "Checklist item: production error responses expose no stack traces, internal paths or SQL errors beyond what the caller can already see.",
+        "method": "source",
+        "result": "The visitor sees only the PostgREST error.message or 'HTTP <status>' (src/data/rest.mjs:81-82), escaped by errorBox (src/ui/doc.mjs:63). This is the same text an anon caller gets from the REST API directly, and no stack trace is shown. The CI scripts emit fixed messages only (backup_private.py:225-228). restore_rest.mjs:234 echoes the PostgREST INSERT body, but only in the owner's local restore tool.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h23-secrets-obvious",
+        "reviewed_paths": [
+          ".github/workflows/backup-private.yml",
+          "app.js"
+        ],
+        "invariant": "Checklist item: dependencies are pinned (lockfiles checked).",
+        "method": "source",
+        "result": "The repo has no package.json, package-lock.json or requirements.txt, so there is no lockfile for a CVE check, and an offline CVE lookup is not possible. Runtime JS is a single vendored, version-named supabase-js 2.110.7 (app.js:1630). The CI Python deps are pinned ('psycopg[binary]==3.2.10', backup-private.yml:50). Pin and integrity depth for CI, vendored code and agent tooling belongs to the peer supply-chain units.",
+        "artifact": null
+      }
+    ],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
       "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
+    ],
+    "x_hardening": [
+      ".gitignore (lines 9-11) ignores only .env and .env.*. Add *.pem, *.key, *.p12, credentials*.json, service-account*.json, *.age, divat-backup*/ and .claude/settings.local.json so that an operator's local key file, a downloaded encrypted backup artifact, or Claude Code local permission rules (which can embed command lines carrying credentials) cannot be committed by accident. Verified uncovered by git check-ignore (agents/h23-secrets-obvious/artifacts/check-01.out).",
+      "scripts/lib/audit-database.mjs:37 accepts sslmode=require, which does not verify the server certificate. Without require_auth=scram-sha-256, libpq also honors a cleartext-password request from an impostor server. An on-path attacker between the runner and Supabase could therefore obtain the divat_auditor_ci password, which grants read-only metadata/audit diagnostics. The sibling backup_private.py:59,153 already uses verify-full with sslrootcert=system. This is owner-pending per docs/seguranca.md:148-152. Fix: accept only verify-full and set PGREQUIREAUTH=scram-sha-256 in the child env.",
+      "scripts/restore_rest.mjs:234 prints the full PostgREST INSERT error body, which can quote row values from the backup, and :206 echoes the JSON.parse message of a malformed legacy key payload. This is a local operator tool, so there is no CI exposure. Prefer status plus code only.",
+      "The deleted project's anon JWT (ref lwzsxuaqqeoamukduhev, role=anon) remains in reachable history, and .codex/config.toml:2 still points an MCP server at that ref. The project is reported deleted, so the authority is nil; remove the stale config entry for hygiene."
     ]
   },
   {
@@ -2325,15 +2856,162 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "planned",
-    "agent_id": null,
-    "reviewed_paths": [],
-    "local_checks": [],
+    "status": "covered",
+    "agent_id": "h24-wildcard",
+    "reviewed_paths": [
+      "app.js",
+      "index.html",
+      "src",
+      "scripts",
+      "tests",
+      "supabase",
+      ".github",
+      "vendor/supabase-js-2.110.7.min.js",
+      "scripts/check_grants.mjs",
+      "scripts/check_realtime.mjs",
+      "scripts/check_deriva.mjs",
+      ".semgrepignore",
+      "scripts/check_deploy.mjs",
+      "src/data/rest.mjs",
+      "src/ui/doc.mjs",
+      "src/data/lookups.mjs",
+      "src/domain/agrupamento.mjs",
+      "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+      "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+      "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+      "scripts/integrate_access_eventos_observacoes.sql",
+      "docs/CHANGELOG.md",
+      "scripts/graft.sh",
+      ".github/workflows/graft.yml",
+      ".gitignore",
+      "docs/backup_schema.sql",
+      "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+      "scripts/bootstrap_phase3_auditor.sql"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "app.js",
+          "index.html",
+          "src",
+          "scripts",
+          "tests",
+          "supabase",
+          ".github",
+          "vendor/supabase-js-2.110.7.min.js",
+          "scripts/check_grants.mjs"
+        ],
+        "invariant": "No tracked source file hides logic from reviewers behind invisible, bidirectional-override or control characters (Trojan Source), and no security gate is treated as binary by review tooling.",
+        "method": "source",
+        "result": "A read-only scan of every tracked file except fonts, images and docs/auditorias found no Cf/Co/Cs (bidi, zero-width) characters and no stray control characters in project code. The vendored supabase-js has two 0x1f bytes, which is normal for minified code. The only anomaly is two literal NUL bytes in scripts/check_grants.mjs, at byte offsets 8623 and 10451 (lines 156 and 194), used as a key separator inside template literals. Because of them grep -r reports the file as binary and prints no matching lines. Git and GitHub still diff it as text, since their binary heuristic only looks at the first 8000 bytes. This is recorded as hardening, not a finding.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "scripts/check_grants.mjs",
+          "scripts/check_realtime.mjs",
+          "scripts/check_deriva.mjs",
+          ".semgrepignore"
+        ],
+        "invariant": "The CI static-analysis gate (semgrep) still parses the NUL-bearing secret-holding gate script, so the vendored secrets and shell-injection rulesets are not silently blind to it.",
+        "method": "local",
+        "result": "In the sandbox, semgrep run with a probe rule (readFile(...)) on check_grants.mjs plus two control files reported a match in check_grants.mjs (line 176) as well as in both controls, and exited 0. Semgrep does not skip the file. .semgrepignore excludes only vendor/, the skill trees, harness copies, backups and caches.",
+        "artifact": "agents/h24-wildcard/artifacts/check-01.out"
+      },
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "app.js",
+          "scripts/check_deploy.mjs"
+        ],
+        "invariant": "Git history contains no reverted or 'temporary' security change that left authority widened at 539abe2.",
+        "method": "source",
+        "result": "Of the 144 commits up to 539abe2, two have subjects matching revert, rollback, temporary, hack, bypass or disable. 74f59dd only disables semgrep's version check offline. 0c596fe adds SITE_USA_TESTE_TEMPORARIAMENTE and the matching smoke expectation. SB_URL/SB_KEY and SB_TESTE_URL/SB_TESTE_KEY are the same project and the same anon JWT (app.js:148-149,174-175), so the flag changes no authority. No commented-out check was found.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "app.js",
+          "src/data/rest.mjs",
+          "src/ui/doc.mjs"
+        ],
+        "invariant": "The frontend has no hidden or secondary input channel beyond the peer-reviewed hash and Realtime: no postMessage, storage, window.name, opener, referrer, query-string or window.open/document.write path, and REST table selection is never data-driven.",
+        "method": "source",
+        "result": "A grep of app.js and src found none of those APIs. The only history writes are syncHash at app.js:1691-1696, which peers reviewed. The Realtime client is built with persistSession:false, autoRefreshToken:false and detectSessionInUrl:false (app.js:1607-1609). Every sbFetch call passes a literal table name; lookups.mjs:16 forwards literals only. sbFetch builds the URL as `${url}/rest/v1/${table}?${qs}` (rest.mjs:67), so user text can reach only the query string. errorBox and toast escape their input (doc.mjs:63 esc; app.js:1518 textContent).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "src/data/lookups.mjs",
+          "src/domain/agrupamento.mjs"
+        ],
+        "invariant": "DB-supplied keys such as __proto__ or constructor cannot pollute Object.prototype through the lookup and grouping caches.",
+        "method": "source",
+        "result": "groupBy, countBy and the classification helpers use Map (agrupamento.mjs:8-9,55,74). dedupEmpresasPorRJ checks hasOwnProperty (:44). Lookup caches make only single-level writes, map[dbKey] = value (lookups.mjs:31,38,60-61,97). A __proto__ key can change only that local object's prototype, never the global one. At worst, a lookup of an inherited key name displays a function's string.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+          "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+          "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+          "scripts/integrate_access_eventos_observacoes.sql",
+          "docs/CHANGELOG.md"
+        ],
+        "invariant": "Irreversible data operations shipped in the repo (recovery, schema drops, owner-run integrations) refuse to run against an unexpected state and cannot destroy populated public catalog data when replayed.",
+        "method": "source",
+        "result": "The recovery migration aborts unless all three targets are empty and the source counts and row_ids match exactly. It verifies the result both ways with EXCEPT ALL. The drop migration aborts unless all three legacy schemas exist and it finds no external dependencies, function references, FKs, publications or cron jobs. A replay therefore aborts and drops nothing. The integration script locks its tables, checks for collisions and identity, and verifies final counts inside one transaction. No tracked .sql/.mjs/.py/.js/.sh/.yml file deletes from or truncates the public catalog tables.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "scripts/graft.sh",
+          ".github/workflows/graft.yml",
+          ".gitignore"
+        ],
+        "invariant": "The graft launcher's GRAFT_NO_GITIGNORE/GRAFT_NO_IGNORE settings do not make the indexer read gitignored secrets (.env, backup exports, security snapshots) into the graph or the CI artifact.",
+        "method": "source",
+        "result": "In the cached @nanonets/graft 0.21.1 (cli.js:304-311), both variables only stop graft writing graft/ into .gitignore and writing a ripgrep .ignore. They do not re-admit ignored files. DO_NOT_TRACK=1 is exported. The CI job runs on a clean checkout with persist-credentials:false and contents:read, so no ignored local file exists there.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "docs/backup_schema.sql",
+          "supabase/migrations/20260729034018_phase3_moderate_hardening.sql"
+        ],
+        "invariant": "The anon-executable RPC bodies build no dynamic SQL from caller arguments.",
+        "method": "source",
+        "result": "divat_busca_logradouro (20260729034018:50-58) and divat_linhas_regiao (backup_schema.sql:343-361) are LANGUAGE sql with fixed search_path. termo, p_ibge, p_regiao and p_modo are used only as bound values, in ilike and equality comparisons. There is no EXECUTE or format(), so the arguments cannot inject SQL.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h24-wildcard",
+        "reviewed_paths": [
+          "scripts/bootstrap_phase3_auditor.sql"
+        ],
+        "invariant": "The CI auditor bootstrap creates a least-privilege login and fails closed on wrong attributes.",
+        "method": "source",
+        "result": "The script refuses to run without both variables (:9-18). It creates or alters divat_auditor_ci as NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS with VALID UNTIL, and grants only divat_auditor. It raises an error if the login ends with admin attributes, direct SELECT on tabela_vista_teste, or no audit EXECUTE (:36-53). Plaintext-password handling is recorded as hardening.",
+        "artifact": null
+      }
+    ],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
       "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
+    ],
+    "x_hardening": [
+      "scripts/check_grants.mjs:156,194 put literal NUL bytes (offsets 8623 and 10451) in template literals as a key separator. grep -r therefore treats this daily security gate as binary and returns no matching lines, so line-oriented audits silently skip it. If an edit ever moves a NUL into the first 8000 bytes, git and GitHub will show its diffs as 'Binary files differ' in PR review. Write the separator as the escape sequence '\\0' (or use '|') so the file stays plain text.",
+      "scripts/bootstrap_phase3_auditor.sql:2-6,21-31: the documented invocation passes the auditor password in psql argv (--set=auditor_password=…). Other local users can read it from the process table while the command runs. The \\gexec'd CREATE/ALTER ROLE … PASSWORD '<plaintext>' statement also lands in server logs whenever DDL statement logging is enabled. Pass a pre-computed SCRAM-SHA-256 verifier instead, or set the password with psql \\password, so plaintext never appears in argv or statement text. Separately, the example valid_until (2026-10-31) expires 18 days after this audit if it was used verbatim. The four required DB checks would then fail closed and block every merge until the secret is rotated.",
+      "docs/CHANGELOG.md:46 records that itinerario_teste, qh_intervalo_teste and qh_predeterminado_teste were found empty on 03/10/2026, after the 28/09 snapshot, and does not record a cause. No tracked code path deletes from or truncates them, and anon has no DELETE/TRUNCATE path through PostgREST under the current migrations. The emptying therefore most likely came from a privileged session (panel, owner credential, or an agent holding a DB credential during the Access import). Recording the cause, for example from the Postgres logs for that window, would show whether that privileged tool needs a guard such as pg safeupdate or a non-empty-target check like the one the recovery migration uses."
     ]
   }
 ]

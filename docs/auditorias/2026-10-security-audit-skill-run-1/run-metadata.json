@@ -46,9 +46,5 @@
     "self_test": "agents/sbx-selftest/artifacts/check-0{1,2,3}.*",
     "controls": "new mount/net/pid/ipc/uts ns; RO filesystem except 64MiB tmpfs scratch; uid 65534 no caps no_new_privs; env -i allowlist; cgroup mem 2GiB pids 256 cpu 1; rlimits cpu 120s fsize 16MiB nofile 1024 nproc 256; wall clock <=600s; descriptor-based no-follow promotion with per-file 128KiB / cumulative 2MiB bounds"
   },
-  "pause": {
-    "at": "2026-10-13",
-    "reason": "owner usage limit at 77%; paused at owner's request before Phase 2 completion",
-    "resume_plan": "parent/RETOMADA.md"
-  }
+  "resumed_at": "2026-10-13"
 }

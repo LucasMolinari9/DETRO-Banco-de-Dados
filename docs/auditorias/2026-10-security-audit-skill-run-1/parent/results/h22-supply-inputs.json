@@ -1,0 +1,198 @@
+{
+  "units": [
+    {
+      "coverage_id": ".claude%2Fsettings.json%20SessionStart%20hooks%20%2B%20scripts%2Fgraft.sh%20%2B%20scripts%2Fupdate_superpowers.sh::pinned%20package%20versions%20%2F%20skills-lock.json%20%2F%20manifest::agent%20tooling::SUPPLY-CHAIN-AND-RELEASE.md%23Plugin%20and%20extension%20trust%20expansion",
+      "disposition": "covered",
+      "reviewed_paths": [
+        ".claude/settings.json",
+        ".claude/hooks/session-start.sh",
+        ".gitignore",
+        "scripts/graft.sh",
+        ".github/workflows/semgrep.yml",
+        ".mcp.json",
+        ".codex/config.toml",
+        ".claude/hooks/superpowers-session-start.sh",
+        ".claude/skills/.superpowers-manifest.json",
+        "scripts/update_superpowers.sh",
+        "skills-lock.json",
+        "tests/session-start-hook.test.mjs"
+      ],
+      "checks": [
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            ".claude/settings.json",
+            ".claude/hooks/session-start.sh",
+            ".gitignore"
+          ],
+          "invariant": "SessionStart hooks run only code and inputs that are controlled by the same trust level as the hook itself, and the install hook stays behind the CLAUDE_CODE_REMOTE gate",
+          "method": "source",
+          "result": "settings.json registers two SessionStart commands that both come from the same checkout ($CLAUDE_PROJECT_DIR/.claude/hooks/*). session-start.sh:29-31 exits 0 unless CLAUDE_CODE_REMOTE=true. Everything it uses comes from the same repo writers who control the hook: GRAFT_PACKAGE is read from scripts/graft.sh (line 39) and passed quoted to npm, so there is no shell injection. The semgrep version is read from semgrep.yml with the regex [0-9][0-9.]* (line 59). .venv-semgrep sits inside the gitignored working tree. No lower-trust writer can change what runs at session start without also being able to edit the hook. Installing plugins of the same user's choice is not a privilege boundary."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            ".claude/hooks/session-start.sh",
+            "scripts/graft.sh",
+            ".github/workflows/semgrep.yml"
+          ],
+          "invariant": "Top-level tool versions installed at session start are exact pins with a single source of truth",
+          "method": "source",
+          "result": "Running the hook's own sed expressions gives '@nanonets/graft@0.21.1' (scripts/graft.sh:6) and '1.171.0' (semgrep.yml:63, which matches atualizar-semgrep-rulesets.yml:68). Both are exact versions from one source. The installed graft binary is accepted only when `graft --version` equals the pin; otherwise it is reinstalled or the launcher falls back to npx with the exact spec. Transitive dependencies are not locked; see hardening."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            "scripts/graft.sh",
+            ".mcp.json",
+            ".codex/config.toml"
+          ],
+          "invariant": "The graft MCP launcher cannot resolve a different package or source than the pinned scoped package",
+          "method": "source",
+          "result": "The launcher runs `npx --yes --package=@nanonets/graft@0.21.1 graft`: a scoped package at an exact version from the default public registry. The repo has no .npmrc, package.json or registry override, so there is no fallback or namespace-confusion path. The npm cache .graft/npm is gitignored (/.graft/). .mcp.json and .codex/config.toml both start it with `bash scripts/graft.sh mcp`. The Supabase MCP entries need OAuth and are read_only=true."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            ".claude/hooks/superpowers-session-start.sh",
+            ".claude/skills/.superpowers-manifest.json"
+          ],
+          "invariant": "Third-party skill text injected as top-priority context changes only through reviewed commits",
+          "method": "source",
+          "result": "The hook only reads the committed .claude/skills/using-superpowers/SKILL.md and JSON-encodes it as additionalContext. It makes no network call and runs nothing from the skill. The vendored content is pinned in the manifest to upstream commit 44c9b2d6e889982ac18c27d05a19fefe335194e1 (v6.2.0). Upstream text can reach agents only through update_superpowers.sh followed by a commit or PR diff. Giving this text instruction authority is the owner's deliberate choice, not a trust expansion past a declared scope."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            "scripts/update_superpowers.sh"
+          ],
+          "invariant": "The skill updater does not execute or publish unreviewed upstream content",
+          "method": "source",
+          "result": "The updater clones from a mutable default branch or a given ref and records the resolved SHA. The only upstream file it evaluates is plugin.json, through require() of a .json path, which parses JSON and does not execute code. It writes only to the working tree for diff review, and deletes only the names listed in the committed manifest. No automatic consumer runs before review. The updater has no name-collision or symlink guard (see hardening), but that path still passes through the git diff review."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            "skills-lock.json"
+          ],
+          "invariant": "Integrity locks for vendored agent skills are enforced",
+          "method": "source",
+          "result": "skills-lock.json holds 21 computedHash entries (sources mattpocock/skills and supabase/agent-skills). No script, test or workflow in the repo reads or verifies them; a grep over js/mjs/sh/yml/py found no consumer. The skill content itself is committed, so the lock records provenance only and is not a runtime trust root. Noted as hardening."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            "tests/session-start-hook.test.mjs"
+          ],
+          "invariant": "Existing tests cover the hook's behavior",
+          "method": "source",
+          "result": "The test checks background install, lock handling, reinstall after a dead install, version match against the CI pin, and SEMGREP_ENABLE_VERSION_CHECK=0. It does not and cannot check the integrity of transitive dependencies. It has no security-relevant gap beyond the hardening noted."
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "CI%20and%20runtime%20dependency%20inputs%20%28npm%2Fpip%2Fregistry%20rules%2Factions%2Fvendored%20code%29::version%20pins%2C%20SHA%20pins%2C%20vendored%20integrity::.github%2Fworkflows::SUPPLY-CHAIN-AND-RELEASE.md%23Mutable%20and%20unbound%20build%20inputs",
+      "disposition": "covered",
+      "reviewed_paths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/views.yml",
+        ".github/workflows/semgrep.yml",
+        ".github/workflows/deriva.yml",
+        ".github/workflows/db-checks.yml",
+        ".github/workflows/phase3-security.yml",
+        ".github/workflows/deploy-smoke.yml",
+        ".github/workflows/backup.yml",
+        ".github/workflows/backup-private.yml",
+        ".github/workflows/graft.yml",
+        ".github/workflows/atualizar-baseline.yml",
+        ".github/workflows/atualizar-semgrep-rulesets.yml",
+        "scripts/semgrep.sh",
+        "index.html",
+        "app.js",
+        "vendor/supabase-js-2.110.7.min.js",
+        ".vercelignore",
+        "docs/CHANGELOG.md"
+      ],
+      "checks": [
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            ".github/workflows/ci.yml",
+            ".github/workflows/views.yml",
+            ".github/workflows/semgrep.yml",
+            ".github/workflows/deriva.yml",
+            ".github/workflows/db-checks.yml",
+            ".github/workflows/phase3-security.yml",
+            ".github/workflows/deploy-smoke.yml",
+            ".github/workflows/backup.yml",
+            ".github/workflows/backup-private.yml",
+            ".github/workflows/graft.yml",
+            ".github/workflows/atualizar-baseline.yml",
+            ".github/workflows/atualizar-semgrep-rulesets.yml"
+          ],
+          "invariant": "Every third-party action is pinned to an immutable commit SHA, and write tokens exist only in dispatch-only workflows",
+          "method": "source",
+          "result": "All 12 workflows pin every uses: line to a full 40-hex SHA: actions/checkout 11d5960a…, actions/setup-node 49933ea5…, actions/setup-python a26af69b…, actions/upload-artifact ea165f8d…. There are no tag or branch references and no third-party or composite actions. Every workflow declares top-level permissions contents: read, except atualizar-baseline.yml and atualizar-semgrep-rulesets.yml, which are workflow_dispatch only. Whether each SHA belongs to the named upstream tag cannot be observed offline (see hardening)."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            ".github/workflows/views.yml",
+            ".github/workflows/semgrep.yml",
+            ".github/workflows/atualizar-semgrep-rulesets.yml",
+            ".github/workflows/backup-private.yml",
+            ".github/workflows/db-checks.yml",
+            ".github/workflows/deriva.yml",
+            ".github/workflows/atualizar-baseline.yml",
+            ".github/workflows/deploy-smoke.yml",
+            ".github/workflows/graft.yml"
+          ],
+          "invariant": "Package installs in CI use exact versions from default, non-confusable sources",
+          "method": "source",
+          "result": "The installs are pinned as follows. views.yml:81 runs npm i -g playwright@1.56.1; that package pins playwright-core exactly, and the job has no secrets and a read-only token. semgrep.yml:63 and atualizar-semgrep-rulesets.yml:68 run pip install semgrep==1.171.0. backup-private.yml:49 installs psycopg[binary]==3.2.10. backup-private.yml:59-61 builds supabase/vault from detached commit 6e0cd916…. Several jobs apt-get postgresql-client from signed Ubuntu repos. deploy-smoke.yml installs nothing. The repo has no .npmrc, pip.conf, requirements or extra-index config, so there is no namespace or fallback confusion. Transitive PyPI dependencies are unhashed and range-resolved, and backup-private.yml:21 uses the mutable image tag postgres:17 (see hardening). In every case the actor would have to be an upstream registry publisher, and no lower-trust in-repo writer is involved."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            ".github/workflows/semgrep.yml",
+            ".github/workflows/atualizar-semgrep-rulesets.yml",
+            "scripts/semgrep.sh"
+          ],
+          "invariant": "Mutable registry rules cannot silently weaken the required semgrep gate or inject into the write-token workflow",
+          "method": "source",
+          "result": "semgrep.yml runs the local rules [1] and the vendored .semgrep/vendor rules [2] with --error before the live registry rules p/javascript, xss, secrets and github-actions [3]. A registry change can only affect step [3]; it cannot remove the vendored enforcement. The updater downloads rule YAML with curl -f and checks that it is non-empty and contains rules:. It refuses to continue if the vendored and live scans diverge. Registry-derived values that reach GITHUB_ENV and the PR title are numeric counts from grep -c and Rules run:. No ${{ }} interpolation of registry content reaches run scripts. Changes are pushed to a new branch and proposed as a PR. scripts/semgrep.sh uses the same ruleset list and runs offline by default."
+        },
+        {
+          "agent_id": "h22-supply-inputs",
+          "reviewed_paths": [
+            "index.html",
+            "app.js",
+            "vendor/supabase-js-2.110.7.min.js",
+            ".vercelignore",
+            "docs/CHANGELOG.md"
+          ],
+          "invariant": "Visitor-facing runtime code comes only from same-origin vendored files, with no third-party fetch at runtime",
+          "method": "source",
+          "result": "index.html references only styles.css, manifest.webmanifest, app.js (line 385) and a data: favicon. app.js:1628 injects the same-origin vendor/supabase-js-2.110.7.min.js, and .vercelignore:36 publishes /vendor. No CDN or remote include exists. The vendored blob (sha256 2697f51bb3efa5f10b5b0bca2a39b3772b1b8f810e6885e3bb8d69c3242d5e07) has no recorded upstream integrity, and docs/CHANGELOG.md:1123 states that it was not rechecked against the npm package. Only repo writers can change it, so this is a provenance gap and not a lower-trust path (see hardening)."
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    ".claude/hooks/session-start.sh:43 runs `npm install -g @nanonets/graft@0.21.1` with lifecycle scripts enabled in every remote session whose global version differs. The installed copy has 18 caret-ranged dependencies, including native tree-sitter packages, and no npm-shrinkwrap.json, so transitive versions are resolved fresh each time. The background `pip install semgrep==1.171.0` (lines 78-80) also resolves unhashed transitive ranges, for example attrs>=21.3, rich>=13.5.2, ruamel.yaml>=0.18.15, packaging>=21.0 and glom>=23.3 (from the installed dist-info). Consider a committed hash-locked requirements file used with --require-hashes, plus a locked or --ignore-scripts npm install.",
+    ".claude/hooks/session-start.sh:43 does not export DO_NOT_TRACK, although scripts/graft.sh:11 sets it to keep graft from sending telemetry. Graft's package postinstall (scripts/postinstall.mjs inside the installed package) records an install event and spawns a detached telemetry flush unless CI or DO_NOT_TRACK is set. Export DO_NOT_TRACK=1 before the install.",
+    ".github/workflows/atualizar-semgrep-rulesets.yml:58 checks out without persist-credentials: false. The contents:write and pull-requests:write GITHUB_TOKEN therefore sits in .git/config while unhashed PyPI dependencies are installed (line 68) and semgrep runs (lines 167-187). Set persist-credentials: false and supply the token only in the push/PR step (lines 258-301).",
+    ".github/workflows/backup-private.yml:21 uses the mutable Docker tag postgres:17 for the service container that receives the full plaintext restore of the database; pin it by digest. backup-private.yml:49 pins psycopg[binary]==3.2.10 but leaves typing-extensions unhashed and floating. The step at lines 68-73 imports that dependency with SUPABASE_BACKUP_DATABASE_URL in its environment; use --require-hashes.",
+    "vendor/supabase-js-2.110.7.min.js (sha256 2697f51bb3efa5f10b5b0bca2a39b3772b1b8f810e6885e3bb8d69c3242d5e07) has no recorded expected digest, and no gate compares it with the npm tarball's dist/umd/supabase.js. docs/CHANGELOG.md:1123 confirms it was never rechecked. Record the upstream sha256 or integrity value next to the file and assert it in tests/check.js. The owner can check it with `npm pack @supabase/supabase-js@2.110.7` and sha256sum.",
+    "scripts/update_superpowers.sh:66-72 runs `cp -r` on every upstream skill directory into both .claude/skills and .agents/skills. It does not check whether the name is already owned by the mattpocock/supabase set, where .claude/skills/<name> is a symlink to .agents/skills/<name>. A colliding upstream name would be nested into the other publisher's directory, and the next run's `rm -rf` (line 56) would delete it. That contradicts CLAUDE.md's claim that the updater never touches those skills. Symlinks inside upstream directories are also copied as symlinks, and the hook reads SKILL.md through them. Add refusal checks for name collisions and symlinks; for now the git diff review is the only mitigation.",
+    "skills-lock.json computedHash values are not verified by any in-repo script, test or workflow. Either add a verification gate or document that the lock is provenance only.",
+    ".codex/config.toml:2 still points the Codex Supabase MCP server at the deleted project lwzsxuaqqeoamukduhev. Access is OAuth-gated and read_only=true. The entry is stale and should be removed.",
+    "Action SHA pins cannot be checked offline against the tags in their `# vN` comments; for example, actions/checkout@11d5960a326750d5838078e36cf38b85af677262 is labelled v4. The owner can confirm through GitHub's API that each pinned SHA is reachable from the labelled upstream tag. That rules out fork-network impostor commits introduced in review."
+  ],
+  "uncovered": []
+}

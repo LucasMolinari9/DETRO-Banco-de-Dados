@@ -1,0 +1,161 @@
+{
+  "units": [
+    {
+      "coverage_id": "whole%20repository::unassigned%20%2F%20strange%20code%20paths::repository::ATTACK-CLASSES.md%23Wildcard",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app.js",
+        "index.html",
+        "src",
+        "scripts",
+        "tests",
+        "supabase",
+        ".github",
+        "vendor/supabase-js-2.110.7.min.js",
+        "scripts/check_grants.mjs",
+        "scripts/check_realtime.mjs",
+        "scripts/check_deriva.mjs",
+        ".semgrepignore",
+        "scripts/check_deploy.mjs",
+        "src/data/rest.mjs",
+        "src/ui/doc.mjs",
+        "src/data/lookups.mjs",
+        "src/domain/agrupamento.mjs",
+        "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+        "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+        "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+        "scripts/integrate_access_eventos_observacoes.sql",
+        "docs/CHANGELOG.md",
+        "scripts/graft.sh",
+        ".github/workflows/graft.yml",
+        ".gitignore",
+        "docs/backup_schema.sql",
+        "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+        "scripts/bootstrap_phase3_auditor.sql"
+      ],
+      "checks": [
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "app.js",
+            "index.html",
+            "src",
+            "scripts",
+            "tests",
+            "supabase",
+            ".github",
+            "vendor/supabase-js-2.110.7.min.js",
+            "scripts/check_grants.mjs"
+          ],
+          "invariant": "No tracked source file hides logic from reviewers behind invisible, bidirectional-override or control characters (Trojan Source), and no security gate is treated as binary by review tooling.",
+          "method": "source",
+          "result": "A read-only scan of every tracked file except fonts, images and docs/auditorias found no Cf/Co/Cs (bidi, zero-width) characters and no stray control characters in project code. The vendored supabase-js has two 0x1f bytes, which is normal for minified code. The only anomaly is two literal NUL bytes in scripts/check_grants.mjs, at byte offsets 8623 and 10451 (lines 156 and 194), used as a key separator inside template literals. Because of them grep -r reports the file as binary and prints no matching lines. Git and GitHub still diff it as text, since their binary heuristic only looks at the first 8000 bytes. This is recorded as hardening, not a finding.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "scripts/check_grants.mjs",
+            "scripts/check_realtime.mjs",
+            "scripts/check_deriva.mjs",
+            ".semgrepignore"
+          ],
+          "invariant": "The CI static-analysis gate (semgrep) still parses the NUL-bearing secret-holding gate script, so the vendored secrets and shell-injection rulesets are not silently blind to it.",
+          "method": "local",
+          "result": "In the sandbox, semgrep run with a probe rule (readFile(...)) on check_grants.mjs plus two control files reported a match in check_grants.mjs (line 176) as well as in both controls, and exited 0. Semgrep does not skip the file. .semgrepignore excludes only vendor/, the skill trees, harness copies, backups and caches.",
+          "artifact": "agents/h24-wildcard/artifacts/check-01.out"
+        },
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "app.js",
+            "scripts/check_deploy.mjs"
+          ],
+          "invariant": "Git history contains no reverted or 'temporary' security change that left authority widened at 539abe2.",
+          "method": "source",
+          "result": "Of the 144 commits up to 539abe2, two have subjects matching revert, rollback, temporary, hack, bypass or disable. 74f59dd only disables semgrep's version check offline. 0c596fe adds SITE_USA_TESTE_TEMPORARIAMENTE and the matching smoke expectation. SB_URL/SB_KEY and SB_TESTE_URL/SB_TESTE_KEY are the same project and the same anon JWT (app.js:148-149,174-175), so the flag changes no authority. No commented-out check was found.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "app.js",
+            "src/data/rest.mjs",
+            "src/ui/doc.mjs"
+          ],
+          "invariant": "The frontend has no hidden or secondary input channel beyond the peer-reviewed hash and Realtime: no postMessage, storage, window.name, opener, referrer, query-string or window.open/document.write path, and REST table selection is never data-driven.",
+          "method": "source",
+          "result": "A grep of app.js and src found none of those APIs. The only history writes are syncHash at app.js:1691-1696, which peers reviewed. The Realtime client is built with persistSession:false, autoRefreshToken:false and detectSessionInUrl:false (app.js:1607-1609). Every sbFetch call passes a literal table name; lookups.mjs:16 forwards literals only. sbFetch builds the URL as `${url}/rest/v1/${table}?${qs}` (rest.mjs:67), so user text can reach only the query string. errorBox and toast escape their input (doc.mjs:63 esc; app.js:1518 textContent).",
+          "artifact": null
+        },
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "src/data/lookups.mjs",
+            "src/domain/agrupamento.mjs"
+          ],
+          "invariant": "DB-supplied keys such as __proto__ or constructor cannot pollute Object.prototype through the lookup and grouping caches.",
+          "method": "source",
+          "result": "groupBy, countBy and the classification helpers use Map (agrupamento.mjs:8-9,55,74). dedupEmpresasPorRJ checks hasOwnProperty (:44). Lookup caches make only single-level writes, map[dbKey] = value (lookups.mjs:31,38,60-61,97). A __proto__ key can change only that local object's prototype, never the global one. At worst, a lookup of an inherited key name displays a function's string.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+            "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+            "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+            "scripts/integrate_access_eventos_observacoes.sql",
+            "docs/CHANGELOG.md"
+          ],
+          "invariant": "Irreversible data operations shipped in the repo (recovery, schema drops, owner-run integrations) refuse to run against an unexpected state and cannot destroy populated public catalog data when replayed.",
+          "method": "source",
+          "result": "The recovery migration aborts unless all three targets are empty and the source counts and row_ids match exactly. It verifies the result both ways with EXCEPT ALL. The drop migration aborts unless all three legacy schemas exist and it finds no external dependencies, function references, FKs, publications or cron jobs. A replay therefore aborts and drops nothing. The integration script locks its tables, checks for collisions and identity, and verifies final counts inside one transaction. No tracked .sql/.mjs/.py/.js/.sh/.yml file deletes from or truncates the public catalog tables.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "scripts/graft.sh",
+            ".github/workflows/graft.yml",
+            ".gitignore"
+          ],
+          "invariant": "The graft launcher's GRAFT_NO_GITIGNORE/GRAFT_NO_IGNORE settings do not make the indexer read gitignored secrets (.env, backup exports, security snapshots) into the graph or the CI artifact.",
+          "method": "source",
+          "result": "In the cached @nanonets/graft 0.21.1 (cli.js:304-311), both variables only stop graft writing graft/ into .gitignore and writing a ripgrep .ignore. They do not re-admit ignored files. DO_NOT_TRACK=1 is exported. The CI job runs on a clean checkout with persist-credentials:false and contents:read, so no ignored local file exists there.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "docs/backup_schema.sql",
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql"
+          ],
+          "invariant": "The anon-executable RPC bodies build no dynamic SQL from caller arguments.",
+          "method": "source",
+          "result": "divat_busca_logradouro (20260729034018:50-58) and divat_linhas_regiao (backup_schema.sql:343-361) are LANGUAGE sql with fixed search_path. termo, p_ibge, p_regiao and p_modo are used only as bound values, in ilike and equality comparisons. There is no EXECUTE or format(), so the arguments cannot inject SQL.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h24-wildcard",
+          "reviewed_paths": [
+            "scripts/bootstrap_phase3_auditor.sql"
+          ],
+          "invariant": "The CI auditor bootstrap creates a least-privilege login and fails closed on wrong attributes.",
+          "method": "source",
+          "result": "The script refuses to run without both variables (:9-18). It creates or alters divat_auditor_ci as NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS with VALID UNTIL, and grants only divat_auditor. It raises an error if the login ends with admin attributes, direct SELECT on tabela_vista_teste, or no audit EXECUTE (:36-53). Plaintext-password handling is recorded as hardening.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    "scripts/check_grants.mjs:156,194 put literal NUL bytes (offsets 8623 and 10451) in template literals as a key separator. grep -r therefore treats this daily security gate as binary and returns no matching lines, so line-oriented audits silently skip it. If an edit ever moves a NUL into the first 8000 bytes, git and GitHub will show its diffs as 'Binary files differ' in PR review. Write the separator as the escape sequence '\\0' (or use '|') so the file stays plain text.",
+    "scripts/bootstrap_phase3_auditor.sql:2-6,21-31: the documented invocation passes the auditor password in psql argv (--set=auditor_password=…). Other local users can read it from the process table while the command runs. The \\gexec'd CREATE/ALTER ROLE … PASSWORD '<plaintext>' statement also lands in server logs whenever DDL statement logging is enabled. Pass a pre-computed SCRAM-SHA-256 verifier instead, or set the password with psql \\password, so plaintext never appears in argv or statement text. Separately, the example valid_until (2026-10-31) expires 18 days after this audit if it was used verbatim. The four required DB checks would then fail closed and block every merge until the secret is rotated.",
+    "docs/CHANGELOG.md:46 records that itinerario_teste, qh_intervalo_teste and qh_predeterminado_teste were found empty on 03/10/2026, after the 28/09 snapshot, and does not record a cause. No tracked code path deletes from or truncates them, and anon has no DELETE/TRUNCATE path through PostgREST under the current migrations. The emptying therefore most likely came from a privileged session (panel, owner credential, or an agent holding a DB credential during the Access import). Recording the cause, for example from the Postgres logs for that window, would show whether that privileged tool needs a guard such as pg safeupdate or a non-empty-target check like the one the recovery migration uses."
+  ],
+  "uncovered": []
+}

@@ -1,6 +1,6 @@
 # Auditoria de segurança — run-1 (skill `cloudflare/security-audit-skill`)
 
-> **Estado: PAUSADA a pedido do dono (limite de uso em 77%) — Fase 2 com 14/21 unidades fechadas; ver parent/RETOMADA.md** · atualizado em 2026-10-13 02:37 UTC.
+> **Estado: Fase 2: 21/21 unidades fechadas na onda 1; crítico de cobertura pós-onda a seguir** · atualizado em 2026-10-13 07:50 UTC.
 > **Nada aqui é achado confirmado ainda.** Os itens em `parent/candidates/` são *candidatos* de caçadores; só viram `confirmed`/`needs_validation`/`rejected` depois que um verificador novo tenta refutá-los (Fase 3).
 
 Perfil `standard`, commit auditado `539abe2`, execução só sobre o código e testes locais em sandbox (sem rede, FS somente-leitura, uid 65534). Nada foi enviado ao banco, à Vercel ou ao GitHub.
@@ -9,10 +9,9 @@ Perfil `standard`, commit auditado `539abe2`, execução só sobre o código e t
 
 | status | unidades |
 |---|---|
-| blocked | 1 |
+| blocked | 2 |
 | candidate | 4 |
-| covered | 9 |
-| planned | 7 |
+| covered | 15 |
 | **total** | **21** |
 
 ## Candidatos até agora (não verificados)

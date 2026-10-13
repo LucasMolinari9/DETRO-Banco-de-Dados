@@ -52,5 +52,30 @@
     ],
     "reason": "Restored copies can re-create anon EXECUTE on diagnostics and table ACLs that the live hardening removed (baseline still grants them); no current coverage unit owns the restore lifecycle as an access-control boundary.",
     "_x_source_agent": "h16-db-anon-authz"
+  },
+  {
+    "surface": "anon Realtime postgres_changes subscriptions (supabase-js channel opened with the public anon key, 15 published tables)",
+    "boundary": "Realtime per-tenant connection/channel quotas and per-subscriber RLS evaluation on each change",
+    "subsystem": "supabase realtime / app.js REALTIME section",
+    "attack_class": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Database and downstream query amplification",
+    "starting_paths": [
+      "app.js",
+      "docs/backup_schema.sql",
+      "scripts/check_realtime.mjs"
+    ],
+    "reason": "This unit covers PostgREST statements bounded by statement_timeout and db_max_rows. Realtime subscriptions are a separate anon-reachable channel. Their cost (many sockets or subscriptions, each with server-side authorization work per WAL change) is bounded by Realtime quotas, not by the role timeouts reviewed here, and needs its own coverage.",
+    "_x_source_agent": "h21-postgrest-filters"
+  },
+  {
+    "surface": ".github/workflows/deploy-smoke.yml deployment_status trigger",
+    "boundary": "deployment-SHA code checkout running with VERCEL_AUTOMATION_BYPASS_SECRET in job env",
+    "subsystem": "CI (.github/workflows)",
+    "attack_class": "SUPPLY-CHAIN-AND-RELEASE / secret exposure across CI workloads",
+    "starting_paths": [
+      ".github/workflows/deploy-smoke.yml",
+      "scripts/check_deploy.mjs"
+    ],
+    "reason": "deploy-smoke.yml:41 places the bypass secret in job env, and :62 checks out the default GITHUB_SHA. For deployment_status events that is the deployed commit, so the workflow definition and code come from whatever commit the Vercel app deployed. That can include fork or PR-head commits if Vercel fork protection or repo visibility allows it. Whether non-writer code can run with the secret depends on GitHub's deployment_status semantics and Vercel Git fork-protection settings. This is a CI trust-boundary question outside secret-hygiene/obvious-checklist scope and needs its own owner if no CI-secrets unit covers it.",
+    "_x_source_agent": "h23-secrets-obvious"
   }
 ]

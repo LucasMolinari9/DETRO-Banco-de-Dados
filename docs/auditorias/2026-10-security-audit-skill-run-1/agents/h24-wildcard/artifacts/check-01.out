@@ -1,0 +1,51 @@
+               
+               
+┌─────────────┐
+│ Scan Status │
+└─────────────┘
+  Scanning 3 files with 1 Code rule:
+  Scanning 3 files.
+                
+                
+┌──────────────┐
+│ Scan Summary │
+└──────────────┘
+✅ Scan completed successfully.
+ • Findings: 5 (5 blocking)
+ • Rules run: 1
+ • Targets scanned: 3
+ • Parsed lines: ~99.5%
+ • No ignore information available
+ • For a detailed list of skipped files and lines, run semgrep with the --verbose flag
+Ran 1 rule on 3 files: 5 findings.
+                   
+                   
+┌─────────────────┐
+│ 5 Code Findings │
+└─────────────────┘
+                            
+    scripts/check_deriva.mjs
+     ❱ sbx.scratch.probe-readfile
+          ❰❰ Blocking ❱❱
+          probe
+               
+           51┆ const appjs = await readFile(join(ROOT, 'app.js'), 'utf8');
+            ⋮┆----------------------------------------
+           59┆ const linhas = (await readFile(join(ROOT, doc), 'utf8')).split('\n');
+            ⋮┆----------------------------------------
+           68┆ const schemaMd = (await readFile(join(ROOT, 'docs/schema.md'), 'utf8')).split('\n');
+                            
+    scripts/check_grants.mjs
+     ❱ sbx.scratch.probe-readfile
+          ❰❰ Blocking ❱❱
+          probe
+               
+          176┆ const b = JSON.parse(await readFile(BASELINE, 'utf8'));
+                              
+    scripts/check_realtime.mjs
+     ❱ sbx.scratch.probe-readfile
+          ❰❰ Blocking ❱❱
+          probe
+               
+           32┆ const html = await readFile(join(ROOT, 'app.js'), 'utf8');
+

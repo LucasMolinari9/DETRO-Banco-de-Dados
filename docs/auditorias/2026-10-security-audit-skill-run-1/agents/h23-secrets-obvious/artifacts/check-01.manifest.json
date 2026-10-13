@@ -1,0 +1,44 @@
+{
+  "agent_id": "h23-secrets-obvious",
+  "check": "01",
+  "command": [
+    "/bin/sh",
+    "/sbx/scratch/secrets_check.sh"
+  ],
+  "cwd": "/home/user/DETRO-Banco-de-Dados",
+  "env_allowlist": [
+    "LANG=C.UTF-8",
+    "PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin",
+    "HOME=/sbx/scratch/home",
+    "TMPDIR=/sbx/scratch/tmp",
+    "GIT_CONFIG_COUNT=1",
+    "GIT_CONFIG_KEY_0=safe.directory",
+    "GIT_CONFIG_VALUE_0=/home/user/DETRO-Banco-de-Dados"
+  ],
+  "loopback": false,
+  "limits": {
+    "wall_clock_s": 300,
+    "cpu_rlimit_s": 120,
+    "cgroup_cpu": "1 core",
+    "cgroup_memory_bytes": 2147483648,
+    "cgroup_pids_max": 256,
+    "fsize_bytes": 16777216,
+    "nofile": 1024,
+    "nproc": 256,
+    "scratch_tmpfs": "64MiB",
+    "network": "none (new netns)",
+    "filesystem": "read-only except scratch",
+    "uid": 65534
+  },
+  "exit_status": 0,
+  "wall_s": 19.46,
+  "setup_output": "",
+  "promoted": [
+    {
+      "artifact": "agents/h23-secrets-obvious/artifacts/check-01.out",
+      "bytes": 1583,
+      "sha256": "b3f30a632436cdfea9009623161442488c378535fbed390160f46a0710861d4a"
+    }
+  ],
+  "promotion_errors": []
+}
