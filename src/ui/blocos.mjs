@@ -129,14 +129,14 @@ export function quadroHorariosBodyHTML(interv, predet, orig){
 export const TARIFA_COLS = [{t:'Seção',w:'60px'},{t:'Nº Linha',w:'80px'},{t:'Ligação'},{t:'Via',w:'90px'},{t:'Caract.',w:'90px'},{t:'Tipo',w:'90px'},{t:'RM',w:'55px'},{t:'Tarifa',w:'80px'},{t:'Piso I (km)',w:'90px'},{t:'Situação',w:'90px'},{t:'Criação',w:'90px'},{t:'Status',w:'150px'}];
 export function tarifaRowHTML(r){
   // chip de status com a data do evento ao lado (quando a coluna de data está disponível)
-  const dChip = (v,label,date) => v ? `<span class="chip chip-on">${label}${date?' '+fmtDate(date):''}</span>` : '';
+  const dChip = (v,label,date) => v ? `<span class="chip chip-on">${label}${date?' '+esc(fmtDate(date)):''}</span>` : '';
   const st = [ dChip(r.cancelado,'Canc.',r.data_cancelamento), dChip(r.paralisado,'Paral.',r.data_paralisacao), dChip(r.sub_judice,'Sub jud.',r.data_sub_judice), dChip(r.transferido,'Transf.',r.data_transferencia) ].filter(Boolean).join(' ') || '<span class="chip chip-off">OK</span>';
   // "Piso I" é quilometragem (extensão da seção), não valor monetário — sem "R$"
   const pisoTxt = (r.piso_i===null||r.piso_i===undefined||r.piso_i==='') ? '—' : `${fmtMoney(r.piso_i)} km`;
   return `<tr><td class="td-num">${esc(orDash(r.secao))}</td><td class="td-num">${esc(orDash(r.numero_linha))}</td><td class="td-logr">${esc(orDash(r.nome_ligacao))}</td>
   <td class="td-tipo">${esc(orDash(r.via))}</td><td class="td-tipo">${esc(orDash(r.caracteristica))}</td><td class="td-tipo">${esc(orDash(r.tipo_ligacao))}</td><td class="td-num">${esc(orDash(r.rm))}</td>
   <td class="td-sentido">R$ ${esc(fmtMoney(r.tarifa))}</td><td class="td-num">${esc(pisoTxt)}</td>
-  <td class="td-tipo">${esc(orDash(r.situacao))}</td><td class="td-num">${fmtDate(r.data_criacao)}</td><td>${st}</td></tr>`;
+  <td class="td-tipo">${esc(orDash(r.situacao))}</td><td class="td-num">${esc(fmtDate(r.data_criacao))}</td><td>${st}</td></tr>`;
 }
 export function secoesTarifasHTML(rows){
   if(!rows.length) return emptyLinha('seção ou tarifa');

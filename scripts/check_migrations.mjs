@@ -19,7 +19,9 @@ const PRIVILEGIOS_LEITURA = new Set(['select', 'usage', 'execute']);
 
 const failures = [];
 const fail = (file, message) => failures.push(`${file}: ${message}`);
-const compact = sql => sql.replace(/--.*$/gm, '').replace(/\s+/g, ' ').trim();
+// Aspas em identificador simples saem: `"public"."caso"` é a mesma tabela que public.caso, e sem
+// isso nenhuma regra abaixo a reconhecia.
+const compact = sql => sql.replace(/--.*$/gm, '').replace(/"([a-z0-9_]+)"/gi, '$1').replace(/\s+/g, ' ').trim();
 
 // O gate avalia o que cada GRANT/REVOKE/POLICY concede, não a presença de palavras: até a revisão
 // AUD-03 (11/10/2026), `revoke select … ; grant insert … to anon` e uma policy PERMISSIVE FOR ALL
@@ -37,6 +39,8 @@ const privilegios = trecho => trecho
   .map(p => p.trim().split(/\s+/)[0].toLowerCase())
   .filter(Boolean);
 const publicos = lista => lista.filter(p => PAPEIS_PUBLICOS.has(p));
+// `to %I` dentro de format(): o papel só existe na execução, e o gate não pode afirmar que não é anon.
+const dinamico = lista => lista.some(p => p.includes('%'));
 const comandos = (sql, re) => [...sql.matchAll(re)].map(m => m.slice(1));
 
 let files;
@@ -64,7 +68,28 @@ for (const file of files) {
   const revokes = comandos(sql, /\brevoke\s+([^;]+?)\s+on\s+([^;]+?)\s+from\s+([^;]+)/gi)
     .map(([privs, objeto, de]) => ({ privs: privilegios(privs), objeto: objeto.trim().toLowerCase(), de: papeis(de) }));
 
-  const tables = [...sql.matchAll(/\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?public\.([a-z0-9_]+)/gi)]
+  // Sem schema, a tabela cai no primeiro do search_path — public — e escapa da regra abaixo.
+  // TEMP não casa aqui: mora em pg_temp e some no fim da sessão.
+  for (const [nome] of comandos(sql, /\bcreate\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?([a-z0-9_]+)(?![a-z0-9_.])/gi)) {
+    fail(file, `CREATE TABLE ${nome} sem schema explícito — escreva o schema (public.${nome}, divat_integracao.${nome}, …)`);
+  }
+  if (/\bset\s+schema\s+public\b/i.test(sql)) {
+    fail(file, 'SET SCHEMA public — objeto entra em public sem passar pelo contrato de criação');
+  }
+
+  // View comum roda com os direitos do DONO: um SELECT para anon nela atravessa o RLS e o REVOKE
+  // da tabela de baixo. Em public, só security_invoker.
+  for (const [view, opcoes] of comandos(sql, /\bcreate\s+(?:or\s+replace\s+)?(?:recursive\s+)?view\s+(public\.[a-z0-9_]+)([^;]*?)\bas\b/gi)) {
+    if (!/\bsecurity_invoker\s*(?:=\s*'?(?:true|on|1)\b|[,)])/i.test(opcoes)) {
+      fail(file, `VIEW ${view.toLowerCase()} sem security_invoker — view de public não pode ler com os direitos do dono`);
+    }
+  }
+  // Materialized view não aceita RLS nem security_invoker: em public, um SELECT expõe a cópia inteira.
+  for (const [view] of comandos(sql, /\bcreate\s+materialized\s+view\s+(?:if\s+not\s+exists\s+)?(public\.[a-z0-9_]+)/gi)) {
+    fail(file, `MATERIALIZED VIEW ${view.toLowerCase()} — não tem RLS; em public, use tabela com RLS ou view security_invoker`);
+  }
+
+  const tables = [...sql.matchAll(/\bcreate\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?public\.([a-z0-9_]+)/gi)]
     .map(match => match[1]);
   for (const table of tables) {
     const escaped = table.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -81,7 +106,49 @@ for (const file of files) {
     }
   }
 
+  // GRANT sem ON é de PAPEL: `grant service_role to anon` dá ao visitante tudo o que o papel
+  // pode. O sentido inverso (`grant anon to divat_audit_owner`, Fase 3) não amplia nada público.
+  for (const [concedidos, para] of comandos(sql, /\bgrant\s+([^;]+?)\s+to\s+([^;]+)/gi)) {
+    if (/\son\s/i.test(` ${concedidos} `)) continue;
+    if (dinamico(papeis(para))) fail(file, `GRANT de papel com papel dinâmico — em format(), escreva o papel literal`);
+    const alvo = publicos(papeis(para));
+    if (alvo.length) fail(file, `GRANT de papel (${concedidos.trim()}) para ${alvo.join(', ')} — papel público não herda outro papel`);
+  }
+
+  // Dono não passa por GRANT nem por RLS (sem FORCE): é escrita total por outro caminho.
+  for (const [dono] of comandos(sql, /\bowner\s+to\s+([a-z_%]+)/gi)) {
+    if (dono.includes('%')) fail(file, 'OWNER TO com papel dinâmico — em format(), escreva o papel literal');
+    else if (PAPEIS_PUBLICOS.has(dono.toLowerCase())) fail(file, `OWNER TO ${dono} — papel público não pode ser dono de objeto`);
+  }
+
+  // As 19 tabelas de public têm RLS, e as stagings ficam fechadas por ele; nenhuma migração desliga.
+  if (/\bdisable\s+row\s+level\s+security\b/i.test(sql)) {
+    fail(file, 'DISABLE ROW LEVEL SECURITY — RLS não se desliga por migração');
+  }
+
+  // As RESTRICTIVE de 20260930213009 seguram a escrita mesmo se um GRANT voltar; sem elas, sobra
+  // só o GRANT. Os nomes são os que aquela migração cria.
+  for (const [acao, nome] of comandos(sql, /\b(drop|alter)\s+policy\s+(?:if\s+exists\s+)?(divat_block_client_[a-z0-9_]+|divat_internal_no_client_access)\b/gi)) {
+    fail(file, `${acao.toUpperCase()} POLICY ${nome} — policy de bloqueio do hardening não se remove nem se altera`);
+  }
+
+  // public é exposto pela Data API: função DEFINER ali roda com o dono para quem a chamar. As de
+  // produto são INVOKER; diagnóstico DEFINER mora em audit. O corpo $tag$…$tag$ sai antes, porque
+  // tem `;` próprio e o SECURITY DEFINER pode vir depois dele.
+  const semCorpos = sql.replace(/\$([a-z_]*)\$[\s\S]*?\$\1\$/gi, '$$$$');
+  for (const [funcao] of comandos(semCorpos, /\b(?:create\s+(?:or\s+replace\s+)?|alter\s+)(?:function|procedure)\s+(public\.[a-z0-9_]+)[^;]*?\bsecurity\s+definer\b/gi)) {
+    fail(file, `SECURITY DEFINER em ${funcao.toLowerCase()} — função de public é INVOKER (DEFINER só em audit)`);
+  }
+
+  // Default privileges valem para o objeto que AINDA vai nascer: até um SELECT abriria a próxima
+  // staging a anon sem que migração nenhuma a mencionasse. Para papel público, só REVOKE.
+  for (const [para] of comandos(sql, /\balter\s+default\s+privileges\b[^;]*?\bgrant\b[^;]*?\bto\s+([^;]+)/gi)) {
+    const alvo = publicos(papeis(para));
+    if (alvo.length) fail(file, `ALTER DEFAULT PRIVILEGES … GRANT para ${alvo.join(', ')} — objetos futuros nascem fechados`);
+  }
+
   for (const { privs, para } of grants) {
+    if (dinamico(para)) fail(file, `GRANT com papel dinâmico (${para.join(', ')}) — em format(), escreva o papel literal`);
     const alvo = publicos(para);
     const escrita = privs.filter(p => !PRIVILEGIOS_LEITURA.has(p));
     if (alvo.length && escrita.length) {
@@ -95,6 +162,10 @@ for (const file of files) {
     if (/^\s*as\s+restrictive\b/i.test(cabecalho)) continue;
     const comando = (cabecalho.match(/\bfor\s+(all|select|insert|update|delete)\b/i)?.[1] || 'all').toLowerCase();
     const para = cabecalho.match(/\bto\s+(.+)$/i);
+    if (para && dinamico(papeis(para[1]))) {
+      fail(file, `policy ${nome} com papel dinâmico — em format(), escreva o papel literal`);
+      continue;
+    }
     const alvo = publicos(para ? papeis(para[1]) : ['public']);
     if (comando !== 'select' && alvo.length) {
       fail(file, `policy ${nome} é PERMISSIVE para ${comando.toUpperCase()} e alcança ${alvo.join(', ')} — escrita só com policy AS RESTRICTIVE`);

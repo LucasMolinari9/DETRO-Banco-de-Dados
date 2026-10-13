@@ -71,6 +71,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # O token de escrita NÃO fica no .git/config: os passos de instalação e medição rodam
+          # sem ele, e só o `git push` do último passo o recebe (auditoria de 13/10/2026).
+          persist-credentials: false
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -143,7 +147,9 @@ jobs:
           git checkout -b "$RAMO"
           git add scripts/
           git commit -m "chore(baseline): mede $BASELINE em $ALVO" -m "Medição feita pelo workflow 'Atualizar baseline' (run $RUN_ID), disparada à mão. Só o slot de '$ALVO' foi escrito; a política do topo e o slot do outro banco seguem intactos — confira no diff."
-          git push -u origin "$RAMO"
+          # Mesmo cabeçalho que o actions/checkout gravaria, mas só neste comando.
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" push -u origin "$RAMO"
           gh pr create \
             --base "$BASE" \
             --head "$RAMO" \

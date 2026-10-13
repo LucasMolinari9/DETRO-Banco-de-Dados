@@ -287,8 +287,10 @@ const svg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 // metadados por view (título, ícone, cores, pré-requisito) — usados pelo clique do card,
 // pela busca do topo (consultas no dropdown) e pelo roteamento por hash. Populados eagerly,
 // independente de qual tópico está ativo no painel no momento.
-const VIEW_META = {};
-const VIEW_TOPIC = {};   // view → key do tópico dono (SECTIONS[].key) — usado pela busca do topo
+// Sem protótipo: a chave vem do hash da URL, e num objeto comum `#/consulta/__proto__`,
+// `constructor` ou `toString` achavam "metadados" herdados e abriam um modal sem loader.
+const VIEW_META = Object.create(null);
+const VIEW_TOPIC = Object.create(null);   // view → key do tópico dono (SECTIONS[].key) — usado pela busca do topo
 SECTIONS.forEach(sec => {
   sec.items.forEach(([ic, title, desc, view, needsLine]) => {
     VIEW_META[view] = { title, icon:ic, needsLine:!!needsLine };
@@ -1721,11 +1723,12 @@ async function applyRoute(){
     // tópico ativo no painel: dono do view (se houver), senão o segmento topico/, senão o padrão
     // — tópico-ação (`direct`) nunca vira "tópico ativo" (não tem grade pra pintar atrás do
     // modal): ignora tanto o dono do view quanto um `#/topico/<key>` antigo apontando pra ele,
-    // caindo no segmento seguinte ou no padrão.
-    const isDirectTopic = key => !!SECTIONS.find(s => s.key === key)?.direct;
+    // caindo no segmento seguinte ou no padrão. Tópico inexistente também cai: o selectTopic o
+    // recusaria em silêncio e, na entrada, o painel ficaria sem nenhum card.
+    const isPainelTopic = key => !!key && SECTIONS.some(s => s.key === key && !s.direct);
     const viewTopic = view && VIEW_TOPIC[view];
-    const topicoAlvo = (viewTopic && !isDirectTopic(viewTopic) && viewTopic)
-      || (topico && !isDirectTopic(topico) && topico)
+    const topicoAlvo = (isPainelTopic(viewTopic) && viewTopic)
+      || (isPainelTopic(topico) && topico)
       || DEFAULT_TOPIC;
     if (currentTopicKey !== topicoAlvo) selectTopic(topicoAlvo);
     if (view && VIEW_META[view]){

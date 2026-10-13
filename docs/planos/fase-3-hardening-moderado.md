@@ -79,7 +79,9 @@ Eles são evidência datada, não substituem uma nova execução depois das corr
 
 ## Rollback histórico
 
-`scripts/rollback_phase3_test.sql` restaura ACLs anteriores e remove papéis/diagnósticos.
-Seu ensaio transacional histórico não o torna seguro para o banco que hoje serve o portal.
-Não executar no candidato oficial. Qualquer recuperação atual começa por dump validado e
-ensaio isolado de [backup.md](../backup.md), preservando a instância em uso.
+O `scripts/rollback_phase3_test.sql` restaurava as ACLs anteriores e removia papéis e
+diagnósticos. Saiu do repositório em 13/10/2026 (auditoria de segurança, §6.1 item 7): se
+rodasse até o fim, devolveria os diagnósticos e `f_unaccent` a `anon`/`authenticated` e o
+SELECT de 14 tabelas a `authenticated`, e o cabeçalho o apontava ao banco único em uso. Fica
+no histórico do git. Qualquer recuperação atual começa por dump validado e ensaio isolado de
+[backup.md](../backup.md), preservando a instância em uso.

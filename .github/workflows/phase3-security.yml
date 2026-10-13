@@ -30,7 +30,6 @@ on:
       - scripts/lib/audit-database.mjs
       - app.js
       - scripts/bootstrap_phase3_auditor.sql
-      - scripts/rollback_phase3_test.sql
       - .github/workflows/phase3-security.yml
   # Sem filtro de paths: `migration-contract` é check obrigatório da `main`. Mesmo uma PR sem
   # SQL precisa criar o job e reportar o status; caso contrário o ruleset espera um contexto que
