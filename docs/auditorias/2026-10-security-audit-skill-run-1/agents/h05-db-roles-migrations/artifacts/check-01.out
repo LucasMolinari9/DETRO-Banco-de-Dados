@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: as migrações reais do repositório continuam aprovadas
+ok 1 - as migrações reais do repositório continuam aprovadas
+  ---
+  duration_ms: 56.860798
+  type: 'test'
+  ...
+# Subtest: tabela pública fechada com leitura anônima explícita é aprovada
+ok 2 - tabela pública fechada com leitura anônima explícita é aprovada
+  ---
+  duration_ms: 39.292634
+  type: 'test'
+  ...
+# Subtest: bloqueio RESTRICTIVE de escrita (padrão do hardening) é aprovado
+ok 3 - bloqueio RESTRICTIVE de escrita (padrão do hardening) é aprovado
+  ---
+  duration_ms: 41.359694
+  type: 'test'
+  ...
+# Subtest: GRANT EXECUTE de RPC da allowlist para anon é aprovado
+ok 4 - GRANT EXECUTE de RPC da allowlist para anon é aprovado
+  ---
+  duration_ms: 41.014346
+  type: 'test'
+  ...
+# Subtest: AUD-03: escrita concedida a anon é recusada
+ok 5 - AUD-03: escrita concedida a anon é recusada
+  ---
+  duration_ms: 38.617555
+  type: 'test'
+  ...
+# Subtest: AUD-03: policy PERMISSIVE FOR ALL para anon é recusada
+ok 6 - AUD-03: policy PERMISSIVE FOR ALL para anon é recusada
+  ---
+  duration_ms: 47.531347
+  type: 'test'
+  ...
+# Subtest: AUD-03: REVOKE só de SELECT não fecha a tabela nova
+ok 7 - AUD-03: REVOKE só de SELECT não fecha a tabela nova
+  ---
+  duration_ms: 37.961373
+  type: 'test'
+  ...
+# Subtest: AUD-03: GRANT EXECUTE TO PUBLIC depois do REVOKE é recusado
+ok 8 - AUD-03: GRANT EXECUTE TO PUBLIC depois do REVOKE é recusado
+  ---
+  duration_ms: 40.435904
+  type: 'test'
+  ...
+# Subtest: anon numa lista de grantees não escapa da allowlist
+ok 9 - anon numa lista de grantees não escapa da allowlist
+  ---
+  duration_ms: 39.158471
+  type: 'test'
+  ...
+# Subtest: GRANT EXECUTE ON ALL FUNCTIONS para anon é recusado
+ok 10 - GRANT EXECUTE ON ALL FUNCTIONS para anon é recusado
+  ---
+  duration_ms: 57.81907
+  type: 'test'
+  ...
+# Subtest: GRANT ALL em tabela para authenticated é recusado
+ok 11 - GRANT ALL em tabela para authenticated é recusado
+  ---
+  duration_ms: 57.876844
+  type: 'test'
+  ...
+# Subtest: escrita em massa e por default privileges é recusada
+ok 12 - escrita em massa e por default privileges é recusada
+  ---
+  duration_ms: 81.457519
+  type: 'test'
+  ...
+# Subtest: policy de escrita sem TO vale para PUBLIC e é recusada
+ok 13 - policy de escrita sem TO vale para PUBLIC e é recusada
+  ---
+  duration_ms: 48.474098
+  type: 'test'
+  ...
+# Subtest: policy sem FOR vale para ALL e é recusada
+ok 14 - policy sem FOR vale para ALL e é recusada
+  ---
+  duration_ms: 37.972861
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 746.172317

@@ -1,0 +1,144 @@
+{
+  "units": [
+    {
+      "coverage_id": "src%2Fdata%2Frest.mjs%23sbFetch%20response%20rows%20rendered%20via%20innerHTML::src%2Fdomain%2Fcore.mjs%23esc::frontend::ATTACK-CLASSES.md%23Injection",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app.js",
+        "index.html",
+        "vercel.json",
+        "src/data/rest.mjs",
+        "src/data/campos.mjs",
+        "src/domain/core.mjs",
+        "src/domain/agrupamento.mjs",
+        "src/ui/doc.mjs",
+        "src/ui/blocos.mjs",
+        "src/ui/listas.mjs",
+        "src/ui/empresas.mjs",
+        "src/ui/paginacao.mjs",
+        "src/documentos/estrutura-tarifas-portaria.mjs",
+        "src/documentos/frota-historico-itinerarios.mjs",
+        "src/documentos/municipios-localidades.mjs",
+        "src/documentos/quadro-empresas.mjs",
+        "docs/backup_schema.sql",
+        "supabase/migrations",
+        "scripts/lib/rig.mjs"
+      ],
+      "checks": [
+        {
+          "agent_id": "h13-dom-xss",
+          "reviewed_paths": [
+            "app.js",
+            "src/data/rest.mjs",
+            "src/domain/core.mjs",
+            "src/domain/agrupamento.mjs",
+            "src/ui/doc.mjs",
+            "src/ui/blocos.mjs",
+            "src/ui/listas.mjs",
+            "src/ui/empresas.mjs",
+            "src/ui/paginacao.mjs",
+            "src/documentos/estrutura-tarifas-portaria.mjs",
+            "src/documentos/frota-historico-itinerarios.mjs",
+            "src/documentos/municipios-localidades.mjs",
+            "src/documentos/quadro-empresas.mjs"
+          ],
+          "invariant": "Every DB-row string from sbFetch (res.json(), src/data/rest.mjs:83) that reaches an innerHTML/outerHTML-bound template must go through esc() (src/domain/core.mjs:14) or come from a numeric, boolean, or code-constant producer. Every attribute interpolation must be quoted, and no URL, eval, or document.write sink may take row data.",
+          "method": "source",
+          "result": "Holds. I listed every `${...}` interpolation in app.js and src/**/*.mjs: 351 do not start with a known escaper, and each was triaged. Every DB text value is wrapped in esc() or fmtLineName, which runs esc first and only adds &nbsp; afterwards. The rest are lengths and counts, Number()-coerced sums (resumoFrota num(), fmtN), boolean chips with constant labels, SECTIONS/LOC_FILTERS constants, the year list from getPortariaAnos (integers), or query-string parts. esc covers & < > \" ' and all attribute values are double- or single-quoted; data-row uses single quotes and esc encodes '. There is no href/src/action/srcdoc/javascript: interpolation and no eval, new Function or document.write. toast uses textContent. PostgREST error text (err.message, rest.mjs:80-81) is shown only through errorBox or the drop-error template, both escaped. The suggest dropdown, datalists, select options, tab labels (renderTabs) and the line banner (paintBanner/bannerEmpHTML) all escape.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h13-dom-xss",
+          "reviewed_paths": [
+            "src/ui/doc.mjs",
+            "src/ui/blocos.mjs",
+            "src/documentos/estrutura-tarifas-portaria.mjs",
+            "src/documentos/quadro-empresas.mjs",
+            "src/documentos/frota-historico-itinerarios.mjs",
+            "src/data/campos.mjs",
+            "docs/backup_schema.sql",
+            "supabase/migrations"
+          ],
+          "invariant": "Two inputs are raw by contract: metaRows value `v` (src/ui/doc.mjs:36) and tableHTML bodyRows (doc.mjs:49). Every caller must pre-escape them, and any unescaped DB value must be type-constrained.",
+          "method": "source",
+          "result": "Holds. All 16 metaRows call sites pass esc()'d text, situacaoHTML/boolChip markup, or numbers. Every bodyRows builder escapes its cells. The only DB values inserted without esc are 7 fmtDate(...) calls: blocos.mjs:132,139; estrutura-tarifas-portaria.mjs:181,187; quadro-empresas.mjs:100,294; frota-historico-itinerarios.mjs:124. Their columns are all Postgres `date` (docs/backup_schema.sql:41,56,74-82,91) and no migration changes those types (no ALTER COLUMN ... TYPE in supabase/migrations). PostgREST therefore returns YYYY-MM-DD, and fmtDate's regex output is digits and slashes only. Even an ISO-prefixed text value would be reduced to the captured digits. This is safe today but fragile; see hardening.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h13-dom-xss",
+          "reviewed_paths": [
+            "app.js",
+            "src/ui/listas.mjs",
+            "src/documentos/municipios-localidades.mjs"
+          ],
+          "invariant": "Three things are checked. The PDF export re-parse (baixarPdf, app.js:981-999: pdfHTML() string, liveDoc.outerHTML, or modalBody.innerHTML assigned to temp.innerHTML) must not re-materialize markup from escaped text. The data-row JSON round-trip (app.js:541,594,1191; listas.mjs:42,68; municipios-localidades.mjs:613) must not create a gadget. Injected id/name attributes must not be able to clobber a value the code later trusts.",
+          "method": "source",
+          "result": "Holds. pdfHTML() is built by the same escaping builders. The outerHTML/innerHTML fallback re-parses in the same context (a div inside body). No row data sits inside raw-text elements (style, script, xmp, iframe, noembed, noframes, plaintext, noscript) or inside foreign SVG/MathML content, so the serialize-and-reparse round trip leaves the text inert. JSON.parse only creates own properties; there is no recursive merge, and the parsed row only reaches selectLine/paintBanner (escaped) and enc()'d query values. Because no row data reaches an attribute name or an unquoted value, there is no markup path for id/name clobbering. stripIds/restoreIds (app.js:829-830) only touch ids written by the code.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h13-dom-xss",
+          "reviewed_paths": [
+            "vercel.json",
+            "index.html"
+          ],
+          "invariant": "The browser policy that would stop script execution if markup injection existed.",
+          "method": "source",
+          "result": "The CSP in vercel.json has script-src 'self' with no unsafe-inline or unsafe-eval, style-src-attr 'none', object-src 'none', base-uri 'self', form-action 'self' and img-src 'self' data:. index.html has a single external module script (index.html:385) and no inline scripts or handlers. This is defense-in-depth only: the decision above rests on escaping, so whether the deployed header matches vercel.json is not decisive for this unit.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h13-dom-xss",
+          "reviewed_paths": [
+            "src/domain/core.mjs",
+            "src/ui/doc.mjs",
+            "src/ui/blocos.mjs"
+          ],
+          "invariant": "The real pure markup builders must escape a markup payload placed in every row field. Also measures the fmtDate pass-through behaviour.",
+          "method": "local",
+          "result": "Node harness importing the real modules: 13 builders (esc, fmtLineName, docHead, tableHTML, errorBox/emptyBox/loading, evBandHTML+evBlocksHTML, itinerarioTableHTML, frotaBlockHTML, quadroHorariosBodyHTML, tarifaRowHTML with ISO date fields, tarifasPromocionaisHTML, observacaoQHHTML, metaRows key) produced no raw <img or <svg tag. fmtDate on an ISO-prefixed payload was also escaped. As expected, fmtDate on non-date text, and tarifaRowHTML with a non-date data_criacao, return the raw tag. That case is latent only, because the columns are typed `date`.",
+          "artifact": "agents/h13-dom-xss/artifacts/check-01.out"
+        },
+        {
+          "agent_id": "h13-dom-xss",
+          "reviewed_paths": [
+            "app.js",
+            "index.html",
+            "vercel.json",
+            "scripts/lib/rig.mjs",
+            "src/ui/paginacao.mjs",
+            "src/documentos/estrutura-tarifas-portaria.mjs",
+            "src/documentos/frota-historico-itinerarios.mjs",
+            "src/documentos/municipios-localidades.mjs",
+            "src/documentos/quadro-empresas.mjs"
+          ],
+          "invariant": "Run end to end in Chromium, serving the real portal with the production CSP and a PostgREST stub built from the repo fixtures. Every displayed text column carries a payload combining attribute-breakout, img/svg handlers, a </noscript> breakout, xmp/style raw-text elements and a javascript: href. The payload must render as inert text on every surface, including the PDF export container.",
+          "method": "local",
+          "result": "21 surfaces checked: the hero search dropdown, the line banner, and all 19 view variants from check_views (each with its PDF export container captured from a stubbed window.print). Results: injectedElementsTotal=0, xssFlagSurfaces=0, no CSP violations. The payload appeared as inert text on all 21 surfaces (3-39 occurrences per surface; PDF containers 2-38). External HTTP was aborted and WebSockets were mocked. Sandbox: no network, loopback only. Check 02 was an earlier run that failed on a harness selector error and is superseded by this one.",
+          "artifact": "agents/h13-dom-xss/artifacts/check-03.out"
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    "fmtDate and fmtTime (src/domain/core.mjs:12-13) return input that does not match their pattern verbatim, and 7 call sites put fmtDate(dbField) into HTML without esc(): src/ui/blocos.mjs:132 and :139; src/documentos/estrutura-tarifas-portaria.mjs:181 and :187; src/documentos/quadro-empresas.mjs:100 and :294; src/documentos/frota-historico-itinerarios.mjs:124. They are safe only because those columns are Postgres `date`. If any of them is retyped or re-imported as text, they become stored HTML injection, which check-01 reproduces. Fix: wrap each call in esc(fmtDate(...)), or have fmtDate and fmtTime return esc(String(d)) in the fallback branch. Regression test: tarifaRowHTML({data_criacao:'<b>'}) must not contain '<b>'.",
+    "metaRows `v` (src/ui/doc.mjs:36) and tableHTML `bodyRows` (doc.mjs:49) are raw by contract, and esc() is enforced only by convention. Two possible guards: a Semgrep rule in .semgrep that flags template interpolations of fmtDate(, fmtTime(, orDash( or r.<field> not wrapped in esc( inside src/ui and src/documentos; or a CSP require-trusted-types-for 'script' together with a single escaping policy, as defense-in-depth for the roughly 135 innerHTML sinks."
+  ],
+  "uncovered": [
+    {
+      "surface": "Visual-companion local HTTP/WebSocket server and helper that render agent-written HTML in a browser",
+      "boundary": "server.cjs / helper.js HTML and DOM handling + loopback binding",
+      "subsystem": "agent tooling (.claude/skills/brainstorming/scripts)",
+      "attack_class": "CLIENT-SIDE DOM-based XSS / DESKTOP-MOBILE-AND-LOCAL-IPC local server exposure",
+      "starting_paths": [
+        ".claude/skills/brainstorming/scripts/server.cjs",
+        ".claude/skills/brainstorming/scripts/helper.js",
+        ".claude/skills/brainstorming/scripts/frame-template.html"
+      ],
+      "reason": "This is a separate subsystem with its own HTML and DOM sinks and a local listener (createServer/WebSocket/innerHTML found by grep). It is outside the portal frontend boundary owned here, and no peer coverage ID names it."
+    }
+  ]
+}

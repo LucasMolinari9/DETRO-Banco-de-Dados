@@ -1,0 +1,76 @@
+production alias
+  input="https://divatdetro.vercel.app" env=production
+  exit=0
+  bypass_sent_to=divatdetro.vercel.app
+  secret_value_in_output=false
+uppercase host
+  input="https://DIVATDETRO.VERCEL.APP" env=production
+  exit=0
+  bypass_sent_to=divatdetro.vercel.app
+  secret_value_in_output=false
+generated preview shape
+  input="https://divatdetro-abc123xyz-lucas-molinari-s-projects.vercel.app" env=preview
+  exit=0
+  bypass_sent_to=divatdetro-abc123xyz-lucas-molinari-s-projects.vercel.app
+  secret_value_in_output=false
+branch alias shape
+  input="https://divatdetro-git-feature-x-lucas-molinari-s-projects.vercel.app" env=preview
+  exit=0
+  bypass_sent_to=divatdetro-git-feature-x-lucas-molinari-s-projects.vercel.app
+  secret_value_in_output=false
+project-name-shaped label (any divatdetro-*-<team>.vercel.app)
+  input="https://divatdetro-evil-lucas-molinari-s-projects.vercel.app" env=preview
+  exit=0
+  bypass_sent_to=divatdetro-evil-lucas-molinari-s-projects.vercel.app
+  secret_value_in_output=false
+other team suffix
+  input="https://divatdetro-abc-outro-time.vercel.app" env=preview
+  exit=0
+  bypass_sent_to=(none)
+  refused_host=divatdetro-abc-outro-time.vercel.app
+  secret_value_in_output=false
+suffix-append
+  input="https://divatdetro.vercel.app.evil.invalid" env=preview
+  exit=0
+  bypass_sent_to=(none)
+  refused_host=divatdetro.vercel.app.evil.invalid
+  secret_value_in_output=false
+trailing dot
+  input="https://divatdetro.vercel.app." env=preview
+  exit=0
+  bypass_sent_to=(none)
+  refused_host=divatdetro.vercel.app.
+  secret_value_in_output=false
+userinfo trick
+  input="https://divatdetro.vercel.app@evil.invalid" env=preview
+  exit=0
+  bypass_sent_to=(none)
+  refused_host=evil.invalid
+  secret_value_in_output=false
+backslash trick
+  input="https://divatdetro.vercel.app\\@evil.invalid" env=preview
+  exit=0
+  bypass_sent_to=divatdetro.vercel.app
+  secret_value_in_output=false
+fragment trick
+  input="https://evil.invalid#@divatdetro.vercel.app" env=preview
+  exit=0
+  bypass_sent_to=(none)
+  refused_host=evil.invalid
+  secret_value_in_output=false
+explicit port on project host
+  input="https://divatdetro.vercel.app:8443" env=production
+  exit=0
+  bypass_sent_to=divatdetro.vercel.app:8443
+  secret_value_in_output=false
+http scheme
+  input="http://divatdetro.vercel.app" env=production
+  exit=1
+  bypass_sent_to=(none)
+  error=Deploy precisa usar HTTPS: http://divatdetro.vercel.app/
+  secret_value_in_output=false
+newline-bearing input
+  input="https://divatdetro.vercel.app/\nurl<<X" env=production
+  exit=0
+  bypass_sent_to=divatdetro.vercel.app
+  secret_value_in_output=false

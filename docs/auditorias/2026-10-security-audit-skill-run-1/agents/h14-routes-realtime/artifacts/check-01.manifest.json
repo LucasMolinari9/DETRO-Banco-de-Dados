@@ -1,0 +1,41 @@
+{
+  "agent_id": "h14-routes-realtime",
+  "check": "01",
+  "command": [
+    "/opt/node22/bin/node",
+    "/sbx/scratch/rt_dispatch.mjs"
+  ],
+  "cwd": "/home/user/DETRO-Banco-de-Dados",
+  "env_allowlist": [
+    "LANG=C.UTF-8",
+    "PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin",
+    "HOME=/sbx/scratch/home",
+    "TMPDIR=/sbx/scratch/tmp"
+  ],
+  "loopback": false,
+  "limits": {
+    "wall_clock_s": 60,
+    "cpu_rlimit_s": 120,
+    "cgroup_cpu": "1 core",
+    "cgroup_memory_bytes": 2147483648,
+    "cgroup_pids_max": 256,
+    "fsize_bytes": 16777216,
+    "nofile": 1024,
+    "nproc": 256,
+    "scratch_tmpfs": "64MiB",
+    "network": "none (new netns)",
+    "filesystem": "read-only except scratch",
+    "uid": 65534
+  },
+  "exit_status": 0,
+  "wall_s": 0.17,
+  "setup_output": "",
+  "promoted": [
+    {
+      "artifact": "agents/h14-routes-realtime/artifacts/check-01.out",
+      "bytes": 675,
+      "sha256": "d7804a2d88ed3164d958f099da4c1317dc166f1dd3bc04665424d1ec40f8a95d"
+    }
+  ],
+  "promotion_errors": []
+}

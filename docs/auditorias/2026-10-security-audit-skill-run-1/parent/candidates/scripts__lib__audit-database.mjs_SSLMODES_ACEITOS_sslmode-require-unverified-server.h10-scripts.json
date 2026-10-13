@@ -1,0 +1,139 @@
+{
+  "proposed_verdict": "confirmed",
+  "fingerprint": "scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server",
+  "title": "Auditor DB credential sent over unauthenticated TLS (sslmode=require) and given in cleartext to any interceptor",
+  "description": "scripts/lib/audit-database.mjs is the single transport for the CI auditor credential SUPABASE_TEST_AUDIT_DATABASE_URL, used by the check_realtime, check_data_quality, check_grants, check_deriva and check_phase3_audit gates and by atualizar-baseline. It accepts sslmode=require and passes it to psql as PGSSLMODE. Under require, libpq encrypts but does not authenticate the server when ~/.postgresql/root.crt is absent, which is the case on GitHub-hosted runners. It also sets no require_auth or channel_binding, so it answers whatever authentication method the peer asks for. An on-path or DNS-level attacker between the runner and db.gontnlfmothfglssbyyk.supabase.co (or the pooler) can present any certificate and request AuthenticationCleartextPassword, and receives the divat_auditor_ci password. Locally, the validated configuration sent a dummy password in cleartext to a loopback peer presenting a self-signed certificate for an unrelated name. The verify-full control sent nothing. docs/seguranca.md §9.5 records that the live secret currently depends on require. The sibling privileged path, scripts/backup_private.py, forces verify-full with system roots.",
+  "root_cause": "SSLMODES_ACEITOS includes 'require' (and 'verify-ca'), and executarConsulta passes the chosen sslmode to libpq with no server-certificate verification and no PGREQUIREAUTH/PGCHANNELBINDING. The control that should bind the credential to the real server therefore fails open on certificate verification and on the authentication method.",
+  "intended_behavior": "The auditor credential should only be released to a server that has proved it is the Supabase endpoint for gontnlfmothfglssbyyk: verify-full against a pinned Supabase CA. Password exposure should also be limited by refusing cleartext/MD5 auth (require_auth=scram-sha-256, ideally with channel_binding=require), matching the verify-full posture already enforced by scripts/backup_private.py.",
+  "trace": [
+    {
+      "kind": "entrypoint",
+      "file": ".github/workflows/db-checks.yml",
+      "line": 83,
+      "scope": "jobs.realtime.env",
+      "description": "The secret SUPABASE_TEST_AUDIT_DATABASE_URL is injected into the gate environment. It is injected the same way at db-checks.yml:101 and :131, deriva.yml:64 and atualizar-baseline.yml:100."
+    },
+    {
+      "kind": "propagation",
+      "file": "scripts/check_realtime.mjs",
+      "line": 41,
+      "scope": "top-level gate",
+      "description": "The gate loads the credential through carregarConfiguracaoAuditora(). check_data_quality.mjs:85, check_deriva.mjs:95, check_grants.mjs:55 and check_phase3_audit.mjs:66 load it the same way."
+    },
+    {
+      "kind": "propagation",
+      "file": "scripts/lib/audit-database.mjs",
+      "line": 112,
+      "scope": "carregarConfiguracaoAuditora",
+      "description": "Reads env[ENV_VAR] and passes it to validarConexaoAuditora."
+    },
+    {
+      "kind": "propagation",
+      "file": "scripts/lib/audit-database.mjs",
+      "line": 96,
+      "scope": "validarConexaoAuditora",
+      "description": "Only checks that sslmode is in SSLMODES_ACEITOS (line 37: require, verify-ca, verify-full). 'require' passes without any root-certificate requirement."
+    },
+    {
+      "kind": "propagation",
+      "file": "scripts/lib/audit-database.mjs",
+      "line": 100,
+      "scope": "validarConexaoAuditora",
+      "description": "Returns a frozen config that carries the password and sslmode='require'."
+    },
+    {
+      "kind": "sink",
+      "file": "scripts/lib/audit-database.mjs",
+      "line": 129,
+      "scope": "executarConsulta",
+      "description": "Spawns psql with PGPASSWORD (line 128) and PGSSLMODE=require, without PGSSLROOTCERT, PGREQUIREAUTH or PGCHANNELBINDING. libpq completes TLS with any server certificate and sends the password in cleartext when the peer requests it."
+    }
+  ],
+  "evidence": [
+    {
+      "file": "scripts/lib/audit-database.mjs",
+      "line": 37,
+      "description": "SSLMODES_ACEITOS = new Set(['require', 'verify-ca', 'verify-full']) — an unauthenticated TLS mode is accepted."
+    },
+    {
+      "file": "scripts/lib/audit-database.mjs",
+      "line": 16,
+      "description": "The module's security contract presents 'require' as acceptable TLS for the credential."
+    },
+    {
+      "file": "tests/audit-database.test.mjs",
+      "line": 187,
+      "description": "The test suite asserts that sslmode=require is accepted, so the fail-open mode is part of the guarded contract."
+    },
+    {
+      "file": "docs/seguranca.md",
+      "line": 148,
+      "description": "AUD-02 records that the validator accepts require 'que cifra sem conferir o certificado' and that the current secret would break the four mandatory checks if require were refused. The live secret therefore relies on require."
+    },
+    {
+      "file": "scripts/backup_private.py",
+      "line": 59,
+      "description": "The sibling credential path forces PGSSLMODE=verify-full and PGSSLROOTCERT=system regardless of the URL. This is the stronger equivalent control the auditor path lacks."
+    },
+    {
+      "file": "scripts/check_phase3_audit.mjs",
+      "line": 50,
+      "description": "Impact bound: the auditor login is asserted to have no direct table SELECT. What leaks is a minimal but persistent DB login to the shared database."
+    }
+  ],
+  "conditions": [
+    {
+      "kind": "system_configuration",
+      "description": "The SUPABASE_TEST_AUDIT_DATABASE_URL secret uses sslmode=require, which docs/seguranca.md:147-153 records as the current state (the secret value itself is not observable), and the runner has no ~/.postgresql/root.crt (default on GitHub-hosted runners)."
+    },
+    {
+      "kind": "network_routing",
+      "description": "The attacker can intercept or redirect TCP traffic, or DNS resolution, from a GitHub-hosted runner to db.gontnlfmothfglssbyyk.supabase.co or the Supabase pooler. The gates run daily and on every same-repo PR."
+    },
+    {
+      "kind": "third_party_dependency",
+      "description": "libpq (postgresql-client 16 on ubuntu-latest) has no require_auth or channel_binding set, so it answers an AuthenticationCleartextPassword request."
+    }
+  ],
+  "execution": {
+    "attacker_perspective": "An on-path network or DNS attacker between the CI runner and Supabase poses as the PostgreSQL server for db.gontnlfmothfglssbyyk.supabase.co, presents any self-signed certificate, and requests cleartext password authentication.",
+    "payloads": [
+      "postgresql://divat_auditor_ci:DUMMY-AUDITOR-PW-A@db.gontnlfmothfglssbyyk.supabase.co:5432/postgres?sslmode=require",
+      "Fake server reply after SSLRequest: 'S'; after the TLS handshake (self-signed CN=attacker.invalid) and StartupMessage: AuthenticationCleartextPassword = b'R' + int32(8) + int32(3)",
+      "Control: same URL with sslmode=verify-full"
+    ],
+    "instructions": [
+      "Inside the OS sandbox (uid 65534, no external network, isolated loopback only), generate a self-signed certificate for CN=attacker.invalid with openssl. Start scratch/fakepg.py on 127.0.0.1:54329; it answers SSLRequest with 'S', wraps TLS, requests AuthenticationCleartextPassword, records the PasswordMessage, then refuses the login.",
+      "Import the real validarConexaoAuditora/executarConsulta from scripts/lib/audit-database.mjs. Validate the payload URL and confirm it is accepted with sslmode=require.",
+      "Call executarConsulta with that validated config, changing only host/port to 127.0.0.1:54329 to stand in for DNS or route redirection of the real hostname, using psqlBin=/usr/bin/psql (16.15).",
+      "Repeat with sslmode=verify-full as a control.",
+      "Run: python3 -I run_check.py --check 01 --loopback --timeout 180 --cwd /sbx/scratch -- /bin/sh /sbx/scratch/run_audit.sh"
+    ],
+    "observed_result": "A: the validator accepted host db.gontnlfmothfglssbyyk.supabase.co with sslmode=require. B: the fake peer logged tls_established TLSv1.3, startup_user divat_auditor_ci, client_msg_type 'p' and captured_cleartext_password 'DUMMY-AUDITOR-PW-A'; executarConsulta then threw AuditDatabaseError (status 2). C (verify-full control): the fake peer logged no_password_received after the client aborted TLS. Recorded in agents/h10-scripts/artifacts/check-01.out."
+  },
+  "remediation": {
+    "strategy": "Accept only sslmode=verify-full, with a pinned, versioned Supabase CA certificate passed through PGSSLROOTCERT. Always set PGREQUIREAUTH=scram-sha-256, which stops cleartext/MD5 password disclosure even before the secret is rotated, and set PGCHANNELBINDING=require where the endpoint supports it. Reject libpq multi-host lists (',' in hostname). Rotate the divat_auditor_ci password after switching the secret. Regression tests: replace the 'require is accepted' loop in tests/audit-database.test.mjs with assertions that require and verify-ca are refused, that a comma host is refused, and that the env given to psql contains PGSSLMODE=verify-full, PGSSLROOTCERT and PGREQUIREAUTH=scram-sha-256. Add a loopback fake-server test like check-01 that asserts no PasswordMessage is sent to an unverified peer.",
+    "code_changes": [
+      {
+        "file_name": "scripts/lib/audit-database.mjs",
+        "fixed_code": "const SSLMODES_ACEITOS = new Set(['verify-full']);\nconst SUPABASE_CA = new URL('./supabase-ca.crt', import.meta.url).pathname; // certificado público versionado\n// em validarConexaoAuditora, antes da checagem de host:\nif (url.hostname.includes(',')) falhar('Conexão recusada: lista de hosts não é aceita.');\n// em executarConsulta, env do psql:\n      PGSSLMODE: 'verify-full',\n      PGSSLROOTCERT: SUPABASE_CA,\n      PGREQUIREAUTH: 'scram-sha-256',\n      PGCHANNELBINDING: 'require',"
+      }
+    ]
+  },
+  "severity": {
+    "likelihood": {
+      "score": "low",
+      "reason": "Requires an on-path or DNS-level position between a GitHub-hosted runner and Supabase. Such access is hard to obtain, although the credential is exercised daily and on every PR."
+    },
+    "impact": {
+      "score": "low",
+      "reason": "It exposes a protected CI secret, a persistent login to the shared production database valid until rotated. However, divat_auditor_ci is minimal: audit diagnostics and catalog reads, no table SELECT or writes. The gain is metadata disclosure and resource use within role limits."
+    },
+    "overall_severity": "low"
+  },
+  "confidence": {
+    "score": "medium",
+    "reason": "The fail-open transport is source-visible and was reproduced locally against the real module and psql 16.15, with a verify-full control. That the live secret uses require is taken from docs/seguranca.md:147-153 rather than observed."
+  },
+  "_x_source_agent": "h10-scripts"
+}

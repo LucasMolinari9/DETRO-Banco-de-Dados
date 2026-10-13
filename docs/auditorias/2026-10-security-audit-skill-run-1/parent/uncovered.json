@@ -1,0 +1,15 @@
+[
+  {
+    "surface": "Visual-companion local HTTP/WebSocket server and helper that render agent-written HTML in a browser",
+    "boundary": "server.cjs / helper.js HTML and DOM handling + loopback binding",
+    "subsystem": "agent tooling (.claude/skills/brainstorming/scripts)",
+    "attack_class": "CLIENT-SIDE DOM-based XSS / DESKTOP-MOBILE-AND-LOCAL-IPC local server exposure",
+    "starting_paths": [
+      ".claude/skills/brainstorming/scripts/server.cjs",
+      ".claude/skills/brainstorming/scripts/helper.js",
+      ".claude/skills/brainstorming/scripts/frame-template.html"
+    ],
+    "reason": "This is a separate subsystem with its own HTML and DOM sinks and a local listener (createServer/WebSocket/innerHTML found by grep). It is outside the portal frontend boundary owned here, and no peer coverage ID names it.",
+    "_x_source_agent": "h13-dom-xss"
+  }
+]

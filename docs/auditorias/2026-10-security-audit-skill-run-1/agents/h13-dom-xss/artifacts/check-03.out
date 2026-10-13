@@ -1,0 +1,23 @@
+hero-dropdown: injectedElements=0 payloadAsInertText=3 __xss=0 csp=[]
+line-banner(after dropdown click): injectedElements=0 payloadAsInertText=3 __xss=0 csp=[]
+itinerarios: injectedElements=0 payloadAsInertText=16 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":15}
+quadroHorarios: injectedElements=0 payloadAsInertText=33 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":27}
+tarifas: injectedElements=0 payloadAsInertText=16 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":15}
+historicoLinha: injectedElements=0 payloadAsInertText=8 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":7}
+frota: injectedElements=0 payloadAsInertText=5 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":4}
+estrutura: injectedElements=0 payloadAsInertText=39 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":38}
+empresasRegulares: injectedElements=0 payloadAsInertText=5 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":4}
+historicoEmpresa("alfa"): injectedElements=0 payloadAsInertText=7 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":6}
+ligacoesPorEmpresa("alfa"): injectedElements=0 payloadAsInertText=8 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":7}
+secoesPorEmpresa("101"): injectedElements=0 payloadAsInertText=3 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":2}
+ligacoesPorLogradouro("vargas"): injectedElements=0 payloadAsInertText=11 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":7}
+municipioRegiao("rio"): injectedElements=0 payloadAsInertText=9 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":7}
+municipioRegiao[regiao]: injectedElements=0 payloadAsInertText=13 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":7}
+localidades[loc]: injectedElements=0 payloadAsInertText=7 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":6}
+localidades[mun]: injectedElements=0 payloadAsInertText=9 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":6}
+ligacoesPorTerminal("terminal"): injectedElements=0 payloadAsInertText=4 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":3}
+secoesPorLigacao("549"): injectedElements=0 payloadAsInertText=4 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":3}
+frotaPorEmpresa("alfa"): injectedElements=0 payloadAsInertText=4 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":3}
+portarias[detalhe]: injectedElements=0 payloadAsInertText=6 __xss=0 csp=[] pdf={"containers":1,"xss":0,"inertText":5}
+
+SUMMARY surfaces=21 surfacesWithPayloadAsText=21 injectedElementsTotal=0 xssFlagSurfaces=0

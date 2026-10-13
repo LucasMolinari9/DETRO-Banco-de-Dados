@@ -1,0 +1,171 @@
+{
+  "units": [
+    {
+      "coverage_id": "agent%20model%20context%20from%20repo%20files%2C%20GitHub%20issues%2C%20MCP%20tool%20results::.mcp.json%2F.codex%2Fconfig.toml%20MCP%20server%20identity%20%2B%20read_only::agent%20tooling::AI-AND-LLM.md%23Indirect%20injection%20through%20retrieved%20or%20ingested%20content",
+      "disposition": "covered",
+      "reviewed_paths": [
+        ".mcp.json",
+        ".codex/config.toml",
+        "docs/adr/0002-ambiente-de-teste-isolado.md",
+        "CLAUDE.md",
+        ".claude/settings.json",
+        ".claude/skills",
+        ".agents/skills",
+        ".claude/hooks/superpowers-session-start.sh",
+        ".claude/skills/using-superpowers/SKILL.md",
+        "AGENTS.md",
+        "docs/agents/issue-tracker.md",
+        "docs/agents/triage-labels.md",
+        "docs/agents/domain.md",
+        ".agents/skills/triage/SKILL.md",
+        ".agents/skills/wayfinder/SKILL.md",
+        ".agents/skills/implement/SKILL.md",
+        ".github/workflows",
+        "docs/adr/0003-repositorio-publico.md",
+        ".agents/skills/supabase/SKILL.md",
+        ".claude/skills/db-change/SKILL.md",
+        "scripts/graft.sh"
+      ],
+      "checks": [
+        {
+          "agent_id": "h09-agent-context",
+          "reviewed_paths": [
+            ".mcp.json",
+            ".codex/config.toml",
+            "docs/adr/0002-ambiente-de-teste-isolado.md",
+            "CLAUDE.md"
+          ],
+          "invariant": "Each MCP server name resolves to one intended Supabase project and every remote Supabase MCP entry is scoped by project_ref plus read_only=true. No server can claim another server's identity or route calls to a project the owner did not choose.",
+          "method": "source",
+          "result": "In .mcp.json the server 'supabase' points at project_ref=gontnlfmothfglssbyyk&read_only=true. In .codex/config.toml the server 'supabase' still points at the deleted former production project lwzsxuaqqeoamukduhev, and 'supabase-teste' points at gontnlfmothfglssbyyk. Both use read_only=true and owner OAuth (auth=\"oauth\"). ADR-0002 says the deleted endpoint was removed from .mcp.json only. Two consequences follow. First, one server name maps to different projects in Claude and Codex, and the Codex entry contradicts the 'removed from the MCP' claim in the docs. Second, the stale entry is read-only, authorized only by the owner's own OAuth grant, and refers to a project ref assigned by the provider that no other party can register. No unauthorized read, write, or cross-principal routing results, so this is configuration drift, not a boundary failure (see hardening). The graft server is a local stdio process launched from scripts/graft.sh, so its identity is bound to the process, not to a name.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h09-agent-context",
+          "reviewed_paths": [
+            ".claude/settings.json",
+            ".codex/config.toml",
+            ".claude/skills",
+            ".agents/skills"
+          ],
+          "invariant": "Repository-controlled agent configuration does not pre-approve side-effecting tools (git push, gh writes, DB writes, deploy) or bypass the harness permission system.",
+          "method": "source",
+          "result": "There are no allowed-tools, allowed_tools, bypassPermissions, approval_policy, or sandbox_mode settings anywhere in .claude, .agents, .codex, .mcp.json, AGENTS.md, or CLAUDE.md. .claude/settings.json defines only SessionStart hooks. The issue-driven skills (triage, wayfinder, implement, and 7 others) set disable-model-invocation: true, so they run only when the user invokes them. Any authority for side-effecting actions therefore comes from the agent harness's own permission prompts and the owner's credentials, not from repository content.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h09-agent-context",
+          "reviewed_paths": [
+            ".claude/hooks/superpowers-session-start.sh",
+            ".claude/skills/using-superpowers/SKILL.md",
+            "AGENTS.md",
+            "CLAUDE.md"
+          ],
+          "invariant": "Text the hook injects into the session as top-priority context comes only from sources whose writers do not gain authority by writing it.",
+          "method": "source",
+          "result": "superpowers-session-start.sh reads $CLAUDE_PROJECT_DIR/.claude/skills/using-superpowers/SKILL.md and emits it as SessionStart additionalContext inside an <EXTREMELY_IMPORTANT> wrapper. It uses no network or other input. The only principals who can change that file, CLAUDE.md, or AGENTS.md are repository/branch writers. Those same writers already control the executable hook scripts that run at session start, which is peer-owned under the plugin-trust unit. Writing the context text therefore gives them no authority they lack. No cross-principal path was found.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h09-agent-context",
+          "reviewed_paths": [
+            "docs/agents/issue-tracker.md",
+            "docs/agents/triage-labels.md",
+            "docs/agents/domain.md",
+            ".agents/skills/triage/SKILL.md",
+            ".agents/skills/wayfinder/SKILL.md",
+            ".agents/skills/implement/SKILL.md",
+            ".github/workflows",
+            "docs/adr/0003-repositorio-publico.md"
+          ],
+          "invariant": "GitHub issue or PR text written by third parties cannot drive a privileged agent action without an intentional request by the owner.",
+          "method": "source",
+          "result": "No workflow triggers on issues, issue_comment, or pull_request_target, and no workflow runs an LLM agent on repository events. Issue text enters agent context only when the owner invokes /triage, /wayfinder, or /implement (all disable-model-invocation) and the agent runs gh issue view. Triage requires the agent to wait for the maintainer's direction before applying an outcome. The wayfinder frontier is limited to sub-issues or task-list links on the map, which only maintainers can edit. issue-tracker.md filters PR discovery by authorAssociation, but issue comments are not filtered by author. Untrusted issue text can reach the owner's session, but no repository code grants authority or performs an action from it. Any control that applies is the harness permission system, so prompt content alone is not a finding (see hardening).",
+          "artifact": null
+        },
+        {
+          "agent_id": "h09-agent-context",
+          "reviewed_paths": [
+            ".mcp.json",
+            ".agents/skills/supabase/SKILL.md",
+            ".claude/skills/db-change/SKILL.md",
+            "scripts/graft.sh"
+          ],
+          "invariant": "Results from MCP tools that enter agent context come from sources a lower-trust principal cannot write, and the MCP credential cannot perform writes.",
+          "method": "source",
+          "result": "The Supabase MCP is scoped read_only=true with features docs, database, debugging, and development (no branching, functions, or storage). The db-change skill tells agents not to apply migrations to the live DB through agents. Database rows returned by execute_sql are written only by the owner through admin import; anonymous write access is governed by the peer-owned RLS/GRANT unit. Graft results are derived from local repository files. No path was found by which a lower-trust principal injects content into MCP results that then drives a write.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": ".claude%2Fskills%2Fbrainstorming%2Fscripts%2Fserver.cjs%20local%20HTTP%2FWebSocket::session%20key%20%2B%20Origin%20check%20%2B%20127.0.0.1%20bind::agent%20tooling::DESKTOP-MOBILE-AND-LOCAL-IPC.md%23IPC%20peer-authentication%20gaps",
+      "disposition": "covered",
+      "reviewed_paths": [
+        ".claude/skills/brainstorming/scripts/server.cjs",
+        ".claude/skills/brainstorming/scripts/helper.js",
+        ".claude/skills/brainstorming/scripts/start-server.sh",
+        ".claude/skills/brainstorming/scripts/stop-server.sh",
+        ".claude/skills/brainstorming/visual-companion.md",
+        ".agents/skills/brainstorming",
+        ".gitignore",
+        ".agents/skills/diagnosing-bugs/scripts/hitl-loop.template.sh",
+        ".claude/skills/systematic-debugging/find-polluter.sh",
+        ".claude/skills/writing-skills/render-graphs.js"
+      ],
+      "checks": [
+        {
+          "agent_id": "h09-agent-context",
+          "reviewed_paths": [
+            ".claude/skills/brainstorming/scripts/server.cjs",
+            ".claude/skills/brainstorming/scripts/helper.js"
+          ],
+          "invariant": "Every HTTP and WebSocket peer of the loopback companion must present the 256-bit session key, and WebSocket upgrades must also come from the same Origin. /files/ must not escape the content directory, and the key-bearing state file is owner-only.",
+          "method": "local",
+          "result": "The vendored server was started inside the sandbox on 127.0.0.1 with a dummy key and probed. GET / returned 403 with no key, a wrong key, or a wrong cookie, and 200 with the correct key; the cookie was set HttpOnly; SameSite=Strict; Path=/. A WebSocket upgrade was refused with no key, with the correct key but Origin http://localhost:8000, and with the correct cookie but a foreign Origin. It returned 101 only with the key and a same-origin Origin. /files/..%2f..%2fetc%2fpasswd returned 404, and state/server-info was mode 600. Peer authentication on the channel holds.",
+          "artifact": "agents/h09-agent-context/artifacts/check-01.out"
+        },
+        {
+          "agent_id": "h09-agent-context",
+          "reviewed_paths": [
+            ".claude/skills/brainstorming/scripts/start-server.sh",
+            ".claude/skills/brainstorming/scripts/stop-server.sh",
+            ".claude/skills/brainstorming/visual-companion.md",
+            ".agents/skills/brainstorming",
+            ".gitignore"
+          ],
+          "invariant": "Launcher scripts bind to loopback by default, keep key-bearing files owner-only, and stop only the server that the session verifies.",
+          "method": "source",
+          "result": "BIND_HOST defaults to 127.0.0.1. umask 077 is set before any session directory or file is created. The key is never placed on argv; only a random server-instance-id is. stop-server.sh signals a PID only after matching that instance id in /proc/<pid>/cmdline. The documented flow always passes --project-dir, which places state under the project. The .agents/skills/brainstorming copy is byte-identical (diff -rq empty). Residual issues (/tmp fallback naming and .superpowers/ missing from .gitignore) require a same-host attacker or a user mistake and have no meaningful method behind them, so they are recorded as hardening.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h09-agent-context",
+          "reviewed_paths": [
+            ".agents/skills/diagnosing-bugs/scripts/hitl-loop.template.sh",
+            ".claude/skills/systematic-debugging/find-polluter.sh",
+            ".claude/skills/writing-skills/render-graphs.js"
+          ],
+          "invariant": "No other skill helper opens a listener or passes untrusted input to a shell.",
+          "method": "source",
+          "result": "None of these helpers creates a socket or listener. render-graphs.js runs the fixed command 'dot -Tsvg' and passes the diagram through stdin. hitl-loop.template.sh only prints instructions. find-polluter.sh runs local tests. None of them has an IPC surface.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    ".codex/config.toml [mcp_servers.supabase] still targets the deleted project lwzsxuaqqeoamukduhev, while the same server name in .mcp.json targets gontnlfmothfglssbyyk; docs (ADR-0002, CLAUDE.md) say the endpoint was removed from the MCP config. Remove the stale entry so each server name maps to one project across Claude and Codex, and extend the tests/check.js §[2b] drift guard to scan .codex/config.toml for retired project refs.",
+    ".agents/skills/supabase/SKILL.md (vendored, hash-locked) tells agents that if .mcp.json is missing they should create one pointing at bare https://mcp.supabase.com/mcp, which would drop the project_ref and read_only=true scoping. Consider a repo-local note in CLAUDE.md/AGENTS.md that pins the scoped URL as the only acceptable value.",
+    "docs/agents/issue-tracker.md filters PR discovery by authorAssociation, but tells agents to read all issue bodies and comments without regard to author. ADR-0003 records the repository as public, so agent sessions that run /triage or /wayfinder should treat issue text from non-collaborators as untrusted data. No repo code acts on it today, and the skills are user-invoked only.",
+    "brainstorming start-server.sh without --project-dir falls back to a predictable /tmp/brainstorm-<pid>-<epoch> directory created with 'mkdir -p', which accepts a pre-existing directory without checking its ownership. Upstream could use 'mktemp -d' instead. The documented flow always passes --project-dir, so this only matters on multi-user hosts.",
+    "With --project-dir, the companion writes the session key to .superpowers/brainstorm/.last-token and state/server-info inside the working tree, but .superpowers/ is not in .gitignore. Add it, as visual-companion.md itself recommends, to avoid accidentally committing the key that restarts reuse.",
+    "The companion mirrors its key into a cookie on host 'localhost'. Cookies are not isolated by port, so other localhost services visited in the same browser receive it. The same-Origin WebSocket check and Cross-Origin-Resource-Policy limit what a cross-port page can do; keep that Origin check in place if the vendored copy is updated."
+  ],
+  "uncovered": []
+}

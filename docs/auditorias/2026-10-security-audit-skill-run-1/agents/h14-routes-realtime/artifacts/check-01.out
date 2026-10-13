@@ -1,0 +1,9 @@
+lookup __proto__: LOADERS truthy=true callable=false tables(||[]) isArray=false
+lookup constructor: LOADERS truthy=true callable=true tables(||[]) isArray=false
+lookup toString: LOADERS truthy=true callable=true tables(||[]) isArray=false
+lookup valueOf: LOADERS truthy=true callable=true tables(||[]) isArray=false
+lookup hasOwnProperty: LOADERS truthy=true callable=true tables(||[]) isArray=false
+lookup naoexiste: LOADERS truthy=false callable=false tables(||[]) isArray=true
+control dispatch: {"reload":null,"stale":[2]}
+proto dispatch THREW: TypeError (view.tables || []).includes is not a function
+tabMatchesEvent THREW: (view.tables || []).includes is not a function

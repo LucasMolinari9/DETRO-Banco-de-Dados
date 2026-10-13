@@ -1,0 +1,49 @@
+{
+  "run_id": "run-1",
+  "repo": "LucasMolinari9/DETRO-Banco-de-Dados",
+  "target": "/home/user/DETRO-Banco-de-Dados",
+  "source_ref": {
+    "commit": "539abe2ac670cd2c36e67aa5d4578d248eb0fd9a",
+    "branch": "ccr-82845698-yw5n79",
+    "worktree_dirty": false
+  },
+  "profile": "standard",
+  "scope_paths": [
+    "."
+  ],
+  "budget": null,
+  "execution_policy": "sandboxed-source-and-local-only",
+  "skill": {
+    "source": "https://github.com/cloudflare/security-audit-skill",
+    "commit": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
+    "dir": "/tmp/claude-0/-home-user-DETRO-Banco-de-Dados/619ba0e6-16ce-5804-beaf-84241fdfceaf/scratchpad/cf-skill/repo/skills/security-audit"
+  },
+  "selected_companion_files": [
+    "CLIENT-SIDE.md",
+    "WEB-PROTOCOL-AND-AUTH.md",
+    "SUPPLY-CHAIN-AND-RELEASE.md",
+    "CLOUD-AND-DEPLOYMENT.md",
+    "DATA-ISOLATION-AND-LIFECYCLE.md",
+    "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md",
+    "AI-AND-LLM.md",
+    "DESKTOP-MOBILE-AND-LOCAL-IPC.md",
+    "PROTOCOLS-RPC-AND-MESSAGING.md"
+  ],
+  "prior_run_paths": [],
+  "prior_runs_note": "No compatible prior coverage-ledger.json or findings.json exists for this repo; earlier non-skill reviews (Codex AUD-*, issue #121, SEC-*) are treated as prior evidence in reconnaissance only.",
+  "shared_file_owners": {
+    "run-metadata.json": "parent",
+    "architecture.md": "parent",
+    "coverage-ledger.json": "parent",
+    "findings.json": "parent",
+    "REPORT.md": "parent",
+    "FINDINGS-DETAIL.md": "parent",
+    "NEEDS-VALIDATION.md": "parent"
+  },
+  "run_status": "in_progress",
+  "sandbox": {
+    "runner": "tools/run_check.py (trusted parent code)",
+    "self_test": "agents/sbx-selftest/artifacts/check-0{1,2,3}.*",
+    "controls": "new mount/net/pid/ipc/uts ns; RO filesystem except 64MiB tmpfs scratch; uid 65534 no caps no_new_privs; env -i allowlist; cgroup mem 2GiB pids 256 cpu 1; rlimits cpu 120s fsize 16MiB nofile 1024 nproc 256; wall clock <=600s; descriptor-based no-follow promotion with per-file 128KiB / cumulative 2MiB bounds"
+  }
+}
