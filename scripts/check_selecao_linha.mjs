@@ -242,6 +242,23 @@ check(aindaAberto === 0, 'Voltar do navegador continua fechando o modal');
   check(auth.length === 0, 'Realtime não chama /auth/v1 (sem sessão, sem refresh)', auth.slice(0, 2).join(' | '));
 }
 
+// --- 8. rota com nome de propriedade de Object ou tópico desconhecido ---
+// VIEW_META e VIEW_TOPIC eram objetos comuns: `#/consulta/__proto__` (ou constructor, toString)
+// achava "metadados" no protótipo e abria um modal sem loader, e um `#/topico/<qualquer>` deixava
+// o painel sem nenhum card (auditoria de 13/10/2026, §6.3 item 19). Link desconhecido vale como
+// ausente: painel montado, modal fechado, nenhum erro.
+for (const rota of ['consulta/__proto__', 'consulta/constructor', 'consulta/toString', 'topico/naoexiste']) {
+  const errosAntes = erros.length;
+  await page.goto('about:blank');
+  await page.goto(`http://127.0.0.1:${PORT}/#/${rota}`);
+  const cards = await page.waitForSelector('.card[data-view]', { timeout: 8000 }).then(() => true, () => false);
+  await page.waitForTimeout(300);
+  const modal = await page.locator('#modalOverlay.open').count();
+  check(cards && modal === 0, `link #/${rota} monta o painel de cards e não abre modal`, `cards=${cards} modal=${modal}`);
+  check(erros.length === errosAntes, `link #/${rota} não gera erro de página`, erros.slice(errosAntes).join(' | '));
+  erros.length = errosAntes;
+}
+
 if (erros.length) check(false, 'sem erro de página', erros.slice(0, 3).join(' | '));
 
 await browser.close();

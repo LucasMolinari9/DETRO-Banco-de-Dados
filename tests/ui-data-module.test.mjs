@@ -24,6 +24,7 @@
 
    Rode: node ui-data-module.test.mjs   (ou, melhor, node check.js para rodar tudo). */
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
 import * as doc from '../src/ui/doc.mjs';
 import * as lookups from '../src/data/lookups.mjs';
 import { configurarRest } from '../src/data/rest.mjs';
@@ -290,6 +291,37 @@ t('evBandHTML escapa o rótulo e o valor do tipo (vêm de lookup, não de litera
   assert.doesNotMatch(h, /<b>rot<\/b>/);
   assert.doesNotMatch(h, /<img/);
   assert.match(h, /&lt;b&gt;rot/);
+});
+// fmtDate/fmtTime devolvem a entrada CRUA quando ela não tem cara de data/hora — o escape é de
+// quem insere no HTML. Hoje as colunas são `date` e o fallback nunca dispara, mas sete pontos
+// confiavam nisso (auditoria de 13/10/2026, §6.3 item 18).
+t('tarifaRowHTML escapa as datas, inclusive a do chip de status', () => {
+  const h = blocos.tarifaRowHTML({ data_criacao:'<img src=x onerror=1>', cancelado:true,
+    data_cancelamento:'<script>x</script>' });
+  assert.doesNotMatch(h, /<img|<script/);
+  assert.match(h, /&lt;img src=x onerror=1&gt;/);
+});
+t('quadroMetaHTML escapa a data da última alteração', () => {
+  const h = quadroEmpresas.quadroMetaHTML({ codlinha:'101001001' }, '<img src=x onerror=1>');
+  assert.doesNotMatch(h, /<img/);
+  assert.match(h, /&lt;img src=x onerror=1&gt;/);
+});
+// Os outros cinco pontos moram dentro de render de documento, que precisa de DOM: a guarda deles
+// (e de qualquer chamada nova) é ler o fonte. Toda chamada a fmtDate/fmtTime só vai para HTML.
+t('toda chamada a fmtDate/fmtTime em app.js e src/ passa por esc()', () => {
+  const raiz = new URL('../', import.meta.url);
+  const arquivos = ['app.js', ...readdirSync(new URL('src/', raiz), { recursive: true })
+    .filter(f => f.endsWith('.mjs')).map(f => `src/${f}`)];
+  const sem = [];
+  for (const arq of arquivos) {
+    const fonte = readFileSync(new URL(arq, raiz), 'utf8');
+    for (const m of fonte.matchAll(/\bfmt(?:Date|Time)\(/g)) {
+      const antes = fonte.slice(Math.max(0, m.index - 9), m.index);
+      if (antes.endsWith('esc(') || antes.endsWith('function ')) continue;
+      sem.push(`${arq}:${fonte.slice(0, m.index).split('\n').length}`);
+    }
+  }
+  assert.deepEqual(sem, [], `fmtDate/fmtTime sem esc(): ${sem.join(', ')}`);
 });
 t('evBlocksHTML: campo vazio ganha a classe empty e o travessão', () => {
   const vazio = blocos.evBlocksHTML({});

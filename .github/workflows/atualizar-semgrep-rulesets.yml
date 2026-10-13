@@ -56,6 +56,10 @@ jobs:
       RULESETS: javascript xss secrets github-actions
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # O token de escrita NÃO fica no .git/config: os passos de instalação e medição rodam
+          # sem ele, e só o `git push` do último passo o recebe (auditoria de 13/10/2026).
+          persist-credentials: false
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -280,7 +284,9 @@ jobs:
           git checkout -b "$RAMO"
           git add .semgrep/vendor/
           git commit -m "chore(semgrep): atualiza os rulesets vendorizados" -m "Baixado pelo workflow 'Atualizar rulesets do Semgrep' (run $RUN_ID, tentativa $RUN_ATTEMPT), disparado à mão. Só .semgrep/vendor/ foi tocado; as regras locais de .semgrep/rules/ seguem intactas."
-          git push -u origin "$RAMO"
+          # Mesmo cabeçalho que o actions/checkout gravaria, mas só neste comando.
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" push -u origin "$RAMO"
           gh pr create \
             --base "$BASE" \
             --head "$RAMO" \

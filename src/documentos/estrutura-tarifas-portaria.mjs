@@ -178,13 +178,13 @@ export async function renderEstrutura(ctx){
   const L = lineRows[0] || line;
   const f = qh[0] || {};
   const h3 = t => `<h3 class="doc-h3-rule">${t}</h3>`;
-  const frotaMeta = metaRows([['Hierarquização',esc(orDash(f.hierarquia))],['Frota operacional',esc(orDash(f.frota_operacional))],['Reserva',esc(orDash(f.reserva))],['Última alteração',fmtDate(f.ultima_alteracao)]]);
+  const frotaMeta = metaRows([['Hierarquização',esc(orDash(f.hierarquia))],['Frota operacional',esc(orDash(f.frota_operacional))],['Reserva',esc(orDash(f.reserva))],['Última alteração',esc(fmtDate(f.ultima_alteracao))]]);
   const inner = `${metaRows([
       ['Empresa',esc(empNome(L.codempresa)),true],['Registro','RJ-'+esc(orDash(L.codempresa))],
       ['Código da Ligação',esc(fmtCode(L.codlinha))],['Número da Ligação',esc(orDash(L.numero_ligacao))],
       ['Ligação',esc(L.nome_ligacao||'—'),true],['Via',esc(orDash(L.via))],
       ['Característica',esc(orDash(L.caracteristica))],['Tipo da Ligação',esc(orDash(L.tipo))],
-      ['Data de criação',fmtDate(L.data_criacao)],['Processo Nº',esc(orDash(L.processo_criacao)),true],
+      ['Data de criação',esc(fmtDate(L.data_criacao))],['Processo Nº',esc(orDash(L.processo_criacao)),true],
       ['Situação',situacaoHTML(L),true],
     ])}
     ${h3('Seções e Tarifas')}${secoesTarifasHTML(secoes)}${tarifasPromocionaisHTML(promo)}

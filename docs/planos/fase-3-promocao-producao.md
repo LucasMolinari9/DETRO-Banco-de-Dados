@@ -63,4 +63,6 @@ e o exercício de recuperação permanecem trabalho adiado, sem declaração fal
 
 Se checks ou leituras divergirem, interrompa a mudança correspondente e preserve os dados.
 Uma reversão de frontend mantém o projeto em uso; não reativa o endpoint apagado.
-`rollback_phase3_test.sql` é histórico e não deve remover a proteção do banco oficial.
+O antigo `rollback_phase3_test.sql` saiu do repositório em 13/10/2026: devolveria a
+`anon`/`authenticated` acessos que a Fase 3 fechou. Nenhuma reversão remove a proteção do
+banco oficial.

@@ -151,7 +151,32 @@ junto, os checks obrigatórios `realtime`, `seguranca`, `deriva` e `qualidade` f
 A documentação da Supabase usa o certificado baixado do painel, e não há confirmação de que
 `sslrootcert=system` funcione. Caminho: versionar o certificado público,
 apontar `PGSSLROOTCERT` para ele, validar num run manual e só então trocar o secret e recusar
-`require`.
+`require`. A auditoria de 13/10/2026 confirmou o achado (C-1, severidade baixa) e sugeriu um
+passo intermediário: `PGREQUIREAUTH=scram-sha-256` impede a entrega da senha em texto claro
+sem trocar o secret, mas também precisa de um run manual antes, porque o pooler pode não aceitar.
+
+**9.6 — Pendências da auditoria de 13/10/2026 que só o painel responde.** O relatório
+(metodologia `cloudflare/security-audit-skill`, commit auditado `539abe2`) não testou nada
+contra o ambiente real; as checagens abaixo são leituras do dono, sem mudar nada.
+- **Validade do `divat_auditor_ci`.** O exemplo do `scripts/bootstrap_phase3_auditor.sql` usa
+  `valid until 2026-10-31`. Se foi usado literalmente, os quatro checks obrigatórios de banco
+  falham fechados a partir de 01/11. Conferir:
+  `select rolvaliduntil from pg_roles where rolname = 'divat_auditor_ci';`
+- **NV-1, deploy smoke.** O `deploy-smoke.yml` roda o código do commit implantado com
+  `VERCEL_AUTOMATION_BYPASS_SECRET` a cada `deployment_status`. Depende de a Vercel implantar
+  PR de fork (*Git Fork Protection*, em Settings → Security) e da visibilidade do repositório.
+- **NV-2, segredo do backup integral.** Se `SUPABASE_BACKUP_DATABASE_URL` estiver em
+  *Repository secrets*, qualquer branch enviada por quem tem escrita, agentes inclusive, alcança
+  a senha `postgres`. Correção: mover para um Environment restrito à `main`, com o dono como
+  revisor, e usar um login de backup somente leitura.
+- **NV-3, custo do Realtime anônimo.** Cotas do plano, spend cap e o uso nas importações em massa.
+
+Corrigidos na mesma data: o gate de migrações passou a recusar papel concedido a público,
+`OWNER TO` público, `DISABLE ROW LEVEL SECURITY`, remoção das policies de bloqueio, `SECURITY
+DEFINER` em `public`, default privileges que concedem a público, tabela sem schema, `SET SCHEMA
+public`, view de `public` sem `security_invoker`, materialized view em `public` e papel
+montado por `format()`. O
+[CHANGELOG](CHANGELOG.md) lista o resto.
 
 O compartilhamento entre previews e o banco oficial é uma decisão registrada na
 [ADR-0002](adr/0002-ambiente-de-teste-isolado.md), sem criação de outro banco nesta entrega.

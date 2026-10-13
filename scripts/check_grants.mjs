@@ -153,7 +153,7 @@ for (const d of forma.default_privileges) {
 }
 
 // ---------------------------------------------------------------------------------------------
-const chave = a => `${a.tipo} ${a.alvo}`;
+const chave = a => `${a.tipo}\0${a.alvo}`;
 
 if (atualizar) {
   const registro = {
@@ -191,7 +191,7 @@ if (conhecidos.length) {
 }
 if (resolvidos.length) {
   console.log(`\n✓ Resolvido desde o baseline (${resolvidos.length}) — rode --atualizar-baseline para apertar o gate:`);
-  for (const k of resolvidos) console.log(`    ${k.split(' ').join(' → ')}`);
+  for (const k of resolvidos) console.log(`    ${k.split('\0').join(' → ')}`);
 }
 
 if (!novos.length) {

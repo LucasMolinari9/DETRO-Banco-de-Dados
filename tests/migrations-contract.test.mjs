@@ -125,3 +125,95 @@ test('policy sem FOR vale para ALL e é recusada', () => {
   recusa(`${TABELA_FECHADA}
 create policy caso_tudo on public.caso to anon using (true);`, /policy[^\n]*caso_tudo/i);
 });
+
+// ---- auditoria de segurança de 13/10/2026 (relatório run-1, §6.1 item 1) ----
+// O gate olhava só GRANT ... ON, CREATE TABLE public.x, policy e EXECUTE. Cada caso abaixo
+// passava com exit 0 (reproduzido numa cópia do repositório antes de corrigir) e abriria o banco
+// único inteiro a quem tem a chave anon pública.
+test('papel privilegiado concedido a anon/authenticated/PUBLIC é recusado', () => {
+  recusa(`grant service_role to anon;`, /papel[^\n]*anon/i);
+  recusa(`grant pg_write_all_data to authenticated;`, /papel[^\n]*authenticated/i);
+  recusa(`grant postgres to public;`, /papel[^\n]*public/i);
+});
+
+test('anon como papel-membro de outro papel continua aprovado (padrão da Fase 3)', () => {
+  aceita(`grant anon to divat_audit_owner;
+grant divat_audit_owner, divat_auditor to postgres;`);
+});
+
+test('objeto transferido para dono público é recusado', () => {
+  recusa(`alter table public.tabela_vista_teste owner to anon;`, /OWNER[^\n]*anon/i);
+  recusa(`alter function public.divat_linhas_regiao(text) owner to authenticated;`, /OWNER[^\n]*authenticated/i);
+});
+
+test('desligar RLS é recusado em qualquer tabela', () => {
+  recusa(`alter table public.tabela_vista_teste disable row level security;`, /DISABLE ROW LEVEL SECURITY/i);
+  recusa(`alter table if exists divat_integracao.tarifa_versao_origem disable row level security;`, /DISABLE ROW LEVEL SECURITY/i);
+});
+
+test('apagar ou alterar as policies de bloqueio do hardening é recusado', () => {
+  recusa(`drop policy divat_block_client_insert on public.tabela_vista_teste;`, /divat_block_client_insert/);
+  recusa(`drop policy if exists divat_internal_no_client_access on divat_integracao.memo_texto_origem;`, /divat_internal_no_client_access/);
+  recusa(`alter policy divat_block_client_update on public.qh_teste using (true);`, /divat_block_client_update/);
+});
+
+test('SECURITY DEFINER em função de public é recusado; em audit continua aprovado', () => {
+  recusa(`alter function public.divat_linhas_regiao(text) security definer;`, /SECURITY DEFINER[^\n]*public/i);
+  recusa(`create function public.caso() returns int language plpgsql security definer as $$ begin return 1; end $$;
+revoke execute on function public.caso() from public;`, /SECURITY DEFINER[^\n]*public\.caso/i);
+  recusa(`create or replace function public.caso() returns int language plpgsql as $f$ begin return 1; end $f$ security definer;
+revoke execute on function public.caso() from public;`, /SECURITY DEFINER[^\n]*public\.caso/i);
+  aceita(`alter function audit.divat_api_shape() security definer;`);
+});
+
+test('default privileges que concedem a papel público são recusados, mesmo só leitura', () => {
+  recusa(`alter default privileges in schema public grant select on tables to anon;`, /DEFAULT PRIVILEGES[^\n]*anon/i);
+  recusa(`alter default privileges for role postgres in schema private grant usage on sequences to authenticated;`, /DEFAULT PRIVILEGES[^\n]*authenticated/i);
+  aceita(`alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;`);
+});
+
+test('tabela pública escrita com aspas ou UNLOGGED também precisa nascer fechada', () => {
+  recusa(`create table "public"."caso" (id integer);`, /public\.caso[^\n]*ROW LEVEL/i);
+  recusa(`create unlogged table public.caso (id integer);`, /public\.caso[^\n]*ROW LEVEL/i);
+  recusa(`alter table public.caso owner to "anon";`, /OWNER[^\n]*anon/i);
+  aceita(`create table "public"."caso" (id integer primary key);
+alter table "public"."caso" enable row level security;
+revoke all on table "public"."caso" from anon, authenticated;`);
+});
+
+test('tabela sem schema explícito e SET SCHEMA public são recusados', () => {
+  recusa(`create table caso (id integer);`, /schema explícito/i);
+  recusa(`alter table divat_integracao.memo_texto_origem set schema public;`, /SET SCHEMA public/i);
+  aceita(`create temporary table caso_tmp (id integer);`);
+});
+
+test('view em public sem security_invoker é recusada (leria a staging com os direitos do dono)', () => {
+  recusa(`create view public.caso as select * from divat_integracao.memo_texto_origem;
+grant select on public.caso to anon;`, /VIEW public\.caso[^\n]*security_invoker/i);
+  recusa(`create or replace view public.caso with (security_barrier) as select 1;`, /VIEW public\.caso[^\n]*security_invoker/i);
+  aceita(`create view public.caso with (security_invoker = true) as select 1;`);
+  aceita(`create view stage_access_20260928.caso as select 1;`);
+});
+
+test('GRANT ou policy com papel montado por format() é recusado (o gate não sabe quem recebe)', () => {
+  recusa(`do $$ begin
+  execute format('grant insert on table %I.%I to %I', 'public', 'caso', 'anon');
+end $$;`, /dinâmico/i);
+  recusa(`do $$ begin
+  execute format('create policy caso_tudo on public.caso for all to %s using (true)', 'anon');
+end $$;`, /dinâmico/i);
+});
+
+test('papel concedido ou dono montado por format() também é recusado', () => {
+  recusa(`do $$ begin
+  execute format('grant %I to %I', 'service_role', 'anon');
+end $$;`, /dinâmico/i);
+  recusa(`do $$ begin
+  execute format('alter table public.caso owner to %I', 'anon');
+end $$;`, /dinâmico/i);
+});
+
+test('materialized view em public é recusada (não tem RLS); security_invoker entre aspas vale', () => {
+  recusa(`create materialized view public.caso as select * from divat_integracao.memo_texto_origem;`, /MATERIALIZED VIEW public\.caso/i);
+  aceita(`create view public.caso with (security_invoker = 'true') as select 1;`);
+});

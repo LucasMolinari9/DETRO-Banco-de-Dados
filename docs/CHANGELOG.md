@@ -4,6 +4,32 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 13/10/2026 — achados da auditoria de segurança (run-1)
+
+Relatório gerado em outra sessão com a metodologia `cloudflare/security-audit-skill`, sobre o
+commit `539abe2`. Cada item abaixo foi conferido no código antes da correção, e o teste que o
+guarda foi visto falhando. O que depende do painel ficou em [seguranca.md](seguranca.md) §9.6.
+- **Gate de migrações (§6.1 item 1):** `check_migrations.mjs` aprovava `grant service_role to
+  anon`, `owner to anon`, `disable row level security`, `drop policy divat_block_client_*`,
+  `security definer` em função de `public`, `alter default privileges … grant … to anon`,
+  tabela com aspas, `UNLOGGED` ou sem schema, `set schema public`, view de `public` sem
+  `security_invoker` e GRANT/policy/dono com o papel montado por `format('… to %I')`. Agora
+  recusa todos, e também materialized view em `public` (não tem RLS). `grant anon to divat_audit_owner` (Fase 3) e `security definer` em `audit` seguem
+  aprovados, assim como as 21 migrações.
+- **Datas sem escape (§6.3 item 18):** `fmtDate`/`fmtTime` devolvem a entrada crua quando ela
+  não tem formato de data, e sete pontos a inseriam no HTML sem `esc()`. O escape ficou no
+  ponto de inserção, como nos outros nove; escapar dentro de `fmtDate` escaparia esses nove
+  duas vezes. `tests/ui-data-module.test.mjs` cobre `tarifaRowHTML`/`quadroMetaHTML` e lê o
+  fonte para pegar chamada nova sem `esc()`.
+- **Rotas (§6.3 item 19):** `#/consulta/__proto__`, `constructor` e `toString` abriam um modal
+  sem loader, e `#/topico/<inexistente>` deixava a página sem cards. `VIEW_META`/`VIEW_TOPIC`
+  não têm mais protótipo, e tópico desconhecido cai no padrão (`check_selecao_linha.mjs` §8).
+- **Higiene:** `.codex/config.toml` não aponta mais ao projeto apagado; `.gitignore` cobre
+  chaves, certificados e o artifact `.age`; os workflows de atualização não gravam o token no
+  `.git/config` e o entregam só ao `git push`; `check_grants.mjs` não tem mais bytes NUL
+  literais; `scripts/rollback_phase3_test.sql` saiu do repositório porque devolveria acessos
+  fechados pela Fase 3.
+
 ## 11/10/2026 — achados da revisão de segurança do Codex
 
 Cada achado foi reproduzido antes da correção, e o teste que o guarda foi visto falhando.

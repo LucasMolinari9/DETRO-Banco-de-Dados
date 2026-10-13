@@ -10,6 +10,18 @@ divat_security_snapshot_*.sql
 # === Segredos ===
 .env
 .env.*
+# Chaves, certificados privados e o artifact cifrado do backup-private.yml (auditoria de
+# 13/10/2026). Um CA PÚBLICO a versionar entra com `git add -f`, de propósito.
+*.pem
+*.key
+*.p12
+*.age
+credentials*.json
+service-account*.json
+.claude/settings.local.json
+
+# === Estado local da skill brainstorming (servidor visual) ===
+.superpowers/
 
 # === Node (só os testes usam Node; não há build nem dependências) ===
 node_modules/
