@@ -37,14 +37,15 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
-    "agent_id": "h18-supply-inputs",
+    "status": "planned",
+    "agent_id": null,
     "reviewed_paths": [],
     "local_checks": [],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
-      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
+      "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
     ]
   },
   {
@@ -189,14 +190,114 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
+    "status": "candidate",
     "agent_id": "h17-ci-secrets",
-    "reviewed_paths": [],
-    "local_checks": [],
-    "result_fingerprints": [],
+    "reviewed_paths": [
+      ".github/workflows/atualizar-baseline.yml",
+      "scripts/check_grants.mjs",
+      "scripts/check_data_quality.mjs",
+      "scripts/lib/audit-database.mjs",
+      "scripts/lib/security-policies.mjs",
+      "scripts/security_baseline.json",
+      ".github/workflows/atualizar-semgrep-rulesets.yml",
+      ".github/workflows/backup-private.yml",
+      "scripts/backup_private.py",
+      "docs/backup.md",
+      "docs/CHANGELOG.md",
+      ".github/workflows/backup.yml",
+      "scripts/backup_rest.mjs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/atualizar-baseline.yml",
+          "scripts/check_grants.mjs",
+          "scripts/check_data_quality.mjs",
+          "scripts/lib/audit-database.mjs"
+        ],
+        "invariant": "Dispatch-only baseline workflow: inputs cannot inject shell, the contents/pull-requests write token is used only to push a new branch and open a PR, and (as claimed at atualizar-baseline.yml:19-21 and :159) check_grants.mjs refuses to baseline grave indicators and exits 1 before writing.",
+        "method": "source",
+        "result": "Inputs are `choice` and reach the shell only via env (no expression injection). Checkout keeps the default persist-credentials, so the write token sits in .git/config while dispatched-ref node scripts run (hardening). check_grants.mjs:158-170 writes every severity-'erro' finding to security_baseline.json and exits 0. It has no grave-type refusal, and git history shows none ever existed (candidate scripts/check_grants.mjs:--atualizar-baseline:grave-findings-baselined-without-refusal). DIVAT_ALVO is never read and the baselines have no per-target slots.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          "scripts/check_grants.mjs",
+          "scripts/lib/security-policies.mjs",
+          "scripts/lib/audit-database.mjs",
+          "scripts/security_baseline.json"
+        ],
+        "invariant": "Running the workflow's command `check_grants.mjs --atualizar-baseline` against a live state with anon write grants, RLS off, a permissive write policy and a PUBLIC-executable function must fail closed and leave the baseline unchanged.",
+        "method": "local",
+        "result": "With a fake psql and a dummy auditor URL in the sandbox, the normal gate first exits 1 and lists the grave findings. --atualizar-baseline then exits 0 and writes grant_escrita, policy_escrita, rls_off and funcao_public_execute into the baseline. The normal gate then exits 0 ('nenhum achado novo') against the same grave state.",
+        "artifact": "agents/h17-ci-secrets/artifacts/check-01.out"
+      },
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/atualizar-semgrep-rulesets.yml"
+        ],
+        "invariant": "Ruleset updater: third-party registry content only reaches a new branch and a PR, the PR is merged by a human, no expression injection, and the write token is not handed to lower-trust inputs.",
+        "method": "source",
+        "result": "Only workflow_dispatch triggers it. The ruleset list is fixed in job env. Downloads are checked for non-empty content and a `rules:` header and verified against the live registry. Only .semgrep/vendor/ is committed, to a new branch named per run and attempt, and every ${{ }} goes through env. Semgrep rules cannot execute code, so no lower-trust producer reaches the token. The persisted token is hardening only.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/backup-private.yml",
+          "scripts/backup_private.py",
+          "docs/backup.md",
+          "docs/CHANGELOG.md"
+        ],
+        "invariant": "The owner-only full-database credential (SUPABASE_BACKUP_DATABASE_URL, documented as never to be given to the agent) is bound to reviewed code, and only an age-encrypted package with sanitized logs leaves the job.",
+        "method": "source",
+        "result": "Script-level controls hold. It requires a pooler URL with verify-full/system CA, opens a read-only snapshot, scrubs PG* env, prints fixed error categories only, uploads only the .age file (retention 30 days), unlinks the output on failure and does not persist credentials. However, the job declares no environment: and no ref guard. The secret is a repository secret per docs/backup.md:50, and the scripts/backup_private.py that receives it comes from whatever ref the dispatcher picks, while docs/backup.md:57 names the agent as the dispatcher (candidate github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/backup.yml",
+          "scripts/backup_rest.mjs"
+        ],
+        "invariant": "The scheduled public backup uses only the public anon key and exports only anon-readable public tables, so its 90-day artifact discloses nothing beyond the public API.",
+        "method": "source",
+        "result": "Covered. The env carries only SUPABASE_URL and the public anon JWT. backup_rest.mjs:39-40 and :151 select PUBLICO mode, which excludes the four staging tables. The checkout does not persist credentials and the token is contents: read.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/atualizar-baseline.yml",
+          ".github/workflows/atualizar-semgrep-rulesets.yml",
+          ".github/workflows/backup-private.yml",
+          ".github/workflows/backup.yml"
+        ],
+        "invariant": "Rendered trigger x secret x environment x checkout-credential matrix for the dispatch-only and backup workflows.",
+        "method": "local",
+        "result": "No job declares `environment:`. backup-private passes SUPABASE_BACKUP_DATABASE_URL and BACKUP_AGE_PUBLIC_KEY to the step running scripts/backup_private.py from the event ref. Both atualizar-* workflows check out with the default persisted credentials under contents/pull-requests write.",
+        "artifact": "agents/h17-ci-secrets/artifacts/check-02.out"
+      }
+    ],
+    "result_fingerprints": [
+      "github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref",
+      "scripts/check_grants.mjs:--atualizar-baseline:grave-findings-baselined-without-refusal"
+    ],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+    ],
+    "x_hardening": [
+      "atualizar-baseline.yml:73 and atualizar-semgrep-rulesets.yml:58 use actions/checkout with the default persist-credentials under contents: write + pull-requests: write. The token sits in .git/config while dispatched-ref node scripts (holding the auditor secret), apt, `pip install semgrep==1.171.0` with unpinned transitive dependencies, and registry downloads run. Only the final push needs it: set persist-credentials: false and pass GH_TOKEN only to the push/PR step.",
+      "Both updater workflows depend on the repository setting 'Allow GitHub Actions to create and approve pull requests'. With pull-requests: write, the same token could approve PRs. The main ruleset requires no approval today (docs/seguranca.md:73), so there is no current impact, but adding required approvals later would let any dispatcher self-approve through these workflows.",
+      "atualizar-baseline.yml:23-31 and :145 claim that `alvo: producao` fails closed and that only that target's 'slot' is written. check_grants.mjs and check_data_quality.mjs never read DIVAT_ALVO, and the baseline files have no per-target slots, so alvo=producao measures the SUPABASE_TEST_AUDIT_DATABASE_URL database and rewrites the single baseline. This is harmless with one database, but the commit and PR text are inaccurate.",
+      "db-checks.yml:82-83/100-101/130-131 and deriva.yml:63-64 set the auditor secret in job-level env, so every step (apt-get, tests/check_grants.rig.mjs) inherits it. Scope it to the single step that calls the auditor.",
+      "For fork PRs, the secret-bearing required checks (realtime, qualidade, seguranca, deriva) are skipped by the `if:`, and GitHub counts skipped jobs as passing required checks. Fork PRs therefore satisfy those four checks without any live audit (a writer still has to merge).",
+      "PRs opened with GITHUB_TOKEN by the two updater workflows do not trigger pull_request workflows, so the eight required checks never report on them until a human pushes or reopens.",
+      "backup_private.py:45 accepts only the `postgres` owner login. A dedicated read-only backup login (read-all-data, no write, no role administration) would shrink the blast radius of any exposure of SUPABASE_BACKUP_DATABASE_URL."
     ]
   },
   {
@@ -241,14 +342,88 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
+    "status": "candidate",
     "agent_id": "h17-ci-secrets",
-    "reviewed_paths": [],
-    "local_checks": [],
-    "result_fingerprints": [],
+    "reviewed_paths": [
+      ".github/workflows/db-checks.yml",
+      ".github/workflows/deriva.yml",
+      ".github/workflows/phase3-security.yml",
+      "docs/seguranca.md",
+      "docs/planos/fase-3-hardening-moderado.md",
+      ".github/workflows/ci.yml",
+      ".github/workflows/views.yml",
+      ".github/workflows/graft.yml",
+      ".github/workflows/semgrep.yml"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/db-checks.yml",
+          ".github/workflows/deriva.yml"
+        ],
+        "invariant": "Fork PR code never receives the auditor secret. PR-triggered jobs that hold a secret use a read-only token without persisted credentials, and no privileged trigger (pull_request_target/workflow_run/issue_comment) runs PR code.",
+        "method": "source",
+        "result": "The fork-exclusion `if:` on every secret-bearing job is correct, and a null or deleted head repo also skips. No pull_request_target, workflow_run, artifact download or cache exists. Permissions are contents: read and persist-credentials is false. Same-repo PR heads do run PR-controlled scripts/check_*.mjs with SUPABASE_TEST_AUDIT_DATABASE_URL in job-level env. Because pull_request uses the PR's own workflow definition, a same-repo PR branch can also reference any repository secret, including SUPABASE_BACKUP_DATABASE_URL (path in candidate github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref). The auditor credential alone is minimal (anon-inheriting diagnostics), so its own impact is low.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/phase3-security.yml",
+          "docs/seguranca.md",
+          "docs/planos/fase-3-hardening-moderado.md"
+        ],
+        "invariant": "Stated policy that the auditor secret is not exposed to PRs (phase3-security.yml:83-84, docs/seguranca.md:95).",
+        "method": "source",
+        "result": "Holds only for phase3-security.yml (test-auditor runs on workflow_dispatch or push to main). The same secret is exposed to same-repo PR code by db-checks.yml:79-83 and deriva.yml:60-64, and phase3's workflow_dispatch accepts any ref. Docs and controls disagree. Folded into the secret-scope candidate as the low-impact variant.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/views.yml",
+          ".github/workflows/graft.yml",
+          ".github/workflows/semgrep.yml"
+        ],
+        "invariant": "Secret-free PR jobs: no secrets, read-only token, no persisted credentials, no attacker-controlled ${{ }} inside run:, and no artifact reaching a privileged consumer.",
+        "method": "source",
+        "result": "Covered. None references a secret. All use contents: read and persist-credentials: false. The only PR-derived expression (graft.yml concurrency group) is not shell. The graft artifact has no consumer.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h17-ci-secrets",
+        "reviewed_paths": [
+          ".github/workflows/db-checks.yml",
+          ".github/workflows/deriva.yml",
+          ".github/workflows/phase3-security.yml",
+          ".github/workflows/ci.yml",
+          ".github/workflows/views.yml",
+          ".github/workflows/graft.yml",
+          ".github/workflows/semgrep.yml"
+        ],
+        "invariant": "Rendered matrix of PR-reachable jobs: which secrets they hold, whether an environment gates them, and which repo scripts they execute.",
+        "method": "local",
+        "result": "No job declares `environment:`. realtime, qualidade, seguranca and deriva expose SUPABASE_TEST_AUDIT_DATABASE_URL at job scope to every step, including the PR-controlled scripts/check_realtime.mjs, check_data_quality.mjs, check_grants.mjs, check_deriva.mjs and tests/check_grants.rig.mjs. ci, views, graft and semgrep hold no secrets.",
+        "artifact": "agents/h17-ci-secrets/artifacts/check-02.out"
+      }
+    ],
+    "result_fingerprints": [
+      "github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref"
+    ],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+    ],
+    "x_hardening": [
+      "atualizar-baseline.yml:73 and atualizar-semgrep-rulesets.yml:58 use actions/checkout with the default persist-credentials under contents: write + pull-requests: write. The token sits in .git/config while dispatched-ref node scripts (holding the auditor secret), apt, `pip install semgrep==1.171.0` with unpinned transitive dependencies, and registry downloads run. Only the final push needs it: set persist-credentials: false and pass GH_TOKEN only to the push/PR step.",
+      "Both updater workflows depend on the repository setting 'Allow GitHub Actions to create and approve pull requests'. With pull-requests: write, the same token could approve PRs. The main ruleset requires no approval today (docs/seguranca.md:73), so there is no current impact, but adding required approvals later would let any dispatcher self-approve through these workflows.",
+      "atualizar-baseline.yml:23-31 and :145 claim that `alvo: producao` fails closed and that only that target's 'slot' is written. check_grants.mjs and check_data_quality.mjs never read DIVAT_ALVO, and the baseline files have no per-target slots, so alvo=producao measures the SUPABASE_TEST_AUDIT_DATABASE_URL database and rewrites the single baseline. This is harmless with one database, but the commit and PR text are inaccurate.",
+      "db-checks.yml:82-83/100-101/130-131 and deriva.yml:63-64 set the auditor secret in job-level env, so every step (apt-get, tests/check_grants.rig.mjs) inherits it. Scope it to the single step that calls the auditor.",
+      "For fork PRs, the secret-bearing required checks (realtime, qualidade, seguranca, deriva) are skipped by the `if:`, and GitHub counts skipped jobs as passing required checks. Fork PRs therefore satisfy those four checks without any live audit (a writer still has to merge).",
+      "PRs opened with GITHUB_TOKEN by the two updater workflows do not trigger pull_request workflows, so the eight required checks never report on them until a human pushes or reopens.",
+      "backup_private.py:45 accepts only the `postgres` owner login. A dedicated read-only backup login (read-all-data, no write, no role administration) would shrink the blast radius of any exposure of SUPABASE_BACKUP_DATABASE_URL."
     ]
   },
   {
@@ -426,14 +601,15 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
-    "agent_id": "h18-supply-inputs",
+    "status": "planned",
+    "agent_id": null,
     "reviewed_paths": [],
     "local_checks": [],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
-      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
+      "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
     ]
   },
   {
@@ -480,14 +656,148 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
+    "status": "covered",
     "agent_id": "h16-db-anon-authz",
-    "reviewed_paths": [],
-    "local_checks": [],
+    "reviewed_paths": [
+      "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+      "supabase/migrations/20260930172521_fecha_authenticated_tarifa_promocional.sql",
+      "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+      "supabase/migrations/20260924213756_backup_test_before_access_import_20260924.sql",
+      "supabase/migrations/20260924215931_create_private_access_import_stage_20260924.sql",
+      "supabase/migrations/20260928225059_create_private_access_stage_20260928.sql",
+      "supabase/migrations/20260929150227_stage_access_20260928_previews.sql",
+      "supabase/migrations/20260929151747_add_private_linha_estado_historico_teste.sql",
+      "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+      "supabase/migrations/20260929152336_add_private_tarifa_promocional_origem.sql",
+      "supabase/migrations/20260929152527_add_private_qh_observacao_conciliacao.sql",
+      "supabase/migrations/20260929152731_preserve_vista_source_code_in_status_history.sql",
+      "supabase/migrations/20260929153935_add_private_historical_tariff_versions.sql",
+      "supabase/migrations/20260929201822_access_complementos_e_proveniencia_20260929.sql",
+      "supabase/migrations/20260929202229_access_anomalias_origem_20260929.sql",
+      "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+      "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+      "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+      "docs/backup_schema.sql",
+      "scripts/check_grants.mjs",
+      "scripts/lib/security-policies.mjs",
+      "scripts/security_baseline.json",
+      "scripts/check_phase3_audit.mjs",
+      "scripts/check_migrations.mjs",
+      "tests/migrations-contract.test.mjs",
+      "app.js",
+      "src/data/rest.mjs",
+      "src/ui/blocos.mjs",
+      "src/data/campos.mjs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql"
+        ],
+        "invariant": "Applying 20260930213009 leaves anon with SELECT only on the 15 catalog tables (no INSERT/UPDATE/DELETE/TRUNCATE), no access to non-catalog public tables (staging) or the six internal schemas, and the RESTRICTIVE FALSE policies keep blocking client writes even if a write grant or a permissive FOR ALL policy reappears.",
+        "method": "local",
+        "result": "Real migration file applied as a non-superuser `postgres` on a local PostgreSQL 16 fixture (unix socket only, dummy rows) whose pre-state granted ALL to anon/authenticated and had permissive FOR ALL TO public USING(true) policies on a catalog and a staging table plus anon USAGE/ALL on divat_integracao. After it: anon SELECT on tabela_vista_teste returns 1 row; INSERT/UPDATE/DELETE/TRUNCATE -> permission denied; anon/authenticated SELECT on public.evento_textos -> permission denied; anon on divat_integracao.memo_texto_origem -> permission denied for schema. Drift simulation (owner re-GRANTs INSERT, UPDATE to anon): INSERT -> 'new row violates row-level security policy divat_block_client_insert', UPDATE -> UPDATE 0, data unchanged. Side observation: this migration alone does not revoke authenticated SELECT on catalog tables (fixture B3); that closure is done by 20260729034018:85 and 20260930172521:92, and catalog data is public by design.",
+        "artifact": "agents/h16-db-anon-authz/artifacts/check-01.out"
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+          "supabase/migrations/20260930172521_fecha_authenticated_tarifa_promocional.sql",
+          "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+          "docs/backup_schema.sql"
+        ],
+        "invariant": "authenticated (any Auth user if signup were open) holds no table authority beyond anon on public tables, and no migration grants anon/authenticated/PUBLIC write privileges.",
+        "method": "source",
+        "result": "20260729034018:85-86 revokes ALL on all public tables/sequences from public and authenticated (asserted 0 authenticated table privileges at :153-164 and 0 anon write privileges at :141-151); 20260930172521:92-98 revokes the later tarifa_promocional_exibicao_teste SELECT from authenticated and retargets its policy TO anon; 20260930213009:32 revokes INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER from PUBLIC, anon, authenticated on every catalog table and :41-48 adds RESTRICTIVE FALSE policies TO anon, authenticated. No migration contains a write GRANT to a client role. Read policies in the baseline are FOR SELECT TO anon USING(true) only (docs/backup_schema.sql:640-653).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260924213756_backup_test_before_access_import_20260924.sql",
+          "supabase/migrations/20260924215931_create_private_access_import_stage_20260924.sql",
+          "supabase/migrations/20260928225059_create_private_access_stage_20260928.sql",
+          "supabase/migrations/20260929150227_stage_access_20260928_previews.sql",
+          "supabase/migrations/20260929151747_add_private_linha_estado_historico_teste.sql",
+          "supabase/migrations/20260929152336_add_private_tarifa_promocional_origem.sql",
+          "supabase/migrations/20260929152527_add_private_qh_observacao_conciliacao.sql",
+          "supabase/migrations/20260929152731_preserve_vista_source_code_in_status_history.sql",
+          "supabase/migrations/20260929153935_add_private_historical_tariff_versions.sql",
+          "supabase/migrations/20260929202229_access_anomalias_origem_20260929.sql",
+          "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+          "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+          "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql"
+        ],
+        "invariant": "Every non-public copy of catalog data (staging tables in public, Access stage, divat_integracao, divat_historico, legacy backup/import schemas, stage preview views) is unreachable for anon/authenticated through a parallel path (schema USAGE, table grant, or owner-rights view).",
+        "method": "source",
+        "result": "Each internal schema is created with REVOKE ALL ON SCHEMA from public/anon/authenticated (e.g. 20260929151747:2, 20260929152336:2, 20260928225059:1, 20260924213756:2); tables created without a table-level revoke (20260929151747, 152336, 152527, 153935) were closed by 20260930213009:52-69 (REVOKE ALL + RESTRICTIVE deny + per-schema default revokes). The three stage preview views are security_invoker=true and revoked from public/anon/authenticated (20260929150227:2-3,29-30,44-45,89-92). Legacy schemas were dropped (20261003205009:102-104). No view exists in public in the baseline or migrations, so there is no owner-rights view bypassing RLS today.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260929201822_access_complementos_e_proveniencia_20260929.sql",
+          "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+          "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+          "src/ui/blocos.mjs",
+          "src/data/campos.mjs",
+          "docs/backup_schema.sql",
+          "scripts/check_phase3_audit.mjs"
+        ],
+        "invariant": "Columns added to anon-readable catalog tables and the Realtime publication do not disclose data the product treats as private.",
+        "method": "source",
+        "result": "The provenance columns added to public.evento_teste/qh_teste (20260929201822:28-34) are deliberately rendered to visitors (src/ui/blocos.mjs:40,48,149; src/data/campos.mjs:25,27); the raw Access text/memos stay in divat_integracao. REPLICA IDENTITY FULL on tabela_vista_teste (20260929152011:1) only affects a table anon can already read in full. The publication holds only catalog tables (docs/backup_schema.sql:738-751) and scripts/check_phase3_audit.mjs:49 asserts it equals RT_TABLES; staging is not published. The recovery migration (20261003115732) inserts data only and changes no grants/policies.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "app.js",
+          "src/data/rest.mjs"
+        ],
+        "invariant": "The only credential shipped to visitors is the anon-role key, bound to the single project, and the client never needs or holds a broader key.",
+        "method": "source",
+        "result": "app.js:148-149 and :174-175 embed the same legacy JWT whose payload is role=anon, ref=gontnlfmothfglssbyyk; src/data/rest.mjs:65-72 sends it as apikey+Bearer on GET-only requests (no method/POST/PATCH/DELETE anywhere in the client). Authority therefore equals the anon grants/RLS reviewed above; no key-type confusion or broader-scope key is present.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "scripts/check_grants.mjs",
+          "scripts/lib/security-policies.mjs",
+          "scripts/security_baseline.json"
+        ],
+        "invariant": "The daily live gate detects regression of anon/authenticated table authority (write grants, MAINTAIN, non-RESTRICTIVE write policies, RLS off) on public tables.",
+        "method": "source",
+        "result": "check_grants.mjs:110-131 flags RLS off, INSERT/UPDATE/DELETE/TRUNCATE and MAINTAIN for anon/authenticated, and any non-SELECT policy unless security-policies.mjs:58-63 proves it RESTRICTIVE with literal false; it fails closed on missing/empty catalog fields (:67-92, security-policies.mjs:23-49). Baseline exceptions are limited to supabase_admin defaults and rls_auto_enable() (security_baseline.json). Scope is the public schema only (security-policies.mjs:15); authenticated SELECT is not checked (data is public by design).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "scripts/check_migrations.mjs",
+          "tests/migrations-contract.test.mjs"
+        ],
+        "invariant": "The required migration-contract gate rejects any migration that would give anon/authenticated write or RLS-bypassing authority over public tables.",
+        "method": "local",
+        "result": "Running the real gate (copied, as tests/migrations-contract.test.mjs does) on one dummy migration per case: the literal 'grant insert ... to anon' control is REJECTED, but these are ACCEPTED (exit 0): ALTER TABLE public.tabela_vista_teste OWNER TO anon; a write GRANT built with execute format(... to %I, 'anon'); DROP POLICY divat_block_client_insert + DISABLE ROW LEVEL SECURITY; unqualified CREATE TABLE (no RLS/REVOKE required); an owner-rights view over public.evento_textos granted SELECT to anon; CREATE FUNCTION private.* without a revoke. No existing migration uses any of these shapes and migrations are applied manually by the owner, so this is a gate-completeness hardening item, not a present exposure.",
+        "artifact": "agents/h16-db-anon-authz/artifacts/check-02.out"
+      }
+    ],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+    ],
+    "x_hardening": [
+      "scripts/check_migrations.mjs (required check migration-contract) accepts, with exit 0, migrations that hand anon write or RLS-bypassing authority: 'ALTER TABLE public.<t> OWNER TO anon' (owner bypasses RLS and holds all privileges), GRANTs built with execute format(... TO %I, 'anon') (role list is cut at the first quote, :28-33), 'DROP POLICY divat_block_client_*' and 'DISABLE ROW LEVEL SECURITY', unqualified 'CREATE TABLE t' (regex at :67 requires the 'public.' prefix), and 'CREATE VIEW public.v AS SELECT ... FROM <staging>' + GRANT SELECT TO anon (owner-rights view over a revoked table). Observed in agents/h16-db-anon-authz/artifacts/check-02.out. Add rejections for OWNER TO anon/authenticated/public, DROP POLICY on divat_block_client_*/divat_internal_no_client_access, DISABLE/NO FORCE ROW LEVEL SECURITY, CREATE VIEW in public without security_invoker=true, unqualified or quoted CREATE TABLE, and any EXECUTE/format() that builds GRANT/POLICY text; add these as recusa() cases in tests/migrations-contract.test.mjs.",
+      "supabase/migrations/20260729034018_phase3_moderate_hardening.sql:95-97 use per-schema 'ALTER DEFAULT PRIVILEGES ... IN SCHEMA ... REVOKE EXECUTE ON FUNCTIONS FROM public', which PostgreSQL ignores for the built-in global PUBLIC EXECUTE default (local fixture: new functions in public and private stayed anon-executable until the global revoke ran; check-01.out part E). The global revoke exists only in docs/backup_schema.sql:691-692, not in any migration, and no gate can see whether it is live (pg_default_acl rows do not show built-in defaults). Version 'alter default privileges for role postgres revoke execute on functions from public;' in a migration, extend check_migrations.mjs:104-105 to require an explicit REVOKE for 'create function private.' (private has anon USAGE), and extend audit.divat_security_shape/check_phase3_audit to report function ACLs in private and audit, not only public.",
+      "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql:32 omits MAINTAIN (PostgreSQL 17) from the client-role revoke that docs/backup_schema.sql:712-713 uses, and :35-39/:54-58 skip policy creation when a policy with the same NAME already exists without checking it is RESTRICTIVE/false. Neither is reachable through PostgREST today and check_grants.mjs:121,128 flags both live, but the migration should revoke MAINTAIN too and assert polpermissive=false with literal false quals instead of matching by name.",
+      "The live posture gates (scripts/check_grants.mjs via scripts/lib/security-policies.mjs:15 and audit.divat_security_shape, scripts/check_phase3_audit.mjs) inspect only schema public. Schema private (anon USAGE), audit and the internal schemas (divat_integracao, divat_historico, stage_access_20260928) have no daily drift alarm, and authenticated SELECT on public tables is not checked by any live gate. 20260822144625 documents an unexplained live regression (diagnostics back in public, anon-executable), so drift outside public would go unnoticed.",
+      "docs/backup_schema.sql (the documented rebuild baseline) still GRANTs EXECUTE on public.divat_data_quality/divat_api_shape/realtime_tables/divat_security_shape TO anon, authenticated (:473,510,531,614). Replaying it without the subsequent migrations re-exposes the security diagnostics through /rest/v1/rpc; mark those statements as superseded or move them behind the phase-3 migration in the restore runbook.",
+      "Whether PostgREST/pg_graphql expose schema private (anon has USAGE) and whether Auth signup is closed are dashboard facts; with today's objects neither changes anon/authenticated authority (only private.f_unaccent is anon-callable and authenticated has no grants), but both should be part of the quarterly panel review in docs/seguranca.md."
     ]
   },
   {
@@ -526,14 +836,97 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
+    "status": "covered",
     "agent_id": "h16-db-anon-authz",
-    "reviewed_paths": [],
-    "local_checks": [],
+    "reviewed_paths": [
+      "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+      "supabase/migrations/20260822144625_phase3_repara_funcoes_publicas.sql",
+      "supabase/migrations/20260822151732_phase3_fecha_security_digest.sql",
+      "supabase/migrations/20260824015915_phase3_guarda_fecha_security_digest.sql",
+      "docs/backup_schema.sql",
+      "docs/seguranca.md",
+      "scripts/check_phase3_audit.mjs",
+      "scripts/check_migrations.mjs",
+      "src/documentos/municipios-localidades.mjs",
+      ".github/workflows/backup.yml",
+      "scripts/backup_rest.mjs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+          "scripts/check_phase3_audit.mjs",
+          "src/documentos/municipios-localidades.mjs"
+        ],
+        "invariant": "anon can EXECUTE exactly divat_busca_logradouro(text,integer) and divat_linhas_regiao(text,text) in public; authenticated executes nothing in public/audit.",
+        "method": "source",
+        "result": "20260729034018:87-91 revokes EXECUTE on all public functions from public/anon/authenticated and grants only the two RPCs to anon; :107-124 asserts the anon set equals that allowlist and authenticated has 0 executable functions in public/audit (migration aborts otherwise). scripts/check_phase3_audit.mjs:42-47 re-asserts both conditions against the live catalog through the auditor login. The client only calls these two RPCs (src/documentos/municipios-localidades.mjs:54,108).",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+          "docs/backup_schema.sql"
+        ],
+        "invariant": "The anon RPCs cannot read beyond anon's table authority (no SECURITY DEFINER, no search_path hijack, no reads of staging/private tables).",
+        "method": "source",
+        "result": "divat_busca_logradouro is LANGUAGE sql STABLE, SECURITY INVOKER, search_path pinned to pg_catalog,public,private, reading only public.itinerario_teste through private.f_unaccent (20260729034018:50-60). divat_linhas_regiao is SQL STABLE INVOKER with pinned search_path reading only public.municipio_teste and public.itinerario_teste (docs/backup_schema.sql:343-364). Both run under anon RLS; neither uses dynamic SQL.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+          "supabase/migrations/20260822144625_phase3_repara_funcoes_publicas.sql",
+          "supabase/migrations/20260822151732_phase3_fecha_security_digest.sql",
+          "supabase/migrations/20260824015915_phase3_guarda_fecha_security_digest.sql",
+          "docs/backup_schema.sql",
+          "docs/seguranca.md",
+          ".github/workflows/backup.yml",
+          "scripts/backup_rest.mjs"
+        ],
+        "invariant": "The audit SECURITY DEFINER diagnostics (security posture, API shape, data quality, Realtime list, security digest) are unreachable for anon/authenticated and cannot be abused to exceed anon-level data authority.",
+        "method": "source",
+        "result": "Schema audit has REVOKE ALL from public/anon/authenticated/service_role and USAGE only for divat_auditor (20260729034018:39-43); all five functions are owned by NOLOGIN divat_audit_owner (inherits only anon, :33,35), EXECUTE revoked from public/anon/authenticated/service_role and granted only to divat_auditor, with in-migration assertions (:77-83,126-130; 20260822144625:32-63; 20260822151732:28-41; 20260824015915:13-23). Their bodies schema-qualify relations (public.%I, information_schema.columns; docs/backup_schema.sql:398-468) under a pinned search_path, so temp-schema shadowing by the caller does not redirect reads, and the definer has only anon-level data privileges. Outputs reach only the auditor; the scheduled REST backup uses the anon key without staging (.github/workflows/backup.yml:45-49, scripts/backup_rest.mjs:50,151), so no diagnostic/alternate reader exposes private data.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+          "scripts/check_migrations.mjs"
+        ],
+        "invariant": "Schema private grants anon only what divat_busca_logradouro needs (USAGE + EXECUTE on f_unaccent); the trigger function and any other private object stay closed.",
+        "method": "source",
+        "result": "20260729034018:40-41 revokes all on private from public/anon/authenticated/service_role then grants USAGE to anon; :45-48 moves f_unaccent and fn_vigor_auto, revokes both from everyone and re-grants EXECUTE only on f_unaccent (IMMUTABLE text normalizer, harmless if ever exposed). No table or other function is created in private by any migration. scripts/check_migrations.mjs:11 records that private is not in the Data API exposed schemas (a panel setting); even if exposed, the only anon-callable object is f_unaccent.",
+        "artifact": null
+      },
+      {
+        "agent_id": "h16-db-anon-authz",
+        "reviewed_paths": [
+          "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+          "docs/backup_schema.sql"
+        ],
+        "invariant": "Functions created later in public/private by postgres are born without anon/PUBLIC EXECUTE, as the phase-3 default-privilege lines intend.",
+        "method": "local",
+        "result": "On the PostgreSQL 16 fixture, executing 20260729034018:95-96 verbatim and then creating dummy functions in public and private as postgres left both with NULL ACL and has_function_privilege('anon',...,'execute') = true (part E1): a per-schema REVOKE cannot remove the built-in global PUBLIC EXECUTE. Only the global 'alter default privileges for role postgres revoke execute on functions from public' (present in docs/backup_schema.sql:691-692 but in no migration) closed it (E2: false/false). No function currently exists that relies on these defaults (every existing function has an explicit ACL), the gate requires an explicit REVOKE for new public functions (check_migrations.mjs:104-108) and check_phase3_audit.mjs:46 alarms on any extra anon RPC in public, so this is recorded as hardening.",
+        "artifact": "agents/h16-db-anon-authz/artifacts/check-01.out"
+      }
+    ],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
       "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+    ],
+    "x_hardening": [
+      "scripts/check_migrations.mjs (required check migration-contract) accepts, with exit 0, migrations that hand anon write or RLS-bypassing authority: 'ALTER TABLE public.<t> OWNER TO anon' (owner bypasses RLS and holds all privileges), GRANTs built with execute format(... TO %I, 'anon') (role list is cut at the first quote, :28-33), 'DROP POLICY divat_block_client_*' and 'DISABLE ROW LEVEL SECURITY', unqualified 'CREATE TABLE t' (regex at :67 requires the 'public.' prefix), and 'CREATE VIEW public.v AS SELECT ... FROM <staging>' + GRANT SELECT TO anon (owner-rights view over a revoked table). Observed in agents/h16-db-anon-authz/artifacts/check-02.out. Add rejections for OWNER TO anon/authenticated/public, DROP POLICY on divat_block_client_*/divat_internal_no_client_access, DISABLE/NO FORCE ROW LEVEL SECURITY, CREATE VIEW in public without security_invoker=true, unqualified or quoted CREATE TABLE, and any EXECUTE/format() that builds GRANT/POLICY text; add these as recusa() cases in tests/migrations-contract.test.mjs.",
+      "supabase/migrations/20260729034018_phase3_moderate_hardening.sql:95-97 use per-schema 'ALTER DEFAULT PRIVILEGES ... IN SCHEMA ... REVOKE EXECUTE ON FUNCTIONS FROM public', which PostgreSQL ignores for the built-in global PUBLIC EXECUTE default (local fixture: new functions in public and private stayed anon-executable until the global revoke ran; check-01.out part E). The global revoke exists only in docs/backup_schema.sql:691-692, not in any migration, and no gate can see whether it is live (pg_default_acl rows do not show built-in defaults). Version 'alter default privileges for role postgres revoke execute on functions from public;' in a migration, extend check_migrations.mjs:104-105 to require an explicit REVOKE for 'create function private.' (private has anon USAGE), and extend audit.divat_security_shape/check_phase3_audit to report function ACLs in private and audit, not only public.",
+      "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql:32 omits MAINTAIN (PostgreSQL 17) from the client-role revoke that docs/backup_schema.sql:712-713 uses, and :35-39/:54-58 skip policy creation when a policy with the same NAME already exists without checking it is RESTRICTIVE/false. Neither is reachable through PostgREST today and check_grants.mjs:121,128 flags both live, but the migration should revoke MAINTAIN too and assert polpermissive=false with literal false quals instead of matching by name.",
+      "The live posture gates (scripts/check_grants.mjs via scripts/lib/security-policies.mjs:15 and audit.divat_security_shape, scripts/check_phase3_audit.mjs) inspect only schema public. Schema private (anon USAGE), audit and the internal schemas (divat_integracao, divat_historico, stage_access_20260928) have no daily drift alarm, and authenticated SELECT on public tables is not checked by any live gate. 20260822144625 documents an unexplained live regression (diagnostics back in public, anon-executable), so drift outside public would go unnoticed.",
+      "docs/backup_schema.sql (the documented rebuild baseline) still GRANTs EXECUTE on public.divat_data_quality/divat_api_shape/realtime_tables/divat_security_shape TO anon, authenticated (:473,510,531,614). Replaying it without the subsequent migrations re-exposes the security diagnostics through /rest/v1/rpc; mark those statements as superseded or move them behind the phase-3 migration in the restore runbook.",
+      "Whether PostgREST/pg_graphql expose schema private (anon has USAGE) and whether Auth signup is closed are dashboard facts; with today's objects neither changes anon/authenticated authority (only private.f_unaccent is anon-callable and authenticated has no grants), but both should be part of the quarterly panel review in docs/seguranca.md."
     ]
   },
   {
@@ -572,14 +965,15 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
-    "agent_id": "h15-postgrest-filters",
+    "status": "planned",
+    "agent_id": null,
     "reviewed_paths": [],
     "local_checks": [],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
-      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
+      "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
     ]
   },
   {
@@ -1378,14 +1772,15 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
-    "agent_id": "h15-postgrest-filters",
+    "status": "planned",
+    "agent_id": null,
     "reviewed_paths": [],
     "local_checks": [],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
-      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
+      "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
     ]
   },
   {
@@ -1826,14 +2221,15 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
-    "agent_id": "h19-secrets-obvious",
+    "status": "planned",
+    "agent_id": null,
     "reviewed_paths": [],
     "local_checks": [],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
-      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
+      "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
     ]
   },
   {
@@ -1877,14 +2273,15 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
-    "agent_id": "h19-secrets-obvious",
+    "status": "planned",
+    "agent_id": null,
     "reviewed_paths": [],
     "local_checks": [],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
-      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
+      "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
     ]
   },
   {
@@ -1928,14 +2325,15 @@
     "prior_status": "none",
     "attempts": [],
     "wave": 1,
-    "status": "in_progress",
-    "agent_id": "h20-wildcard",
+    "status": "planned",
+    "agent_id": null,
     "reviewed_paths": [],
     "local_checks": [],
     "result_fingerprints": [],
     "unresolved": [],
     "x_notes": [
-      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)"
+      "wave1 hunter terminated by API rate limit before returning a result; reassigned to a fresh hunter (no evidence retained)",
+      "2026-10-13: hunter stopped by the parent at the owner's request (usage limit at 77%); run paused, unit returns to planned for a fresh hunter on resume"
     ]
   }
 ]

@@ -1,0 +1,41 @@
+{
+  "agent_id": "h16-db-anon-authz",
+  "check": "02",
+  "command": [
+    "/opt/node22/bin/node",
+    "/sbx/scratch/gate/harness.mjs"
+  ],
+  "cwd": "/home/user/DETRO-Banco-de-Dados",
+  "env_allowlist": [
+    "LANG=C.UTF-8",
+    "PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin",
+    "HOME=/sbx/scratch/home",
+    "TMPDIR=/sbx/scratch/tmp"
+  ],
+  "loopback": false,
+  "limits": {
+    "wall_clock_s": 120,
+    "cpu_rlimit_s": 120,
+    "cgroup_cpu": "1 core",
+    "cgroup_memory_bytes": 2147483648,
+    "cgroup_pids_max": 256,
+    "fsize_bytes": 16777216,
+    "nofile": 1024,
+    "nproc": 256,
+    "scratch_tmpfs": "64MiB",
+    "network": "none (new netns)",
+    "filesystem": "read-only except scratch",
+    "uid": 65534
+  },
+  "exit_status": 0,
+  "wall_s": 0.42,
+  "setup_output": "",
+  "promoted": [
+    {
+      "artifact": "agents/h16-db-anon-authz/artifacts/check-02.out",
+      "bytes": 1656,
+      "sha256": "d5d0d36992e3265d60d924008f780b04a8d977efde85095ecd42ea83518c2c4a"
+    }
+  ],
+  "promotion_errors": []
+}

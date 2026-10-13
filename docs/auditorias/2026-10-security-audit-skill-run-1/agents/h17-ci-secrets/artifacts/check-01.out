@@ -1,0 +1,42 @@
+== 1. gate normal com estado grave e baseline do repo: exit 1
+✓ Resolvido desde o baseline (4) — rode --atualizar-baseline para apertar o gate:
+    default_privilege_permissivo → supabase_admin:public:f
+    default_privilege_permissivo → supabase_admin:public:r
+    default_privilege_permissivo → supabase_admin:public:S
+    funcao_security_definer → rls_auto_enable()
+
+✗ POSTURA DE SEGURANÇA REGREDIU — achado(s) fora do baseline:
+    [grant_escrita] anon tem INSERT/UPDATE/DELETE/TRUNCATE em tabela_vista_teste
+    [policy_escrita] policy anon_write_all em tabela_vista_teste é 'w', não SELECT
+    [rls_off] RLS desligada em evento_dados
+    [funcao_public_execute] divat_api_shape() é executável por PUBLIC
+    [funcao_security_definer] divat_api_shape() é SECURITY DEFINER
+    [funcao_sem_search_path] divat_api_shape() não fixa search_path
+    [default_privilege_permissivo] objeto novo (r) criado por postgres em public já nasce com anon=INSERT
+
+== 2. --atualizar-baseline (comando do workflow atualizar-baseline.yml:103): exit 0
+✓ Baseline reescrito com 7 exceção(ões) → scripts/security_baseline.json
+  · Confira o diff antes de commitar. Toda entrada nova precisa de justificativa em docs/seguranca.md §9.
+
+== 3. baseline gravado (tipo alvo):
+   default_privilege_permissivo  postgres:public:r
+   funcao_public_execute  divat_api_shape()
+   funcao_security_definer  divat_api_shape()
+   funcao_sem_search_path  divat_api_shape()
+   grant_escrita  tabela_vista_teste:anon
+   policy_escrita  tabela_vista_teste:anon_write_all
+   rls_off  evento_dados
+
+== 4. gate normal de novo, mesmo estado grave, baseline novo: exit 0
+· Exceção conhecida, dentro do baseline (7) — ver docs/seguranca.md §9:
+    [grant_escrita] anon tem INSERT/UPDATE/DELETE/TRUNCATE em tabela_vista_teste
+    [policy_escrita] policy anon_write_all em tabela_vista_teste é 'w', não SELECT
+    [rls_off] RLS desligada em evento_dados
+    [funcao_public_execute] divat_api_shape() é executável por PUBLIC
+    [funcao_security_definer] divat_api_shape() é SECURITY DEFINER
+    [funcao_sem_search_path] divat_api_shape() não fixa search_path
+    [default_privilege_permissivo] objeto novo (r) criado por postgres em public já nasce com anon=INSERT
+
+✓ Postura de segurança: nenhum achado novo. (2 tabelas, 1 funções conferidas.)
+
+RESULTADO: atualizar exit=0; tipos graves gravados no baseline=["grant_escrita","rls_off","policy_escrita","funcao_public_execute"]; gate depois exit=0

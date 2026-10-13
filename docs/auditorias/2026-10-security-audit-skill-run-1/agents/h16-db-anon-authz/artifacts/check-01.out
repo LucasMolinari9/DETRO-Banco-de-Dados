@@ -1,0 +1,137 @@
+### server: postgres (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+### prestate
+### applying real migration file 20260930213009 as role postgres (non-superuser)
+migration applied OK
+### verify
+Pager usage is off.
+=== A. anon on catalog table public.tabela_vista_teste
+set role anon;
+SET
+select 'A1 anon select rows' as probe, count(*) from public.tabela_vista_teste;
+        probe        | count 
+---------------------+-------
+ A1 anon select rows |     1
+(1 row)
+
+insert into public.tabela_vista_teste values (2,'X');
+psql:/sbx/scratch/pg/verify.sql:7: ERROR:  permission denied for table tabela_vista_teste
+update public.tabela_vista_teste set codlinha='X';
+psql:/sbx/scratch/pg/verify.sql:8: ERROR:  permission denied for table tabela_vista_teste
+delete from public.tabela_vista_teste;
+psql:/sbx/scratch/pg/verify.sql:9: ERROR:  permission denied for table tabela_vista_teste
+truncate public.tabela_vista_teste;
+psql:/sbx/scratch/pg/verify.sql:10: ERROR:  permission denied for table tabela_vista_teste
+reset role;
+RESET
+=== B. anon/authenticated on public staging + internal schema
+set role anon;
+SET
+select 'B1 anon staging' as probe, count(*) from public.evento_textos;
+psql:/sbx/scratch/pg/verify.sql:14: ERROR:  permission denied for table evento_textos
+select 'B2 anon internal' as probe, count(*) from divat_integracao.memo_texto_origem;
+psql:/sbx/scratch/pg/verify.sql:15: ERROR:  permission denied for schema divat_integracao
+LINE 1: select 'B2 anon internal' as probe, count(*) from divat_inte...
+                                                          ^
+reset role;
+RESET
+set role authenticated;
+SET
+select 'B3 auth tarifa' as probe, count(*) from public.tarifa_promocional_exibicao_teste;
+     probe      | count 
+----------------+-------
+ B3 auth tarifa |     1
+(1 row)
+
+select 'B4 auth staging' as probe, count(*) from public.evento_textos;
+psql:/sbx/scratch/pg/verify.sql:19: ERROR:  permission denied for table evento_textos
+insert into public.tabela_vista_teste values (3,'Y');
+psql:/sbx/scratch/pg/verify.sql:20: ERROR:  permission denied for table tabela_vista_teste
+reset role;
+RESET
+set role anon;
+SET
+select 'B5 anon tarifa' as probe, count(*) from public.tarifa_promocional_exibicao_teste;
+     probe      | count 
+----------------+-------
+ B5 anon tarifa |     1
+(1 row)
+
+reset role;
+RESET
+=== C. drift: owner re-grants INSERT/UPDATE to anon; RESTRICTIVE false policies must still block
+grant insert, update on public.tabela_vista_teste to anon;
+GRANT
+set role anon;
+SET
+insert into public.tabela_vista_teste values (4,'Z');
+psql:/sbx/scratch/pg/verify.sql:28: ERROR:  new row violates row-level security policy "divat_block_client_insert" for table "tabela_vista_teste"
+update public.tabela_vista_teste set codlinha='Z' where id=1;
+UPDATE 0
+reset role;
+RESET
+select 'C3 rows after drift attempts' as probe, count(*), max(codlinha) from public.tabela_vista_teste;
+            probe             | count |   max    
+------------------------------+-------+----------
+ C3 rows after drift attempts |     1 | DUMMY001
+(1 row)
+
+=== D. ACL summary
+select c.relname,
+       has_table_privilege('anon', c.oid, 'select') as anon_sel,
+       has_table_privilege('anon', c.oid, 'insert') as anon_ins,
+       has_table_privilege('anon', c.oid, 'truncate') as anon_trunc,
+       has_table_privilege('authenticated', c.oid, 'select') as auth_sel
+from pg_class c join pg_namespace n on n.oid=c.relnamespace
+where n.nspname in ('public','divat_integracao') and c.relkind='r' order by 1;
+              relname              | anon_sel | anon_ins | anon_trunc | auth_sel 
+-----------------------------------+----------+----------+------------+----------
+ evento_textos                     | f        | f        | f          | f
+ memo_texto_origem                 | f        | f        | f          | f
+ tabela_vista_teste                | t        | t        | f          | t
+ tarifa_promocional_exibicao_teste | t        | f        | f          | t
+(4 rows)
+
+select tablename, policyname, permissive, cmd, roles from pg_policies where schemaname='public' order by 1,2;
+             tablename             |                       policyname                       | permissive  |  cmd   |        roles         
+-----------------------------------+--------------------------------------------------------+-------------+--------+----------------------
+ evento_textos                     | divat_internal_no_client_access                        | RESTRICTIVE | ALL    | {anon,authenticated}
+ evento_textos                     | legacy_staging_open                                    | PERMISSIVE  | ALL    | {public}
+ tabela_vista_teste                | anon_read_tabela_vista                                 | PERMISSIVE  | SELECT | {anon}
+ tabela_vista_teste                | divat_block_client_delete                              | RESTRICTIVE | DELETE | {anon,authenticated}
+ tabela_vista_teste                | divat_block_client_insert                              | RESTRICTIVE | INSERT | {anon,authenticated}
+ tabela_vista_teste                | divat_block_client_update                              | RESTRICTIVE | UPDATE | {anon,authenticated}
+ tabela_vista_teste                | legacy_all_open                                        | PERMISSIVE  | ALL    | {public}
+ tarifa_promocional_exibicao_teste | Consulta publica das tarifas promocionais selecionadas | PERMISSIVE  | SELECT | {public}
+ tarifa_promocional_exibicao_teste | divat_block_client_delete                              | RESTRICTIVE | DELETE | {anon,authenticated}
+ tarifa_promocional_exibicao_teste | divat_block_client_insert                              | RESTRICTIVE | INSERT | {anon,authenticated}
+ tarifa_promocional_exibicao_teste | divat_block_client_update                              | RESTRICTIVE | UPDATE | {anon,authenticated}
+(11 rows)
+
+### default-privilege semantics (separate db)
+Pager usage is off.
+CREATE SCHEMA
+REVOKE
+GRANT
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+CREATE FUNCTION
+CREATE FUNCTION
+           probe           | anon_exec_private | anon_exec_public | acl_private | acl_public 
+---------------------------+-------------------+------------------+-------------+------------
+ E1 per-schema revoke only | t                 | t                |             | 
+(1 row)
+
+ALTER DEFAULT PRIVILEGES
+CREATE FUNCTION
+CREATE FUNCTION
+         probe          | anon_exec_private | anon_exec_public 
+------------------------+-------------------+------------------
+ E2 after global revoke | f                 | f
+(1 row)
+
+ defaclrole | schema | defaclobjtype |       defaclacl       
+------------+--------+---------------+-----------------------
+ postgres   | -      | f             | {postgres=X/postgres}
+(1 row)
+
+### done

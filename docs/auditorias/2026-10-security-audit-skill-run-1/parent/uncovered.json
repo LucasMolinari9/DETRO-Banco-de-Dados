@@ -11,5 +11,46 @@
     ],
     "reason": "This is a separate subsystem with its own HTML and DOM sinks and a local listener (createServer/WebSocket/innerHTML found by grep). It is outside the portal frontend boundary owned here, and no peer coverage ID names it.",
     "_x_source_agent": "h13-dom-xss"
+  },
+  {
+    "surface": ".github/workflows/deploy-smoke.yml workflow_dispatch / deployment_status with free-text URL",
+    "boundary": "repository-scoped VERCEL_AUTOMATION_BYPASS_SECRET (job-level env) + host allowlist in scripts/check_deploy.mjs, script taken from the event/dispatched ref",
+    "subsystem": ".github/workflows",
+    "attack_class": "CLOUD-AND-DEPLOYMENT.md#Secret exposure across workload boundaries",
+    "starting_paths": [
+      ".github/workflows/deploy-smoke.yml",
+      "scripts/check_deploy.mjs"
+    ],
+    "reason": "The same repo-scoped-secret, ref-unbound root cause applies to the Vercel bypass secret, and the deployment_status/free-text-URL handoff is a separate boundary that no listed coverage unit owns.",
+    "_x_source_agent": "h17-ci-secrets"
+  },
+  {
+    "surface": "Public GitHub issues/PR comments consumed by AI agent sessions that hold push and workflow-dispatch tools",
+    "boundary": "untrusted issue text (public repo, docs/agents/issue-tracker.md, ready-for-agent label) ↔ agent authority to push branches and dispatch secret-bearing workflows",
+    "subsystem": "agent tooling",
+    "attack_class": "AI-AND-LLM prompt injection into tool-holding agents",
+    "starting_paths": [
+      "docs/agents/issue-tracker.md",
+      "docs/agents/triage-labels.md",
+      "AGENTS.md",
+      "CLAUDE.md"
+    ],
+    "reason": "This is the lower-trust input that would drive the agent along the secret-scope path above. It needs its own AI-AND-LLM unit; the listed peer agent-tooling unit covers plugin/hook supply chain, not issue-text injection.",
+    "_x_source_agent": "h17-ci-secrets"
+  },
+  {
+    "surface": "Disaster-recovery rebuild and restore paths: docs/backup_schema.sql replay, migrations replay order, scripts/restore_rest.mjs and the private dump restore",
+    "boundary": "post-restore grants, RLS, default privileges, function placement (public vs audit/private) and Realtime publication",
+    "subsystem": "supabase (docs/backup_schema.sql, supabase/migrations) + scripts",
+    "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline (restored copies)",
+    "starting_paths": [
+      "docs/backup_schema.sql",
+      "scripts/restore_rest.mjs",
+      "scripts/backup_private.py",
+      "docs/backup.md",
+      "supabase/migrations/20260729034018_phase3_moderate_hardening.sql"
+    ],
+    "reason": "Restored copies can re-create anon EXECUTE on diagnostics and table ACLs that the live hardening removed (baseline still grants them); no current coverage unit owns the restore lifecycle as an access-control boundary.",
+    "_x_source_agent": "h16-db-anon-authz"
   }
 ]
