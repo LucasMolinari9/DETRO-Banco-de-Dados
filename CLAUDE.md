@@ -591,13 +591,21 @@ domínio deste repo (`db-change`), que **não** é do Superpowers e não é toca
 - A contagem acima é conferida pelo `tests/check.js` §[2b] contra o manifesto: ao mudar a leva
   de skills, o gate cobra o número aqui e no comentário do hook.
 - **Há um segundo conjunto de skills, de outra origem.** Além das 14 do Superpowers e da
-  `db-change`, `.claude/skills/` contém **21 symlinks** para `.agents/skills/`, que hospeda
-  skills vindas de `mattpocock/skills` e travadas por hash em `skills-lock.json` (raiz; 95
-  arquivos versionados sob `.agents/`). Os dois conjuntos são independentes: o
+  `db-change`, `.claude/skills/` contém **22 symlinks** para `.agents/skills/`, que hospeda
+  skills do Skills CLI travadas por hash em `skills-lock.json` (raiz; 115 arquivos versionados
+  sob `.agents/`, fora a cópia do Superpowers): 19 de `mattpocock/skills`, 2 de
+  `supabase/agent-skills` e a `security-audit`, de `cloudflare/security-audit-skill` — a
+  metodologia da auditoria de 13/10/2026. Os dois conjuntos são independentes: o
   `update_superpowers.sh` remove só o que o manifesto do Superpowers lista, então nunca toca
-  nestas — e o instalador delas (a skill `setup-matt-pocock-skills`) não toca nas do Superpowers.
-  `.claude/skills/` tem, no total, **15 diretórios reais + 21 symlinks = 36 entradas** — número
+  nestas — e o instalador delas (o Skills CLI; para as do mattpocock, a skill
+  `setup-matt-pocock-skills`) não toca nas do Superpowers.
+  `.claude/skills/` tem, no total, **15 diretórios reais + 22 symlinks = 37 entradas** — número
   conferido pelo `tests/check.js` §[2b] contra o disco.
+- **`security-audit` na sessão web:** o diretório de saída padrão da skill
+  (`~/security-audit-skill/<repo>/run-<N>`) mora no container efêmero e some com ele. Antes de
+  encerrar a sessão, salve o relatório fora dela. O run-1 sobrevive só como resumo no
+  [CHANGELOG](docs/CHANGELOG.md) e em [segurança](docs/seguranca.md) §9.6, sem o
+  `coverage-ledger.json` que um run seguinte usaria para mirar as lacunas.
 
 ### Mudanças de banco
 

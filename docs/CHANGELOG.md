@@ -4,6 +4,17 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 21/10/2026 — skill `security-audit` versionada no repositório
+
+A metodologia da auditoria de 13/10 entrou em `.agents/skills/security-audit/` (symlink em
+`.claude/skills/`), a partir de `cloudflare/security-audit-skill` no commit `c1c8a8c`, MIT,
+com os 20 arquivos da pasta `skills/security-audit/` sem alteração. O ambiente bloqueou o
+`npx skills add`, então a cópia foi feita à mão e o `computedHash` do `skills-lock.json` foi
+calculado pela mesma regra do `computeSkillFolderHash` do `skills@1.7.4`. O mesmo cálculo
+reproduz o hash travado das outras 21 skills. Antes da cópia foram conferidos os dois
+validadores `.cjs` (usam só `fs`/`path`/`util`, sem rede nem processo filho) e os `.md`, sem
+caractere invisível. Nada disso é publicado, porque o `.vercelignore` não abre `.agents/`.
+
 ## 13/10/2026 — achados da auditoria de segurança (run-1)
 
 Relatório gerado em outra sessão com a metodologia `cloudflare/security-audit-skill`, sobre o
