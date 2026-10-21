@@ -166,6 +166,13 @@ if (home) {
     value => ['geolocation=()', 'microphone=()', 'camera=()'].every(rule => value.includes(rule)),
     'geolocation, microphone e camera desabilitados'
   );
+  // Ferramenta de uso interno da equipe: aberta por link, mas fora dos buscadores (21/10/2026).
+  expectHeader(
+    home.headers,
+    'x-robots-tag',
+    value => /noindex/i.test(value) && /nofollow/i.test(value),
+    'noindex + nofollow'
+  );
 
   const csp = home.headers.get('content-security-policy') || '';
   const cspRules = [

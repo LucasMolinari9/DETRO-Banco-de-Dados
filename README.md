@@ -1,6 +1,7 @@
 # Portal DIVAT — Cadastro de Linhas Regulares
 
-Portal **público de consulta (somente leitura)** do **DETRO/RJ · DIVAT**. Os usuários buscam
+Ferramenta de **consulta (somente leitura) de uso interno** do **DETRO/RJ · DIVAT**, usada pela
+equipe da Coordenadoria Técnica (acesso por link, sem login, fora dos buscadores). Os usuários buscam
 linhas de ônibus e abrem os documentos oficiais — itinerários, quadro de horários, tarifas, frota,
 histórico/eventos, empresas e relatórios. Os dados são mantidos pelo dono direto no banco
 (Supabase) e o site apenas **exibe e atualiza ao vivo** (Realtime).
