@@ -215,6 +215,8 @@ restaurou o snapshot público de 28/09 de `bkp_divat_teste_20260928_1944`, prese
 idêntico, inclusive multiplicidades. As outras 16 tabelas públicas mantiveram as contagens.
 As colunas atuais `observacao` e `bairro` de itinerários foram preservadas, nulas: o snapshot
 não as continha. Não houve integração de alterações do Access bruto nesta recuperação.
+Em 21/10/2026 as duas foram preenchidas a partir do Access de 28/09, junto com a correção do
+`id` arredondado; ver [CHANGELOG](CHANGELOG.md).
 
 | Tabela pública | Registros conferidos como `postgres` e `anon` |
 |---|--:|
@@ -304,7 +306,9 @@ e às listas `RT_TABLES`/`VIEW_TABLES`; os modelos privados não entram nessas l
 Os eventos 21639–21641 foram inseridos em `evento_dados`, `evento_textos` e `evento_teste`:
 **20.901** registros em cada uma dessas tabelas. Somente as observações vazias dos QHs 256 e 571 foram preenchidas,
 resultando em 625 observações não vazias. Os campos originais do evento 19953, inclusive
-sua data de publicação divergente, ficaram preservados para conferência. Nenhuma dessas
+sua data de publicação divergente, ficaram preservados para conferência. Em 21/10/2026, a
+pedido do dono, o processo e a data foram corrigidos e a data continua marcada como suspeita
+até a conferência no D.O.; o antes/depois está na auditoria. Nenhuma dessas
 inclusões promove automaticamente status, tarifa ou itinerário.
 
 ## Histórico aplicado no projeto em uso

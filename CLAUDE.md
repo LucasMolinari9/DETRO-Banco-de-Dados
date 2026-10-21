@@ -404,7 +404,8 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
 ## Recuperação e limpeza conferidas em 03/10/2026
 - Recuperados do snapshot público de 28/09: 52.385 itinerários, 9.553 intervalos e 25.748
   partidas que já estavam ausentes. Conteúdo e leitura `anon` conferidos. Access bruto
-  preservado, sem promover suas diferenças; `observacao`/`bairro` de itinerários permanecem nulos.
+  preservado, sem promover suas diferenças; `observacao`/`bairro` de itinerários ficaram nulos
+  nesta recuperação e só foram preenchidos em 21/10/2026 (seção abaixo).
 - Removidos somente `codex_backup_20260924`, `bkp_divat_teste_20260928_1944` e
   `codex_import_20260924`, após checagem sem dependências externas. Banco: 438.037.651 bytes
   (417,7 MiB), 21 migrations aplicadas. Não reaplicar as migrations de recuperação/limpeza.
@@ -412,6 +413,18 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
   `stage_access_20260928`, inclusive a FK dos textos memo para os registros Access.
   As contagens das 19 tabelas públicas e das 16 privadas preservadas foram conferidas;
   as 15 tabelas públicas continuam legíveis por `anon`, com RLS/grants/Realtime preservados.
+
+## Correções de dado conferidas em 21/10/2026
+- O ACCDB da carga de 28/09 foi conferido campo a campo contra as tabelas finais; a cópia
+  `stage_access_20260928` bate com o arquivo nos campos usados. Corrigidos **só valores**, sem
+  DDL: `licitado` (30 linhas), `bairro`/`observacao` e o `id` do itinerário (294 pontos haviam
+  perdido a 3ª casa decimal e empatavam na ordem — o portal ordena por `id`), `piso_i` truncado
+  (131 seções), pontuação trocada na importação (8 registros), uma linha totalmente vazia em
+  `tarifa_atual_teste` e processo/data do evento 19953, que segue com
+  `data_publicacao_suspeita = true` até conferência no D.O.
+- Antes/depois de cada registro em `divat_integracao.atualizacao_auditoria_20260929`, chave com
+  sufixo `@2026-10-21`. Método, lotes e armadilhas da carga em [ETL](docs/etl.md).
+- As contagens do `check_data_quality` não mudaram; o baseline foi mantido.
 
 ## Backup
 - A rotina REST exporta 15 tabelas públicas (19 com staging), sem snapshot consistente e sem
