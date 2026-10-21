@@ -4,6 +4,52 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 21/10/2026 — correções de dado conferidas contra o Access de 28/09
+
+O dono pediu a conferência do ACCDB usado na carga contra o banco e autorizou corrigir os erros
+de importação encontrados. A comparação foi valor a valor (impressão digital por campo e, nas
+divergências, registro a registro); a cópia `stage_access_20260928` foi conferida idêntica ao
+arquivo nos campos usados e serviu de fonte. Só dados mudaram: nenhuma coluna, policy, grant ou
+publicação.
+- `tabela_vista_teste.licitado`: 30 linhas licitadas no Access estavam como falso.
+- `itinerario_teste`: `bairro` (5.889) e `observacao` (8.077) preenchidos; `id` de 294 pontos em
+  33 linhas restaurado com 3 casas — o arredondamento a 2 casas criava empates, e o portal ordena
+  por `id`. Casamento posicional por linha (ordem do Access × `row_id`), conferido em 52.339
+  pontos sem divergência; a 108026001, cuja sequência já diferia do Access, casou por sentido +
+  logradouro (5 pontos). As 31 repetições de `id` que restam já existem no próprio Access.
+- `tarifa_atual_teste`: `piso_i` de 131 seções estava truncado em 2 casas e voltou ao valor do
+  Access (o portal formata com 2 casas, agora arredondando certo). Removida 1 linha totalmente
+  vazia (`ordem_importacao` 2853), sem correspondente no Access.
+- Pontuação trocada na importação: vírgula → ponto em 4 nomes (`148001002`, `14800100200` e 2
+  pontos da `137006005`) e ponto e vírgula → vírgula em 4 observações de `qh_teste` (36, 604,
+  630, 754). Textos restaurados idênticos ao Access.
+- Evento 19953: `numero_processo` = SEI-100005/009720/2023, extraído do próprio campo (que
+  continha uma frase), e `data_publicacao` 17/04/2024 (o banco tinha 1927; o Access, 2027). A
+  data é inferida, por isso `data_publicacao_suspeita` segue `true` e o portal continua mostrando
+  "Não confirmada". Replicado em `evento_dados` e `evento_textos`.
+- Antes/depois de cada registro em `divat_integracao.atualizacao_auditoria_20260929` (chave
+  `<item>:<id>@2026-10-21`): dá para reverter item a item.
+- As medições de `audit.divat_data_quality()` foram reproduzidas por leitura: contagens de erro
+  iguais ao baseline e nenhum U+FFFD nos campos alterados. O baseline não muda.
+- Ficou de fora de propósito o "Tipo de piso" do Access, que exigiria coluna nova.
+
+## 21/10/2026 — campos complementares do Access
+
+A pedido do dono, a migração `20261021041230_access_campos_complementares_20261021.sql` criou
+colunas para campos do Access de 28/09 que não tinham lugar nas tabelas finais, e elas foram
+preenchidas a partir de `stage_access_20260928`. Não há backup integral novo: o dono decidiu
+aplicar direto, e a reversão é remover as colunas.
+- `tabela_vista_teste`: `hierarquia` (1.535), `metropolitana` (786 sim, 1.099 não) e
+  `observacao` (1.386).
+- `evento_teste` e `evento_dados`: `tipo_alteracao_linha` (4.853 diferentes de 0), `tipo_parecer`
+  (7.338) e `tipo_alteracao_empresa` (741). As duas cópias conferem iguais.
+- `tarifa_atual_teste`: `observacao` (236) e `piso_ii` (56 diferentes de 0).
+- Conferência por impressão digital contra o ACCDB: as três tabelas batem com o arquivo.
+- Na staging, `Metropolitana` de 128022001 e 147002000 está `false`; o ACCDB, lido pelo
+  mdbtools, diz Sim, e as duas linhas são da região metropolitana. Valeu o arquivo.
+- Nenhuma tela mudou: o portal seleciona colunas por lista explícita (`src/data/campos.mjs`).
+  Grants, RLS e Realtime intactos.
+
 ## 13/10/2026 — achados da auditoria de segurança (run-1)
 
 Relatório gerado em outra sessão com a metodologia `cloudflare/security-audit-skill`, sobre o
