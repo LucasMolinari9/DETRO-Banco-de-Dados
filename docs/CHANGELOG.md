@@ -4,6 +4,24 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 21/10/2026 — uso interno: fora dos buscadores e licenças de terceiros
+
+Revisão contra uma lista de "17 itens de conformidade" de sites feitos com IA. O dono confirmou
+que só ele e a equipe usam o portal, então os itens de site aberto ao cidadão (privacidade,
+termos, cookies, contato, aviso de fonte oficial) deixaram de ser necessários. Os itens de
+cookies, reembolso, formulários, rastreamento e avaliações nunca se aplicaram: o site não grava
+cookie nem `localStorage`, não tem formulário de cadastro e não carrega terceiros.
+- **Fora dos buscadores:** o `index.html` pedia `robots: index,follow` e se descrevia como
+  "portal público" com o selo "consulta pública". Agora é `noindex,nofollow`, com o mesmo pedido em
+  `X-Robots-Tag` no `vercel.json` (vale também para os arquivos que não são HTML), e os textos dizem
+  "uso interno". O `check_deploy.mjs` reprova o deploy sem o cabeçalho. O acesso continua por link
+  e sem login: fechar de verdade exigiria Auth + RLS, e os dados exibidos são atos publicados.
+- **Licenças:** o `supabase-js` vendorado (MIT) não trazia o aviso de copyright que a licença
+  exige junto da cópia, e as fontes (OFL 1.1) também iam sem a licença. Os `LICENSE` dos próprios
+  pacotes ficam agora em `vendor/LICENSE-supabase-js.txt` e `vendor/fonts/LICENSE-<família>.txt`.
+  Conferido antes: os arquivos vendorados são byte a byte os dos pacotes `@supabase/supabase-js`
+  2.110.7 e `@fontsource/*` 5.3.0.
+
 ## 13/10/2026 — achados da auditoria de segurança (run-1)
 
 Relatório gerado em outra sessão com a metodologia `cloudflare/security-audit-skill`, sobre o

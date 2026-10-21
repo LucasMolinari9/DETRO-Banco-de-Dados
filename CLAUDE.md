@@ -17,10 +17,20 @@ Contexto para qualquer sessão futura do Claude trabalhar neste projeto. Este ar
 > o botão *Run workflow*; só o site). Ao fechar esses passos, atualize este ponteiro ou remova-o.
 
 ## O que é
-Portal **público de consulta (somente leitura)** do DETRO/RJ · DIVAT. Os usuários buscam linhas
+Ferramenta de **consulta (somente leitura) de uso interno** do DETRO/RJ · DIVAT: quem usa é o
+dono e a equipe da Coordenadoria Técnica (confirmação do dono em 21/10/2026). Os usuários buscam linhas
 de ônibus e abrem documentos (itinerários, quadro de horários, tarifas, frota, histórico/eventos,
 empresas, relatórios). Os dados são **alimentados pelo dono direto no Supabase**; o site apenas
 exibe e **atualiza ao vivo** (Realtime).
+- **Interno, mas sem login:** o acesso é por link e a chave `anon` lê as 15 tabelas, então
+  "público" no resto deste arquivo quer dizer **"sem autenticação"**, não "aberto ao cidadão".
+  O site fica **fora dos buscadores** (`<meta name="robots" content="noindex,nofollow">` no
+  `index.html` + `X-Robots-Tag` no `vercel.json`, conferido pelo `check_deploy.mjs`) e não se
+  anuncia como público. Por isso não tem aviso de cookies (não grava nenhum), política de
+  privacidade, termos de uso nem scripts de rastreamento — **não acrescente** sem que o público
+  mude. Se passar a atender o cidadão, reavalie: aviso de privacidade (LGPD art. 23), contato,
+  aviso de que a consulta não substitui a publicação oficial e acessibilidade obrigatória
+  (Lei 13.146/2015, art. 63).
 
 ## Arquitetura (importante)
 - **Frontend = `index.html` (HTML) + `styles.css` (todo o CSS) + `app.js` (shell principal, ~1,7k
@@ -90,7 +100,8 @@ exibe e **atualiza ao vivo** (Realtime).
 - **Fontes vendoradas** em `vendor/fonts/` (Archivo, IBM Plex Mono/Sans — subset latin, dos
   pacotes `@fontsource` 5.3.0); os `@font-face` ficam no início de `styles.css`. **Nenhum terceiro
   externo em runtime.** Para atualizar: `npm pack @fontsource/<família>`, extrair
-  `files/<família>-latin-<peso>-normal.woff2`.
+  `files/<família>-latin-<peso>-normal.woff2`. A licença (OFL 1.1) de cada família fica ao lado,
+  em `vendor/fonts/LICENSE-<família>.txt`, copiada do `LICENSE` do mesmo pacote.
 - O botão **PDF** (barra do modal) monta o documento **completo** num container oculto
   `.pdf-export` e usa `window.print()` (vetorial) — sem dependência externa de PDF.
 - `vercel.json` define os cabeçalhos de segurança e `Cache-Control: must-revalidate`. A CSP é
@@ -537,7 +548,9 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
   e falhar no clique deixaria o defeito passar por todo gate.
 - **supabase-js vendorado:** para atualizar a versão: `npm pack @supabase/supabase-js@<v>`,
   extrair `dist/umd/supabase.js`, conferir a integridade contra o registro, trocar o arquivo em
-  `vendor/` e a tag `<script src>` no `index.html`.
+  `vendor/` e o `s.src` da seção `REALTIME` do `app.js`. Troque junto o
+  `vendor/LICENSE-supabase-js.txt` (o `LICENSE` do pacote): o `.min.js` não traz o aviso da
+  licença MIT, que exige acompanhar a cópia.
 - **`sbFetch` tem timeout (20s) + retry** (backoff) para erros transitórios; erros definitivos
   (4xx) não repetem. Não remover isso ao refatorar.
 - **NÃO duplicar busca/listagem — reusar os helpers:** `searchLines`/`lineSearchRun` (termo →

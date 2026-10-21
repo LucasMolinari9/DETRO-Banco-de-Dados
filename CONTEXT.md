@@ -1,6 +1,7 @@
 # Portal DIVAT
 
-Portal público de consulta (somente leitura) do DETRO/RJ · DIVAT. Ver `CLAUDE.md` para arquitetura
+Ferramenta de consulta (somente leitura) de uso interno do DETRO/RJ · DIVAT, usada pela equipe
+da Coordenadoria Técnica. Ver `CLAUDE.md` para arquitetura
 e regras técnicas — este arquivo é só o glossário do domínio.
 
 ## Language
