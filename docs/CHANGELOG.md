@@ -33,6 +33,23 @@ publicação.
   iguais ao baseline e nenhum U+FFFD nos campos alterados. O baseline não muda.
 - Ficou de fora de propósito o "Tipo de piso" do Access, que exigiria coluna nova.
 
+## 21/10/2026 — campos complementares do Access
+
+A pedido do dono, a migração `20261021041230_access_campos_complementares_20261021.sql` criou
+colunas para campos do Access de 28/09 que não tinham lugar nas tabelas finais, e elas foram
+preenchidas a partir de `stage_access_20260928`. Não há backup integral novo: o dono decidiu
+aplicar direto, e a reversão é remover as colunas.
+- `tabela_vista_teste`: `hierarquia` (1.535), `metropolitana` (786 sim, 1.099 não) e
+  `observacao` (1.386).
+- `evento_teste` e `evento_dados`: `tipo_alteracao_linha` (4.853 diferentes de 0), `tipo_parecer`
+  (7.338) e `tipo_alteracao_empresa` (741). As duas cópias conferem iguais.
+- `tarifa_atual_teste`: `observacao` (236) e `piso_ii` (56 diferentes de 0).
+- Conferência por impressão digital contra o ACCDB: as três tabelas batem com o arquivo.
+- Na staging, `Metropolitana` de 128022001 e 147002000 está `false`; o ACCDB, lido pelo
+  mdbtools, diz Sim, e as duas linhas são da região metropolitana. Valeu o arquivo.
+- Nenhuma tela mudou: o portal seleciona colunas por lista explícita (`src/data/campos.mjs`).
+  Grants, RLS e Realtime intactos.
+
 ## 13/10/2026 — achados da auditoria de segurança (run-1)
 
 Relatório gerado em outra sessão com a metodologia `cloudflare/security-audit-skill`, sobre o

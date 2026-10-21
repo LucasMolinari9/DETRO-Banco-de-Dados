@@ -110,7 +110,7 @@ o banco PostgreSQL, não arquivos externos de Storage, Edge Functions ou configu
 ## Recuperação parcial e baseline histórica
 
 `docs/backup_schema.sql` é anterior à Fase 3 e às cargas privadas recentes. Não reconstrói o
-estado atual nem recupera snapshots históricos de dados. O histórico de 21 migrations está
+estado atual nem recupera snapshots históricos de dados. O histórico de 22 migrations está
 em [schema.md](schema.md); não reaplicá-las sobre o banco em uso.
 
 Qualquer exercício de reconstrução será feito em PostgreSQL local/descartável, sem sobrepor o banco

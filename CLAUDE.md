@@ -425,6 +425,11 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
 - Antes/depois de cada registro em `divat_integracao.atualizacao_auditoria_20260929`, chave com
   sufixo `@2026-10-21`. Método, lotes e armadilhas da carga em [ETL](docs/etl.md).
 - As contagens do `check_data_quality` não mudaram; o baseline foi mantido.
+- Migração `20261021041230` (22ª aplicada): colunas novas, anuláveis, para campos do Access que
+  não tinham lugar — `hierarquia`/`metropolitana`/`observacao` em `tabela_vista_teste`,
+  `tipo_alteracao_linha`/`tipo_parecer`/`tipo_alteracao_empresa` em `evento_teste` **e**
+  `evento_dados`, `observacao`/`piso_ii` em `tarifa_atual_teste`. O portal não as seleciona;
+  mapa em [schema.md](docs/schema.md).
 
 ## Backup
 - A rotina REST exporta 15 tabelas públicas (19 com staging), sem snapshot consistente e sem

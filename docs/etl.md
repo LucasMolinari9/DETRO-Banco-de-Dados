@@ -231,5 +231,10 @@ em `supabase/migrations/`.
   sem escala; a carga não pode arredondar.
 - **`piso_i` é quilometragem calculada, com muitas casas.** Não truncar nem arredondar na carga:
   o portal já formata com 2 casas.
+- **Booleano "Não" do Access vira `null` na staging.** Em `stage_access_20260928`, quase todo
+  campo Sim/Não falso aparece como `null` (e não `false`). Ao copiar um booleano da staging para
+  uma coluna de verdade, trate `null` como `false` quando o campo do Access é obrigatório. Em
+  `Vista.Metropolitana` a staging ainda diverge do arquivo em 2 linhas; ver o
+  [CHANGELOG](CHANGELOG.md) de 21/10/2026.
 - **Nada de dado no git.** CSVs e dumps ficam **fora** do repositório; o `.gitignore` barra `*.csv`
   como rede de segurança. O git versiona só código.

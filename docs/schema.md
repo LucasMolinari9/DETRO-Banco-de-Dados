@@ -311,10 +311,36 @@ pedido do dono, o processo e a data foram corrigidos e a data continua marcada c
 até a conferência no D.O.; o antes/depois está na auditoria. Nenhuma dessas
 inclusões promove automaticamente status, tarifa ou itinerário.
 
+## Campos complementares do Access — 21/10/2026
+
+A migração `20261021041230_access_campos_complementares_20261021.sql` acrescentou, a pedido do
+dono, campos do Access de 28/09 que não tinham coluna nas tabelas finais. Todas são anuláveis,
+sem índice (nenhum loader filtra por elas) e sem mudança de grants, RLS ou Realtime. Como `anon`
+tem SELECT na tabela inteira, ficam legíveis pela Data API como as demais; o portal **não** as
+seleciona, então nenhuma tela mudou. Preenchidas a partir de `stage_access_20260928` e
+conferidas contra o arquivo.
+
+| Tabela | Coluna (origem no Access) | Preenchidas |
+|---|---|---|
+| `tabela_vista_teste` | `hierarquia text` (Vista.Hierarquização) | 1.535 |
+| `tabela_vista_teste` | `metropolitana boolean` (Vista.Metropolitana) | todas: 786 sim, 1.099 não |
+| `tabela_vista_teste` | `observacao text` (Vista.Observação) | 1.386 |
+| `evento_teste` + `evento_dados` | `tipo_alteracao_linha text` (TipoAlteracaoLinha, código) | 20.896 (4.853 diferentes de 0) |
+| `evento_teste` + `evento_dados` | `tipo_parecer text` (TipoParecer, código) | 7.338 |
+| `evento_teste` + `evento_dados` | `tipo_alteracao_empresa text` (TipoAlteracaoEmpresa, texto livre) | 741 |
+| `tarifa_atual_teste` | `observacao text` (Tarifa Atual.Obs) | 236 |
+| `tarifa_atual_teste` | `piso_ii numeric` (Tarifa Atual.Piso II, km) | 3.484 (56 diferentes de 0) |
+
+`tabela_vista_teste.hierarquia` não repete `qh_teste.hierarquia`: as duas divergem em cerca de
+um terço das linhas, por isso ficaram separadas. Os códigos de `tipo_alteracao_linha` e
+`tipo_parecer` vieram sem tabela de significados — ela não está no ACCDB (provavelmente morava
+nos formulários do Access) — e foram gravados como estão. As colunas de evento também entraram
+em `evento_dados`, a staging de dados dos eventos, para as duas cópias continuarem iguais.
+
 ## Histórico aplicado no projeto em uso
 
-O projeto `gontnlfmothfglssbyyk` tem 21 migrations registradas, conferidas em 03/10/2026.
-Seus identificadores foram
+O projeto `gontnlfmothfglssbyyk` tem 22 migrations registradas: as 21 conferidas em
+03/10/2026 e `20261021041230`, aplicada em 21/10/2026. Os identificadores das 21 primeiras foram
 conciliados com `supabase/migrations/` a partir do histórico aplicado, sem reexecutar SQL nem
 alterar `supabase_migrations`. Os reparos de funções usam as versões aplicadas
 `20260822144625` e `20260822151732`; as versões antigas dos nomes de arquivo não eram outras
