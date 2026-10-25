@@ -23,6 +23,10 @@ O repositório deixou de se chamar `LucasMolinari9/LucasCTEC` e passou a
   segue o nome novo (o push desta branch gerou preview).
 - **Teste de ambiente:** o exemplo de preview `lucasctec-git-…` virou o formato real dos previews
   (`divatdetro-git-<branch>-lucas-molinari-s-projects.vercel.app`).
+- **`views.yml` preso ao `ubuntu-24.04`:** o PR desta mudança pegou o `ubuntu-latest` já no
+  Ubuntu 26.04, onde o Playwright 1.56.1 não instala o Chromium. O job morria na instalação, e
+  por ser check obrigatório travava todo PR — não só este. A `main` passou em 21/10, ainda no
+  sistema anterior.
 - **Ficam como estão:** os links deste CHANGELOG (cronologia) e o `run` de
   `.semgrep/vendor/.manifest.json`, que o workflow gera a partir de `github.repository` e que se
   corrige na próxima atualização dos rulesets — editá-lo à mão contraria a regra da cópia
