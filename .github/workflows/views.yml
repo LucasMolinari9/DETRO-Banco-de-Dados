@@ -1,5 +1,5 @@
 # Views (navegador) — laço de fumaça sobre as 20 views (cenários) + regressões das abas, da seleção de
-# linha e da corrida entre abas, em todo push e PR.
+# linha, da corrida entre abas e da integridade dos resultados, em todo push e PR.
 #
 # Por que em ARQUIVO/JOB SEPARADO e não dentro do ci.yml:
 # o `ci.yml` roda `node tests/check.js` — Node puro, sem dependências, segundos. Essa leveza é
@@ -20,11 +20,16 @@
 #   scripts/check_selecao_linha.mjs — regressão do "clicar na linha seleciona a linha" (o
 #     history.back() do closeModal apagava a seleção recém-feita) e da barra de situação
 #     Todas/Ativas/Canceladas do card Linhas por Localidade e Município.
-#   scripts/check_corrida_abas.mjs — "uma resposta que chega DEPOIS da troca de aba vai parar na
-#     aba certa?" É o único gate que CRIA a ordenação: o stub segura a resposta até a troca ter
-#     acontecido. Os outros três esperam a requisição assentar antes de agir, e por isso podiam
-#     ficar verdes com um render pintando o pane errado.
-# Os quatro usam a mesma bancada (scripts/lib/rig.mjs) e o mesmo Chromium: com o navegador já
+#   scripts/check_corrida_abas.mjs — "uma resposta que chega DEPOIS da troca de aba (ou de uma
+#     busca mais nova, ou da troca de documento) vai parar no lugar certo?" É o único gate que CRIA
+#     a ordenação: o stub segura a resposta até a troca ter acontecido. Os outros esperam a
+#     requisição assentar antes de agir, e por isso podiam ficar verdes com um render pintando o
+#     pane errado.
+#   scripts/check_resultados.mjs — "o que a tela e o PDF afirmam bate com o que o banco devolveu?"
+#     Fixtures grandes o bastante para atingir os cortes (mais de 4.000 trechos num município,
+#     mais de 200 candidatas na busca A → B) e estados vazios depois de um resultado, que com as
+#     3 linhas do rig nenhum outro gate alcança (auditoria de 25/10/2026).
+# Os cinco usam a mesma bancada (scripts/lib/rig.mjs) e o mesmo Chromium: com o navegador já
 # instalado no job, rodar os seguintes sai quase de graça.
 #
 # Nenhum deles fala com o Supabase: toda resposta do PostgREST vem das fixtures do rig.
@@ -101,3 +106,6 @@ jobs:
 
       - name: Corrida entre abas (contexto explícito dos documentos)
         run: node scripts/check_corrida_abas.mjs
+
+      - name: Integridade dos resultados (cortes e PDF em estado vazio)
+        run: node scripts/check_resultados.mjs

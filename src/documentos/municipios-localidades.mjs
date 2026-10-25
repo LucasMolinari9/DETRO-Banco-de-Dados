@@ -44,6 +44,7 @@ export async function secoesPorLigacao({ view, gen, pane, line }){
 /* ---- Consultas (por logradouro, terminal, localidade, município) ---- */
 export async function ligacoesPorLogradouro(ctx){
   const ibge = await getIbge();
+  if(!isCurrentGen(ctx.view, ctx.gen)) return;   // a casca também pinta o pane depois do await
   const munOpts = Object.entries(ibge).sort((a,b)=>(a[1].nome||'').localeCompare(b[1].nome||'')).map(([cod,v])=>[cod, v.nome]);
   montarPainelBusca(ctx, { title:'Ligações por Logradouro', placeholder:'Nome da via / logradouro', selectOpts:[['','Todos os municípios'],...munOpts], onRun: async(term, { view, gen, host }, ibgeCod)=>{
     if(!term){ host.innerHTML=emptyBox('Digite o nome do logradouro.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
@@ -62,6 +63,7 @@ export async function ligacoesPorLogradouro(ctx){
 };
 export async function municipioRegiao(ctx){
   const ibge = await getIbge();
+  if(!isCurrentGen(ctx.view, ctx.gen)) return;
   // Região Programa clássica (regiao_municipio) — é a classificação do print DETRO.
   const regioes = [...new Set(Object.values(ibge).map(x=>x.regiaoPrograma).filter(Boolean))].sort();
   // tabela de municípios clicáveis (drill-down → openLinhasPorIbge)
@@ -128,12 +130,18 @@ export async function municipioRegiao(ctx){
 function openLinhasPorIbge(codibge, nome){
   abrirView({ title:'Linhas no Município', tables:['itinerario_teste','tabela_vista_teste','codempresa_teste'], loader: async(ctx)=>{
     const { view, gen, pane } = ctx;
-    const it = await sbFetch('itinerario_teste', `cod_municipio_origem=eq.${enc(codibge)}&select=codlinha&limit=4000`);
-    const allCods=distinctCods(it);          // total real (sem corte) para o "Total"
+    // Mesma leitura da busca entre municípios (teto de 30 mil trechos). Até 25/10/2026 aqui eram
+    // 4.000: o Rio tem ~13,5 mil trechos, e o "Total" contava só as linhas que coubessem nos
+    // primeiros 4.000, sem aviso (auditoria de 25/10, C04 do Codex — scripts/check_resultados.mjs §1).
+    const allCods = await linhasNoMunicipio(codibge);   // total real para o "Total"
+    if(!isCurrentGen(view, gen)) return;     // view substituída/recarregada enquanto esperava
     const cods=allCods.slice(0,500);         // teto de listagem (alinha com as views irmãs)
     if(!cods.length){ pane.innerHTML = `<div class="doc">${docHead('Linhas no Município')}${emptyBox('Nenhuma linha registrada em '+(nome||codibge)+'.')}</div>`; return; }
     const rows = await fetchLinesByCods(cods,{limit:500});
-    const avisoTrunc = allCods.length>cods.length
+    if(!isCurrentGen(view, gen)) return;
+    const avisoTrunc = allCods._trunc
+      ? `<div class="trunc-aviso"><b>Lista parcial:</b> o município passou do teto de trechos lidos; o total pode ser maior que ${allCods.length}.</div>`
+      : allCods.length>cods.length
       ? `<div class="trunc-aviso"><b>Lista parcial:</b> ${allCods.length} linhas no total; mostrando as primeiras ${cods.length}.</div>` : '';
     pane.innerHTML = `<div class="doc">${docHead('Linhas no Município')}
       ${metaRows([['Município',esc(nome||codibge),true],['Total',allCods.length+' linha(s)']])}
@@ -195,7 +203,11 @@ async function linhasNoMunicipio(codibge, memo){
     // limite alto de propósito: Rio de Janeiro tem ~13,5 mil trechos de itinerário — com
     // limite menor o conjunto chega incompleto e as interseções entre municípios encolhem
     const rows = await sbFetch('itinerario_teste', `cod_municipio_origem=eq.${enc(codibge)}&select=codlinha&limit=30000`);
-    return distinctCods(rows);
+    // o `_trunc` não sobrevive ao distinct (é array novo): repõe, senão um município acima do
+    // teto sairia como total completo
+    const cods = distinctCods(rows);
+    if (rows._trunc) Object.defineProperty(cods, '_trunc', { value:true, enumerable:false });
+    return cods;
   })();
   // promessa REJEITADA sai do memo: senão um erro transitório de rede ficaria memorizado
   // pelo resto da busca e toda combinação seguinte falharia pelo mesmo motivo já superado.
@@ -269,11 +281,15 @@ async function mostrarLinhasEntreMunicipios(ctx, aTerm, bTerm, directional){
         const interPar = lA.filter(c=>sB.has(c));
         interPar.forEach(c=>inter.add(c));
         if(!directional || !interPar.length) continue;
-        const it = await sbFetch('itinerario_teste', `codlinha=in.(${interPar.slice(0,200).map(enc).join(',')})&select=codlinha,cod_municipio_origem,sentido&order=id&limit=30000`);
-        for(const [k,seq] of groupBy(it, r=>r.codlinha+'¦'+(r.sentido||''))){
-          const iA=seq.findIndex(r=>String(r.cod_municipio_origem)===String(ca));
-          const iB=seq.findIndex(r=>String(r.cod_municipio_origem)===String(cb));
-          if(iA>=0&&iB>=0&&iA<iB) all.add(k.split('¦')[0]);
+        // Em LOTES de 200 (o tamanho cabe na URL): até 25/10/2026 só os 200 primeiros candidatos
+        // eram consultados e o resto saía como "nenhuma linha" (DIVAT-04 — check_resultados §2).
+        for(let i=0; i<interPar.length; i+=200){
+          const it = await sbFetch('itinerario_teste', `codlinha=in.(${interPar.slice(i,i+200).map(enc).join(',')})&select=codlinha,cod_municipio_origem,sentido&order=id&limit=30000`);
+          for(const [k,seq] of groupBy(it, r=>r.codlinha+'¦'+(r.sentido||''))){
+            const iA=seq.findIndex(r=>String(r.cod_municipio_origem)===String(ca));
+            const iB=seq.findIndex(r=>String(r.cod_municipio_origem)===String(cb));
+            if(iA>=0&&iB>=0&&iA<iB) all.add(k.split('¦')[0]);
+          }
         }
       }
     }
@@ -285,6 +301,7 @@ async function mostrarLinhasEntreMunicipios(ctx, aTerm, bTerm, directional){
 }
 export async function ligacoesPorTerminal(ctx){
   const [orig, ibge, terminais] = await Promise.all([getOrigem(), getIbge(), getTerminais()]);
+  if(!isCurrentGen(ctx.view, ctx.gen)) return;
   const munOpts = Object.entries(ibge).sort((a,b)=>(a[1].nome||'').localeCompare(b[1].nome||'')).map(([cod,v])=>[cod, v.nome]);
   const nomesOrigem = [...new Set(Object.values(orig).filter(Boolean))];
   const nomesTerminal = [...new Set(terminais.map(r=>r.nome_logradouro).filter(Boolean))];
@@ -517,8 +534,9 @@ export async function localidades(ctx){
   const A=pane.querySelector('#locA'), B=pane.querySelector('#locB'),
         ALbl=pane.querySelector('#locALabel .loc-lbl-txt'), BLbl=pane.querySelector('#locBLabel'),
         BLblTxt=pane.querySelector('#locBLabel .loc-lbl-txt'),
-        hint=pane.querySelector('#locHint'), host=pane.querySelector('#locHost'),
+        hint=pane.querySelector('#locHint'),
         filtersBar=pane.querySelector('#locFilters');
+  let host=pane.querySelector('#locHost');
 
   let modeIdx = 0;
   function applyMode(){
@@ -555,6 +573,9 @@ export async function localidades(ctx){
     const f = LOC_FILTERS[modeIdx];
     const a=(A.value||'').trim(), b=(B.value||'').trim();
     if(!a){ host.innerHTML = emptyBox(`Informe ${f.aType==='municipio'?'o município':'a localidade'}.`); return; }
+    // `#locHost` NOVO por busca, como o `#spHost` do searchPanel (app.js): a busca ultrapassada
+    // segue escrevendo no host dela, que saiu da tela (DIVAT-01)
+    const novo = host.cloneNode(false); host.replaceWith(novo); host = novo;
     const rctx = novoCtx(view, pane, host);
     if(f.kind==='localidade'){
       const bTipo = f.bMode==='municipio' ? 'municipio' : 'localidade';

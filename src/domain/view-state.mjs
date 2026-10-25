@@ -32,6 +32,11 @@ export function beginGen(view){
 export function isCurrentGen(view, gen){
   return !!view && gen === view._gen;
 }
+// Descarta TODA tentativa ainda no ar desta view — tela e PDF. Para quando a view sai da aba
+// sem ser fechada: o `runView` a substitui por outra no MESMO pane, e o loader dela, se
+// resolvesse depois, pintaria por cima do documento novo (C01 da auditoria de 25/10/2026). Não
+// devolve geração de propósito: quem invalida não começa tentativa nenhuma.
+export function invalidarView(view){ beginGen(view); }
 export function commitViewResult(view, gen, patch){
   if (!isCurrentGen(view, gen)) return false;
   if ('pdfHTML' in patch) view.pdfHTML = patch.pdfHTML;

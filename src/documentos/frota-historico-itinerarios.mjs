@@ -52,7 +52,7 @@ export function loadFrota(ctx){
    ================================================================ */
 export async function renderLineHistory(ctx){
   const { view, gen, host, line } = ctx;
-  selecionarLinha(line);   // sincroniza a linha ativa e o banner do topo
+  selecionarLinha(line, view);   // sincroniza a linha da aba dona (e o banner, se ela for a ativa)
   const [rows, lk] = await Promise.all([
     sbFetch('evento_teste', `codlinha=eq.${enc(line.codlinha)}&select=${EVENTO_FIELDS}&order=data_registro.asc&limit=2000`),
     getEvLookups(), getEmpresas()

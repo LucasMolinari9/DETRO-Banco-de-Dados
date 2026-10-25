@@ -22,17 +22,24 @@
 // A (c) não é decoração: sem ela, uma implementação que simplesmente DESCARTASSE toda resposta
 // pós-troca-de-aba passaria em (a) e (b) e deixaria a aba 1 eternamente sem o seu resultado.
 //
-// Dois atos, porque são dois pontos de escrita diferentes:
+// Cinco atos, porque são cinco pontos de escrita diferentes:
 //   ATO 1 — um RENDER de documento (Itinerários): cobre (a), (b) e (c).
 //   ATO 2 — a CASCA de um loader (Ligações por Logradouro), que monta o painel de busca DEPOIS
 //           de um await. Era o ponto que de fato sangrava antes do contexto explícito: o
 //           `searchPanel` escrevia no `modalBody` ao vivo. Cobre (a) e (c).
+//   Os três seguintes vieram da auditoria de 25/10/2026 (DIVAT-01 e C01 do Codex):
+//   ATO 3 — a BUSCA DE LINHA de um documento resolve com o usuário em outra aba: a linha vai para
+//           a aba que pediu, não para a ativa. Cobre (a) e (c).
+//   ATO 4 — duas buscas no MESMO documento, a mais velha respondendo por último: a tela fica com
+//           a mais nova (o `gen` já protegia o PDF; a tela, não).
+//   ATO 5 — troca de documento na MESMA aba com o loader anterior no ar: o anterior não pinta por
+//           cima do novo.
 //
 // Uso:
 //   node scripts/check_corrida_abas.mjs
 // Servidor, fixtures e Chromium vêm de scripts/lib/rig.mjs. Sai 0 = tudo verde.
 
-import { startServer, getChromium, launchPage, makeReporter } from './lib/rig.mjs';
+import { startServer, getChromium, launchPage, makeReporter, pdfDaAbaAtiva } from './lib/rig.mjs';
 
 const PORT = 8101;
 // O título do documento de Itinerários — o que distingue o PDF dele de qualquer outro.
@@ -52,27 +59,6 @@ function portao(casa) {
     liberar: () => liberar(),
     get presas(){ return presas; },
   };
-}
-
-// Captura o HTML que o botão PDF montaria, sem abrir diálogo de impressão: o stub de
-// `window.print` lê o container `.pdf-export` (que o baixarPdf acabou de criar) e dispara o
-// `afterprint` que o próprio app.js escuta, para o cleanup rodar e o próximo clique não ser
-// barrado pela trava de reentrância.
-async function pdfDaAbaAtiva(page) {
-  await page.evaluate(() => {
-    window.__pdf = null;
-    if (!window.__printStub) {
-      window.__printStub = true;
-      window.print = () => {
-        const el = document.querySelector('.pdf-export');
-        window.__pdf = el ? el.innerHTML : '';
-        window.dispatchEvent(new Event('afterprint'));
-      };
-    }
-  });
-  await page.click('#btnPdf');
-  await page.waitForFunction(() => window.__pdf !== null, null, { timeout: 15000 });
-  return page.evaluate(() => window.__pdf);
 }
 
 // Abre uma aba nova pelo "+" e escolhe Portarias no seletor de documentos dela.
@@ -186,6 +172,128 @@ async function abrirPortariasEmAbaNova(page) {
   const tituloAba1 = (await page.textContent('#mtTitle')) || '';
   check(aba1TemPainel === 1 && /Logradouro/i.test(tituloAba1),
     'ATO 2 · (c) o pane da aba 1 recebeu o painel de busca', `título="${tituloAba1.trim()}"`);
+
+  await browser.close();
+}
+
+/* Linha do banner (número da ligação) e se ele está visível — o que a aba ativa diz ser "a linha". */
+const banner = page => page.evaluate(() => {
+  const b = document.querySelector('#lineBanner');
+  return b.classList.contains('is-hidden') ? null : (b.querySelector('.lb-num')?.textContent || '').trim();
+});
+const esperarPintura = page => page.waitForFunction(() => {
+  const pane = document.querySelector('.modal-body.active');
+  return !!pane && !pane.querySelector('.spin');
+}, null, { timeout: 15000 });
+
+/* ================================================================
+   ATO 3 — busca de LINHA atrasada × troca de aba (DIVAT-01)
+   ----------------------------------------------------------------
+   O `lineSearchRun` resolvia o termo e chamava `selectLine`, que grava na aba ATIVA no instante
+   da resposta. Com a busca da aba 1 no ar e o usuário na aba 2, a linha buscada caía na aba 2.
+   ================================================================ */
+{
+  const g = portao((tabela, qs) => tabela === 'tabela_vista_teste' && qs.includes('or='));
+  const { browser, page } = await launchPage(getChromium(), { segurar: g.segurar });
+
+  // aba 1: Tarifas da 740D; busca "549M" dentro do documento — a busca fica PRESA
+  await page.goto(`http://127.0.0.1:${PORT}/#/linha/740000001/consulta/tarifas`);
+  await page.waitForSelector('#modalOverlay.open', { timeout: 15000 });
+  await esperarPintura(page);
+  await page.fill('.modal-body.active #spInput', '549M');
+  await page.click('.modal-body.active #spBtn');
+  await page.waitForTimeout(300);
+  check(g.presas > 0, 'ATO 3 · o portão prendeu a busca de linha da aba 1', `presas=${g.presas}`);
+
+  // aba 2: aberta em branco (sem linha) enquanto a busca da aba 1 espera
+  await abrirPortariasEmAbaNova(page);
+  const bannerAba2Antes = await banner(page);
+
+  g.liberar();
+  await page.waitForTimeout(900);
+
+  // (a) a linha da aba 2 continua a dela — a resposta não é da aba que está na tela
+  const bannerAba2Depois = await banner(page);
+  check(bannerAba2Depois === bannerAba2Antes,
+    'ATO 3 · (a) a busca atrasada da aba 1 NÃO mudou a linha da aba 2',
+    `antes=${bannerAba2Antes} depois=${bannerAba2Depois}`);
+  check(await page.locator('.modal-body.active #pNum').count() === 1,
+    'ATO 3 · (a) o pane da aba 2 continua com as Portarias');
+
+  // (c) a aba 1, que pediu, recebe a linha e o documento dela
+  await page.click('.modal-tab:first-child [data-select-tab]');
+  await page.waitForTimeout(400);
+  const bannerAba1 = await banner(page);
+  const telaAba1 = await page.evaluate(() => document.querySelector('.modal-body.active #spHost')?.innerText || '');
+  check(bannerAba1 === '549M' && /7,50/.test(telaAba1),
+    'ATO 3 · (c) a aba 1 recebeu a linha buscada e as tarifas dela', `banner=${bannerAba1}`);
+
+  await browser.close();
+}
+
+/* ================================================================
+   ATO 4 — duas buscas no MESMO documento, a mais velha responde por último (C01 do Codex)
+   ----------------------------------------------------------------
+   Busca "740D" (tarifas presas), depois "549M" (responde na hora). Quando a de 740 é liberada, o
+   render dela escrevia no mesmo container: banner e PDF da 549, tela com as tarifas da 740.
+   ================================================================ */
+{
+  const g = portao((tabela, qs) => tabela === 'tarifa_atual_teste' && qs.includes('codlinha=eq.740000001'));
+  const { browser, page } = await launchPage(getChromium(), { segurar: g.segurar });
+
+  await page.goto(`http://127.0.0.1:${PORT}/#/consulta/tarifas`);
+  await page.waitForSelector('#modalOverlay.open', { timeout: 15000 });
+  await esperarPintura(page);
+  await page.fill('.modal-body.active #spInput', '740D');
+  await page.click('.modal-body.active #spBtn');
+  await page.waitForTimeout(400);
+  check(g.presas > 0, 'ATO 4 · o portão prendeu as tarifas da 740D', `presas=${g.presas}`);
+  await page.fill('.modal-body.active #spInput', '549M');
+  await page.click('.modal-body.active #spBtn');
+  await page.waitForTimeout(400);
+  await esperarPintura(page);
+
+  g.liberar();
+  await page.waitForTimeout(900);
+
+  const tela = await page.evaluate(() => document.querySelector('.modal-body.active #spHost')?.innerText || '');
+  check(/7,50/.test(tela) && !/19,90/.test(tela),
+    'ATO 4 · a tela fica com a busca MAIS NOVA (549M), não com a resposta atrasada (740D)',
+    `549=${/7,50/.test(tela)} 740=${/19,90/.test(tela)}`);
+  check(await banner(page) === '549M', 'ATO 4 · o banner fica na 549M');
+  const pdf = await pdfDaAbaAtiva(page);
+  check(/7,50/.test(pdf) && !/19,90/.test(pdf), 'ATO 4 · o PDF é o da 549M');
+
+  await browser.close();
+}
+
+/* ================================================================
+   ATO 5 — trocar de documento na MESMA aba com o loader anterior no ar (C01 do Codex)
+   ----------------------------------------------------------------
+   Empresas Regulares fica presa; a rota troca para Portarias na mesma aba. A geração da view
+   substituída não era invalidada, e o loader dela pintava o pane por cima das Portarias.
+   ================================================================ */
+{
+  const g = portao((tabela, qs) => tabela === 'tabela_vista_teste' && qs.includes('select=codempresa,cancelado'));
+  const { browser, page } = await launchPage(getChromium(), { segurar: g.segurar });
+
+  await page.goto(`http://127.0.0.1:${PORT}/#/consulta/empresasRegulares`);
+  await page.waitForSelector('#modalOverlay.open', { timeout: 15000 });
+  await page.waitForTimeout(300);
+  check(g.presas > 0, 'ATO 5 · o portão prendeu o loader de Empresas Regulares', `presas=${g.presas}`);
+
+  await page.evaluate(() => { location.hash = '#/consulta/portarias'; });
+  await page.waitForSelector('.modal-body.active #pNum', { timeout: 15000 });
+  await page.waitForSelector('.modal-body.active tbody tr', { timeout: 15000 });
+
+  g.liberar();
+  await page.waitForTimeout(900);
+
+  const temPortaria = await page.locator('.modal-body.active #pNum').count();
+  const temEmpresas = await page.locator('.modal-body.active #empSit').count();
+  check(temPortaria === 1 && temEmpresas === 0,
+    'ATO 5 · o loader da view substituída NÃO pintou por cima do documento novo',
+    `#pNum=${temPortaria} #empSit=${temEmpresas}`);
 
   await browser.close();
 }

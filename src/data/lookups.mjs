@@ -21,22 +21,32 @@ let terminalRows = null; // itinerario_teste com tipo_logradouro='Terminal': [{n
 // caches carregados e invalidados JUNTOS → cada grupo num objeto só (ver INVALIDADORES_LOOKUP)
 const evLookups = { emp:null, lin:null };  // lookups de evento: emp={[id]:evento_empresa}, lin={[id]:evento_linha}
 const empresas  = { map:null, list:null, byCod:null }; // cadastro: map nome↔RJ, byCod registro deduplicado, list crua p/ busca
+// ÉPOCA de cada cache: a invalidação a incrementa, e uma carga que começou ANTES dela entrega o
+// resultado a quem a pediu mas não grava no cache. Sem isso, a carga velha que respondesse depois
+// da nova repunha o dado antigo até a próxima invalidação (DIVAT-05, auditoria de 25/10/2026 —
+// tests/ui-data-module.test.mjs). As chaves `emp`/`lin` são as do `evLookups`, porque o
+// `preencherLookup` as recebe como `chave`.
+const epoca = { ibge:0, origem:0, terminais:0, empresas:0, emp:0, lin:0 };
 
 export async function getIbge() {
   if (ibgeMap) return ibgeMap;
+  const e = epoca.ibge;
   const rows = await buscar('municipio_teste', 'select=cod_ibge,nome_municipio,regiao_municipio,regiao_novo&limit=2000');
-  ibgeMap = {};
+  const m = {};
   // `regiao` = regionalização nova (usada na coluna "Região" dos outros cards);
   // `regiaoPrograma` = Região Programa clássica (regiao_municipio) — é a do print DETRO.
-  rows.forEach(r => { ibgeMap[r.cod_ibge] = { nome:r.nome_municipio, regiao:r.regiao_novo||r.regiao_municipio, regiaoPrograma:r.regiao_municipio }; });
-  return ibgeMap;
+  rows.forEach(r => { m[r.cod_ibge] = { nome:r.nome_municipio, regiao:r.regiao_novo||r.regiao_municipio, regiaoPrograma:r.regiao_municipio }; });
+  if (e === epoca.ibge) ibgeMap = m;
+  return m;
 }
 
 export async function getOrigem() {
   if (origemMap) return origemMap;
+  const e = epoca.origem;
   const rows = await buscar('origem_teste', 'select=cod_origem,nome_origem&limit=2000');
-  origemMap = {}; rows.forEach(r => { origemMap[r.cod_origem] = r.nome_origem; });
-  return origemMap;
+  const m = {}; rows.forEach(r => { m[r.cod_origem] = r.nome_origem; });
+  if (e === epoca.origem) origemMap = m;
+  return m;
 }
 
 // terminais físicos (ex.: "Rodoviário Menezes Côrtes") — trechos de itinerário do tipo "Terminal",
@@ -44,23 +54,25 @@ export async function getOrigem() {
 // nome de município). Ver Ligações por Terminais.
 export async function getTerminais() {
   if (terminalRows) return terminalRows;
-  terminalRows = await buscar('itinerario_teste', `tipo_logradouro=eq.Terminal&select=nome_logradouro,codlinha,cod_municipio_origem&limit=30000`);
-  return terminalRows;
+  const e = epoca.terminais;
+  const rows = await buscar('itinerario_teste', `tipo_logradouro=eq.Terminal&select=nome_logradouro,codlinha,cod_municipio_origem&limit=30000`);
+  if (e === epoca.terminais) terminalRows = rows;
+  return rows;
 }
 
 // O desempate do cadastro de empresas duplicadas (scoreEmpresa/dedupEmpresasPorRJ) vive em
 // src/domain/agrupamento.mjs — definição única do getEmpresas e do LOADERS.empresasRegulares.
 export async function getEmpresas() {
   if (empresas.map) return empresas.map;
+  const e = epoca.empresas;
   const rows = await buscar('codempresa_teste', 'select=codempresa,nome_empresa,situacao,cassada,sob_intervencao&limit=2000');
-  empresas.list = rows;
-  empresas.map = {};
-  empresas.byCod = {};
+  const map = {}, byCod = {};
   dedupEmpresasPorRJ(rows).forEach(r => {
-    empresas.map[r.codempresa] = r.nome_empresa;
-    empresas.byCod[r.codempresa] = r;
+    map[r.codempresa] = r.nome_empresa;
+    byCod[r.codempresa] = r;
   });
-  return empresas.map;
+  if (e === epoca.empresas) Object.assign(empresas, { list:rows, map, byCod });
+  return map;
 }
 
 // nome da empresa (síncrono; cai no próprio código se o cache ainda não carregou)
@@ -91,11 +103,12 @@ export const empresaPorCod = cod => empresas.byCod ? empresas.byCod[cod] : undef
    nomes de evento, caindo no '—' —, mas engolir não pode virar cachear. */
 export async function preencherLookup(cache, chave, buscarRows, coluna){
   if (cache[chave]) return cache[chave];
+  const e = epoca[chave];
   const rows = await buscarRows().catch(() => null);   // null = falhou; [] = veio vazio de verdade
   if (!rows) return null;                              // não cacheia falha
   const m = {};
   rows.forEach(x => { m[x.id] = x[coluna]; });
-  cache[chave] = m;
+  if (e === epoca[chave]) cache[chave] = m;            // invalidado no meio: não grava (ver `epoca`)
   return m;
 }
 
@@ -112,12 +125,12 @@ export async function getEvLookups() {
    objeto dentro do CACHE_INVALIDATORS dele (seção REALTIME), que acrescenta os caches que são
    dele (portarias, localidades). Cache de lookup NOVO entra aqui, não lá. */
 export const INVALIDADORES_LOOKUP = {
-  municipio_teste:      () => { ibgeMap = null; },
-  origem_teste:         () => { origemMap = null; },
-  itinerario_teste:     () => { terminalRows = null; },
-  evento_empresa_teste: () => { evLookups.emp = null; },
-  evento_linha_teste:   () => { evLookups.lin = null; },
+  municipio_teste:      () => { epoca.ibge++; ibgeMap = null; },
+  origem_teste:         () => { epoca.origem++; origemMap = null; },
+  itinerario_teste:     () => { epoca.terminais++; terminalRows = null; },
+  evento_empresa_teste: () => { epoca.emp++; evLookups.emp = null; },
+  evento_linha_teste:   () => { epoca.lin++; evLookups.lin = null; },
   // recarrega já: o nome da empresa é lido por renderizadores SÍNCRONOS (banner, listas), que
   // não têm como esperar um await — sem o recarregamento eles cairiam no código cru.
-  codempresa_teste:     () => { empresas.map = null; empresas.list = null; empresas.byCod = null; getEmpresas().catch(()=>{}); },
+  codempresa_teste:     () => { epoca.empresas++; empresas.map = null; empresas.list = null; empresas.byCod = null; getEmpresas().catch(()=>{}); },
 };

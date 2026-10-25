@@ -91,8 +91,13 @@ export function paginateLines(container, rows, { grouped=false, pageSize=25, pdf
 // com os grupos ordenados pelo RJ (codempresa). Padrão de qualquer consulta que lista linhas.
 // `prefixHTML` entra antes da barra (contadores/banner). Requer getEmpresas() já carregado.
 // `view`/`gen` — repassados pra paginateLines (ver observação lá).
+// Estado VAZIO (lista vazia ou filtro sem correspondência) também escreve o PDF — `null`, que o
+// baixarPdf troca pelo que está na tela. Sem isso o pdfHTML da consulta anterior ficava no lugar:
+// a tela dizia "nenhuma" e o PDF saía com as linhas de antes (DIVAT-03, auditoria de 25/10/2026 —
+// scripts/check_resultados.mjs §3). Com `pdf:false` o PDF é do chamador, e fica como está.
 export function lineResults(host, rows, { prefixHTML='', pdf=true, view, gen } = {}){
-  if(!rows || !rows.length){ host.innerHTML = prefixHTML + emptyBox('Nenhuma ligação encontrada.'); return; }
+  const semPdf = () => { if(pdf && view) commitViewResult(view, gen, { pdfHTML:null }); };
+  if(!rows || !rows.length){ host.innerHTML = prefixHTML + emptyBox('Nenhuma ligação encontrada.'); semPdf(); return; }
   // bannerTrunc(rows) uma vez no topo: avisa "Resultado parcial" quando a QUERY atingiu o teto
   // (limit). A paginação abaixo exibe tudo em páginas — não corta mais no cliente.
   host.innerHTML = prefixHTML + bannerTrunc(rows)
@@ -105,7 +110,7 @@ export function lineResults(host, rows, { prefixHTML='', pdf=true, view, gen } =
   const statusSel = host.querySelector('#lrStatus'), groupChk = host.querySelector('#lrGroup');
   const paint = ()=>{
     const f = filtrarSituacao(rows, statusSel.value);
-    if(!f.length){ result.innerHTML = emptyBox('Nenhuma linha com esse filtro.'); return; }
+    if(!f.length){ result.innerHTML = emptyBox('Nenhuma linha com esse filtro.'); semPdf(); return; }
     if(groupChk.checked){
       // achata os grupos (empresas por RJ; linhas por codlinha) num array global e pagina
       // contando TODAS as linhas — os cabeçalhos de empresa entram dentro de cada página.

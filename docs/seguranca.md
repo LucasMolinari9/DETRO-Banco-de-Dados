@@ -63,6 +63,12 @@ Os relatos integrais permanecem no histórico do Git.
 Da mesma forma, a confirmação de signup fechado em 22/08/2026 foi feita no projeto antigo.
 Ela não comprova a configuração de `gontnlfmothfglssbyyk`.
 
+A auditoria independente de 25/10/2026 (Codex + Semgrep, Gitleaks e OSV sobre um snapshot da
+`main`, sem acesso ao banco nem navegador) não achou vulnerabilidade de acesso. Os cinco achados
+eram defeitos de consistência entre tela, PDF e dados, todos corrigidos com teste (detalhe no
+`docs/CHANGELOG.md`). Ela também não comprova o estado do banco vivo — isso continua com os gates
+`seguranca`/`deriva` e com as conferências do §5.
+
 ## 5. Conferências necessárias nos painéis
 
 Em 30/09/2026, a API confirmou a `main` protegida pelo ruleset ativo

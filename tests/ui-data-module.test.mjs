@@ -523,5 +523,56 @@ t('bindEmpresaRows liga o clique de cada linha, passando codempresa e nome', () 
   assert.deepEqual(escolhidas, [['7', 'Zebu']]);
 });
 
+/* ================================================================
+   src/data/lookups.mjs — carga ANTERIOR à invalidação não repovoa o cache (DIVAT-05)
+   ----------------------------------------------------------------
+   A ordem que a auditoria de 25/10/2026 reproduziu: uma carga começa, o Realtime invalida o
+   cache e outra carga começa; a nova responde primeiro e a VELHA por último. Sem época, a velha
+   gravava por cima e o nome antigo ficava até a próxima invalidação ou recarga da página.
+   ================================================================ */
+{
+  const pendentes = [];
+  configurarRest({ url:'https://example.invalid', key:'test', fetch: () => new Promise(r => pendentes.push(r)) });
+  const responder = (i, body) => pendentes[i]({ ok:true, status:200, json:async () => body });
+  const tique = () => new Promise(r => setTimeout(r, 0));
+  const CASOS = [
+    ['getIbge', 'municipio_teste', v => ({ cod_ibge:1, nome_municipio:v }), m => m[1].nome],
+    ['getOrigem', 'origem_teste', v => ({ cod_origem:1, nome_origem:v }), m => m[1]],
+    ['getTerminais', 'itinerario_teste', v => ({ nome_logradouro:v, codlinha:'1', cod_municipio_origem:1 }), m => m[0].nome_logradouro],
+    ['getEvLookups', 'evento_empresa_teste', v => ({ id:1, evento_empresa:v, evento_linha:v }), m => m.emp[1]],
+  ];
+  for (const [get, tabela, linha, ler] of CASOS){
+    await tAsync(`${get}: resposta anterior à invalidação não sobrescreve a nova`, async () => {
+      pendentes.length = 0;
+      lookups.INVALIDADORES_LOOKUP[tabela]();
+      if (get === 'getEvLookups') lookups.INVALIDADORES_LOOKUP.evento_linha_teste();
+      const velha = lookups[get]();
+      await tique();
+      lookups.INVALIDADORES_LOOKUP[tabela]();
+      if (get === 'getEvLookups') lookups.INVALIDADORES_LOOKUP.evento_linha_teste();
+      const nova = lookups[get]();
+      await tique();
+      const n = pendentes.length / 2;               // getEvLookups faz duas requisições por carga
+      for (let i = n; i < 2 * n; i++) responder(i, [linha('NOVO')]);
+      await nova;
+      for (let i = 0; i < n; i++) responder(i, [linha('ANTIGO')]);
+      await velha;
+      assert.equal(ler(await lookups[get]()), 'NOVO');
+    });
+  }
+  await tAsync('getEmpresas: resposta anterior à invalidação não sobrescreve a nova', async () => {
+    pendentes.length = 0;
+    lookups.INVALIDADORES_LOOKUP.codempresa_teste();   // zera e já dispara a carga VELHA
+    await tique();
+    lookups.INVALIDADORES_LOOKUP.codempresa_teste();   // invalida de novo: carga NOVA
+    await tique();
+    responder(1, [{ codempresa:'1', nome_empresa:'NOVO' }]);
+    await tique();
+    responder(0, [{ codempresa:'1', nome_empresa:'ANTIGO' }]);
+    await tique();
+    assert.equal(lookups.empNome('1'), 'NOVO');
+  });
+}
+
 console.log('\n==== PLACAR:', pass + '/' + (pass + fail), '====');
 if (fail){ console.log('FALHAS:'); fails.forEach(f => console.log('  -', f)); process.exit(1); }

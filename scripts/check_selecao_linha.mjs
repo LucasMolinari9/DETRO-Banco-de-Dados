@@ -32,7 +32,7 @@
 //
 // Servidor, fixtures do PostgREST e Chromium vêm de scripts/lib/rig.mjs. Sai 0 = tudo verde.
 
-import { startServer, getChromium, launchPage, makeReporter, FIXTURES } from './lib/rig.mjs';
+import { startServer, getChromium, launchPage, makeReporter, pdfDaAbaAtiva, FIXTURES } from './lib/rig.mjs';
 
 /* Fixtures EXTRAS, locais a este processo (o rig é um módulo; mutá-lo aqui não vaza para os
    outros gates). Existem para exercitar a PAGINAÇÃO: o rig compartilhado tem 3 linhas de
@@ -257,6 +257,25 @@ for (const rota of ['consulta/__proto__', 'consulta/constructor', 'consulta/toSt
   check(cards && modal === 0, `link #/${rota} monta o painel de cards e não abre modal`, `cards=${cards} modal=${modal}`);
   check(erros.length === errosAntes, `link #/${rota} não gera erro de página`, erros.slice(errosAntes).join(' | '));
   erros.length = errosAntes;
+}
+
+// --- 9. trocar SÓ a linha da rota, com o mesmo documento aberto ---
+// `applyRoute` selecionava a linha nova mas só reabria o documento se a CONSULTA mudasse: com
+// Tarifas da 549M aberta, colar `#/linha/740000001/consulta/tarifas` trocava o banner e deixava a
+// tela e o PDF na 549M (DIVAT-02, auditoria de 25/10/2026). Só acontece editando/colando o
+// endereço com o modal aberto — o histórico do próprio portal não produz essa sequência.
+{
+  await page.goto('about:blank');
+  await page.goto(`http://127.0.0.1:${PORT}/#/linha/549000001/consulta/tarifas`);
+  await page.waitForSelector('.modal-body.active #spHost table', { timeout: 8000 });
+  await page.evaluate(() => { location.hash = '#/linha/740000001/consulta/tarifas'; });
+  await page.waitForTimeout(1200);
+  const st = await estado();
+  const tela = await page.evaluate(() => document.querySelector('.modal-body.active #spHost')?.innerText || '');
+  const pdf = await pdfDaAbaAtiva(page);
+  check(/740D/.test(st.bannerTxt) && /19,90/.test(tela) && !/7,50/.test(tela) && /19,90/.test(pdf) && !/7,50/.test(pdf),
+    'rota com a mesma consulta e linha nova: banner, tela e PDF passam para a linha nova',
+    `banner="${st.bannerTxt}" tela740=${/19,90/.test(tela)} tela549=${/7,50/.test(tela)} pdf740=${/19,90/.test(pdf)}`);
 }
 
 if (erros.length) check(false, 'sem erro de página', erros.slice(0, 3).join(' | '));

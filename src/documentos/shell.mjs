@@ -20,10 +20,11 @@ export function configurarDocumentos({ selecionarLinha, novoCtx, montarPainelBus
   _fetchLinesByCods = fetchLinesByCods;
 }
 
-/* Ação de shell: torna `row` a linha ativa (banner + rota + faixa de abas). */
-export function selecionarLinha(row){
+/* Ação de shell: torna `row` a linha da aba DONA de `view` (banner + rota + faixa de abas, se
+   ela for a ativa). Sem `view`, a aba ativa. */
+export function selecionarLinha(row, view){
   if (!_selecionarLinha) throw new Error('src/documentos: selecionarLinha não configurada — chame configurarDocumentos({ selecionarLinha, novoCtx }) no bootstrap do app.js');
-  return _selecionarLinha(row);
+  return _selecionarLinha(row, view);
 }
 
 /* Fabrica um ctx NOVO (geração nova + a linha ativa do momento) para uma busca dentro do próprio
