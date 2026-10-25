@@ -1,0 +1,15 @@
+{
+  "no_key": 403,
+  "wrong_key": 403,
+  "wrong_cookie": 403,
+  "right_key": 200,
+  "right_key_cookie_flags": "brainstorm-key-51873=<token>; HttpOnly; SameSite=Strict; Path=/",
+  "right_cookie_root": 200,
+  "ws_no_key_same_origin": "rejected (ECONNRESET)",
+  "ws_key_foreign_origin": "rejected (ECONNRESET)",
+  "ws_cookie_foreign_origin": "rejected (ECONNRESET)",
+  "ws_key_same_origin": "101 upgraded",
+  "files_traversal": 404,
+  "server_info_mode": "600",
+  "bound_host_in_log": true
+}

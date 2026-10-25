@@ -1,0 +1,41 @@
+{
+  "agent_id": "h21-postgrest-filters",
+  "check": "01",
+  "command": [
+    "/opt/node22/bin/node",
+    "/sbx/scratch/h21_filters.mjs"
+  ],
+  "cwd": "/home/user/DETRO-Banco-de-Dados",
+  "env_allowlist": [
+    "LANG=C.UTF-8",
+    "PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin",
+    "HOME=/sbx/scratch/home",
+    "TMPDIR=/sbx/scratch/tmp"
+  ],
+  "loopback": false,
+  "limits": {
+    "wall_clock_s": 60,
+    "cpu_rlimit_s": 120,
+    "cgroup_cpu": "1 core",
+    "cgroup_memory_bytes": 2147483648,
+    "cgroup_pids_max": 256,
+    "fsize_bytes": 16777216,
+    "nofile": 1024,
+    "nproc": 256,
+    "scratch_tmpfs": "64MiB",
+    "network": "none (new netns)",
+    "filesystem": "read-only except scratch",
+    "uid": 65534
+  },
+  "exit_status": 0,
+  "wall_s": 1.38,
+  "setup_output": "",
+  "promoted": [
+    {
+      "artifact": "agents/h21-postgrest-filters/artifacts/check-01.out",
+      "bytes": 2991,
+      "sha256": "74c841f64456a0de25f2af78dd56b2c26265fda180d00a5e10f0d53dd09f3b24"
+    }
+  ],
+  "promotion_errors": []
+}

@@ -1,0 +1,21 @@
+{
+  "scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server": {
+    "verifier": "r05-sslmode",
+    "decision": "verified"
+  },
+  "deploy-smoke.yml:deployment-status:checkout-deployment-sha-with-bypass-secret": {
+    "verifier": "r06-deploy-smoke",
+    "decision": "verified"
+  },
+  "github-workflows/backup-private.yml:SUPABASE_BACKUP_DATABASE_URL:repo-scoped-secret-unbound-to-ref": {
+    "verifier": "r07-backup-secret",
+    "decision": "verified"
+  },
+  "realtime:anon-postgres-changes:bulk-publication-subscription-amplification": {
+    "verifier": "r08-realtime-quota",
+    "decision": "replace",
+    "material": false,
+    "applied": "directly (non-material: blocker 4 wording on local PostgreSQL 16 binaries; docs/etl.md line 30->31)",
+    "reason": "All cited paths/lines at 539abe2 check out (app.js:149/170/175/1526/1609/1611/1612; check_realtime.mjs:53; harden migration:29; recovery migration:20-23,43,50,57; backup_schema.sql:646,747-750,783-786; CHANGELOG.md:1015; vendored bundle line 2 has endPointURL/appendParams and no eventsPerSecond; no migration sets private channels, realtime.messages policies or Realtime limits). Verdict, root cause, fingerprint and plans stand. Two factual corrections: blocker 4 claimed the audit environment has no local Postgres, but PostgreSQL 16 server binaries exist (/usr/lib/postgresql/16/bin); the blocker stays decisive because no Realtime server, Supabase CLI, running Docker daemon or network is available. The docs/etl.md evidence attributed 'what changed' to line 30; it is line 31."
+  }
+}

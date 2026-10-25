@@ -1,0 +1,5 @@
+ => {"overlayOpen":false,"title":"\"Cadastro de Linhas\"","body":"Carregando…","hash":"","cards":7,"topicBtns":4,"origin":"http://127.0.0.1:48732"} no pageerror
+#/topico/naoexiste => {"overlayOpen":false,"title":"\"Cadastro de Linhas\"","body":"Carregando…","hash":"#/topico/naoexiste","cards":0,"topicBtns":0,"origin":"http://127.0.0.1:48732"} no pageerror
+#/topico/__proto__ => {"overlayOpen":false,"title":"\"Cadastro de Linhas\"","body":"Carregando…","hash":"#/topico/__proto__","cards":0,"topicBtns":0,"origin":"http://127.0.0.1:48732"} no pageerror
+#/consulta/__proto__ => {"overlayOpen":true,"title":"\"\"","body":"Erro ao carregar: view.loader is not a function","hash":"#/consulta/__proto__","cards":0,"topicBtns":0,"origin":"http://127.0.0.1:48732"} no pageerror
+   after close => {"overlayOpen":false,"hash":"","cards":0,"topicBtns":0}

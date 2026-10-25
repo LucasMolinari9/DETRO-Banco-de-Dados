@@ -1,0 +1,41 @@
+{
+  "agent_id": "h10-scripts",
+  "check": "02",
+  "command": [
+    "/opt/node22/bin/node",
+    "/sbx/scratch/h_rig.mjs"
+  ],
+  "cwd": "/home/user/DETRO-Banco-de-Dados",
+  "env_allowlist": [
+    "LANG=C.UTF-8",
+    "PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin",
+    "HOME=/sbx/scratch/home",
+    "TMPDIR=/sbx/scratch/tmp"
+  ],
+  "loopback": true,
+  "limits": {
+    "wall_clock_s": 60,
+    "cpu_rlimit_s": 120,
+    "cgroup_cpu": "1 core",
+    "cgroup_memory_bytes": 2147483648,
+    "cgroup_pids_max": 256,
+    "fsize_bytes": 16777216,
+    "nofile": 1024,
+    "nproc": 256,
+    "scratch_tmpfs": "64MiB",
+    "network": "none (new netns)",
+    "filesystem": "read-only except scratch",
+    "uid": 65534
+  },
+  "exit_status": 137,
+  "wall_s": 60.19,
+  "setup_output": "",
+  "promoted": [
+    {
+      "artifact": "agents/h10-scripts/artifacts/check-02.out",
+      "bytes": 551,
+      "sha256": "728b8c2330f1257b0716d55629d01d35f71e0b823054e470d963fcfc11b7cb4f"
+    }
+  ],
+  "promotion_errors": []
+}

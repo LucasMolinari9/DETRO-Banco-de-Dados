@@ -1,0 +1,195 @@
+{
+  "units": [
+    {
+      "coverage_id": "supabase%2Fmigrations%20privileged%20roles%20divat_audit_owner%2Fdivat_auditor%2Fdivat_auditor_ci::role%20membership%20%2B%20SECURITY%20DEFINER%20ownership::supabase::ATTACK-CLASSES.md%23Chained%20vulnerabilities%20and%20trust%20boundaries",
+      "disposition": "blocked",
+      "reviewed_paths": [
+        "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+        "scripts/bootstrap_phase3_auditor.sql",
+        "supabase/migrations/20260822144625_phase3_repara_funcoes_publicas.sql",
+        "supabase/migrations/20260822151732_phase3_fecha_security_digest.sql",
+        "supabase/migrations/20260824015915_phase3_guarda_fecha_security_digest.sql",
+        "docs/backup_schema.sql",
+        "scripts/lib/audit-database.mjs",
+        "scripts/check_phase3_audit.mjs",
+        "scripts/rollback_phase3_test.sql"
+      ],
+      "checks": [
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "scripts/bootstrap_phase3_auditor.sql"
+          ],
+          "invariant": "No anonymous, authenticated or CI principal can reach the privileges of divat_audit_owner/divat_auditor through role membership, and the three audit roles hold no administrative attributes.",
+          "method": "source",
+          "result": "Membership points one way only. divat_audit_owner (NOLOGIN, INHERIT) is a member of anon (20260729034018:33,35), so it gets anon's privileges. anon is not a member of any audit role. divat_auditor (NOLOGIN, NOINHERIT) only has USAGE on audit and EXECUTE on the audit functions (:43,78-83). divat_auditor_ci (LOGIN, INHERIT, VALID UNTIL) is granted only divat_auditor (bootstrap:20-33). Attribute assertions reject SUPERUSER/CREATEDB/CREATEROLE/REPLICATION/BYPASSRLS (migration:166-172; bootstrap:36-44). postgres's temporary membership is revoked at the end (:185). No path from a lower-trust role to an audit role exists in source.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "supabase/migrations/20260822144625_phase3_repara_funcoes_publicas.sql",
+            "supabase/migrations/20260822151732_phase3_fecha_security_digest.sql",
+            "supabase/migrations/20260824015915_phase3_guarda_fecha_security_digest.sql",
+            "docs/backup_schema.sql"
+          ],
+          "invariant": "SECURITY DEFINER functions owned by divat_audit_owner disclose nothing beyond what anon plus the catalogs already expose, are executable only by divat_auditor, and cannot be steered through name resolution.",
+          "method": "source",
+          "result": "Disclosure and ACL hold. The five audit functions run as divat_audit_owner, whose effective privileges are anon's plus ownership of schema audit. Their output is therefore limited to anon-visible data and catalog metadata. Each migration revokes EXECUTE from PUBLIC/anon/authenticated/service_role, grants it only to divat_auditor, and re-asserts this (…034018:77-83,126-130; …144625:32-63; …151732:31-41; …015915:16-23). Name-resolution resistance is only partly visible. Four bodies pin search_path to 'pg_catalog','public' (backup_schema.sql:397,485,521,549) and are ALTERed rather than recreated. audit.divat_security_digest() has no versioned DDL, and 20260822151732:28 and 20260824015915:13 make it SECURITY DEFINER without asserting proconfig.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "scripts/lib/audit-database.mjs",
+            "scripts/check_phase3_audit.mjs"
+          ],
+          "invariant": "The CI auditor credential is constrained to the dedicated login and read-only diagnostics, and the live Phase 3 gate detects drift in the role/definer composition.",
+          "method": "source",
+          "result": "The transport pins the exact login and project ref and keeps the password in the child environment only (audit-database.mjs:56-108,117-133). Read-only mode is requested only on the client side via PGOPTIONS (:131), and sslmode=require is accepted (:37). check_phase3_audit asserts session_user, no direct SELECT on tabela_vista_teste (which also catches an added membership in anon/service_role), the anon RPC allowlist and zero authenticated EXECUTE in public (:34,40-55). Nothing checks owner, prosecdef, proconfig or ACL of functions in schema audit.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "scripts/rollback_phase3_test.sql"
+          ],
+          "invariant": "The recovery/rollback path does not restore a privilege state that current policy forbids.",
+          "method": "source",
+          "result": "The script is stale. If it succeeded, it would grant EXECUTE on the diagnostic functions and f_unaccent to anon and authenticated (:97-106) and SELECT on 14 tables to authenticated (:114-120). Both contradict 20260930172521 and the current policy. It does not move audit.divat_security_digest back, so the non-CASCADE DROP SCHEMA audit (:125) fails inside the single BEGIN…COMMIT. The whole script then rolls back, so today it fails closed. The header restricts it to gontnlfmothfglssbyyk and says not to run it in production, but that ref is now the sole official database.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": [
+        "Live proconfig (search_path) of audit.divat_security_digest(): its body is not versioned anywhere in the repo, and 20260822151732/20260824015915 convert it to SECURITY DEFINER owned by divat_audit_owner without asserting a pinned search_path.",
+        "Live schema ACLs: whether PUBLIC (the only grantee besides divat_auditor whose privileges divat_auditor_ci inherits) holds CREATE on any schema on the audit definers' search_path (public). Schema-level ACLs are neither versioned nor measured by check_grants.mjs or check_phase3_audit.mjs. Owner check: select n.nspname, a.privilege_type from pg_namespace n, aclexplode(n.nspacl) a where a.grantee=0 and a.privilege_type='CREATE'; and select p.oid::regprocedure, p.proconfig from pg_proc p where p.pronamespace='audit'::regnamespace;"
+      ]
+    },
+    {
+      "coverage_id": "supabase%2Fmigrations%20lifecycle%20%2B%20scripts%2Fcheck_migrations.mjs%20gate::migration%20gate%20%2B%20default%20privileges::supabase::DATA-ISOLATION-AND-LIFECYCLE.md%23Migration%20default%20and%20ownership%20confusion",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "tests/migrations-contract.test.mjs",
+        "scripts/check_migrations.mjs",
+        "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+        "supabase/migrations/20260924213756_backup_test_before_access_import_20260924.sql",
+        "supabase/migrations/20260924215931_create_private_access_import_stage_20260924.sql",
+        "supabase/migrations/20260928225059_create_private_access_stage_20260928.sql",
+        "supabase/migrations/20260929150227_stage_access_20260928_previews.sql",
+        "supabase/migrations/20260929151747_add_private_linha_estado_historico_teste.sql",
+        "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+        "supabase/migrations/20260929152336_add_private_tarifa_promocional_origem.sql",
+        "supabase/migrations/20260929152527_add_private_qh_observacao_conciliacao.sql",
+        "supabase/migrations/20260929152731_preserve_vista_source_code_in_status_history.sql",
+        "supabase/migrations/20260929153935_add_private_historical_tariff_versions.sql",
+        "supabase/migrations/20260929201822_access_complementos_e_proveniencia_20260929.sql",
+        "supabase/migrations/20260929202229_access_anomalias_origem_20260929.sql",
+        "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+        "supabase/migrations/20260930172521_fecha_authenticated_tarifa_promocional.sql",
+        "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+        "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+        "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+        "scripts/security_baseline.json",
+        ".mcp.json",
+        ".claude/skills/db-change/SKILL.md",
+        "scripts/check_grants.mjs",
+        "scripts/lib/security-policies.mjs",
+        "docs/backup_schema.sql",
+        "docs/backup.md"
+      ],
+      "checks": [
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "tests/migrations-contract.test.mjs",
+            "scripts/check_migrations.mjs"
+          ],
+          "invariant": "The repository's own migration contract passes for the 21 real migrations and its adversarial cases.",
+          "method": "local",
+          "result": "node --test tests/migrations-contract.test.mjs ran inside the sandbox: 14/14 pass, exit 0.",
+          "artifact": "agents/h05-db-roles-migrations/artifacts/check-01.out"
+        },
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "scripts/check_migrations.mjs"
+          ],
+          "invariant": "check_migrations.mjs rejects migrations that open public objects or broaden anon/authenticated privileges, as CLAUDE.md states.",
+          "method": "local",
+          "result": "The real script was copied to a scratch fake root and run against single dummy migrations. The control case (create table public.caso without RLS/REVOKE) is rejected with exit 1. All 12 variants are accepted with exit 0: role-membership grants (grant service_role to anon; grant pg_write_all_data to authenticated; grant anon to a new role), public tables created as UNLOGGED, with quoted identifiers, unqualified, or moved in by SET SCHEMA public, DISABLE ROW LEVEL SECURITY on a catalog table, ALTER FUNCTION … SECURITY DEFINER on an anon RPC, a public view over a closed staging table granted SELECT to anon, default privileges granting SELECT on future private tables to anon, and a function REVOKE that targets a different function. These are gate false negatives, not live exposures: the owner applies migrations, since the agents' Supabase MCP is read_only=true.",
+          "artifact": "agents/h05-db-roles-migrations/artifacts/evidence-02.txt"
+        },
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "supabase/migrations/20260924213756_backup_test_before_access_import_20260924.sql",
+            "supabase/migrations/20260924215931_create_private_access_import_stage_20260924.sql",
+            "supabase/migrations/20260928225059_create_private_access_stage_20260928.sql",
+            "supabase/migrations/20260929150227_stage_access_20260928_previews.sql",
+            "supabase/migrations/20260929151747_add_private_linha_estado_historico_teste.sql",
+            "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+            "supabase/migrations/20260929152336_add_private_tarifa_promocional_origem.sql",
+            "supabase/migrations/20260929152527_add_private_qh_observacao_conciliacao.sql",
+            "supabase/migrations/20260929152731_preserve_vista_source_code_in_status_history.sql",
+            "supabase/migrations/20260929153935_add_private_historical_tariff_versions.sql",
+            "supabase/migrations/20260929201822_access_complementos_e_proveniencia_20260929.sql",
+            "supabase/migrations/20260929202229_access_anomalias_origem_20260929.sql",
+            "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+            "supabase/migrations/20260930172521_fecha_authenticated_tarifa_promocional.sql",
+            "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+            "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+            "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+            "scripts/security_baseline.json",
+            ".mcp.json",
+            ".claude/skills/db-change/SKILL.md"
+          ],
+          "invariant": "Objects created by migrations in public, private, staging and historical schemas start closed to anon/authenticated/PUBLIC, and defaults or partial rollout do not leave a client-readable copy.",
+          "method": "source",
+          "result": "Every non-public schema created by migration revokes schema access from PUBLIC/anon/authenticated and enables RLS on its tables. 20260930213009 then enables RLS, revokes all client privileges, adds RESTRICTIVE deny policies and closes postgres table/sequence defaults for all internal schemas, and revokes client writes on the 15 public catalog tables (:56-105). The postgres defaults in public are closed (…034018:93-95). Only function defaults are closed in private (:96), although anon has USAGE on private (:41). supabase_admin's permissive public defaults stay open and are recorded in security_baseline.json. Lifecycle drift exists. 20260930213009 was applied straight to the database before it existed in the repo (line 1), and tarifa_promocional_exibicao_teste has no versioned DDL, so the pre-apply gate is not an enforced precondition. No client-readable copy was found.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "scripts/check_grants.mjs",
+            "scripts/lib/security-policies.mjs",
+            "docs/backup_schema.sql"
+          ],
+          "invariant": "The daily live gate catches, after application, the privilege regressions the pre-apply gate misses.",
+          "method": "source",
+          "result": "divat_security_shape covers relations and functions only in schema public, plus public/global default ACLs (backup_schema.sql:576,591,606). It uses has_table_privilege/has_function_privilege for anon/authenticated, which follow role inheritance. check_grants therefore flags RLS-off relations including views, client write or MAINTAIN (including writes gained through role membership), PUBLIC EXECUTE, SECURITY DEFINER and unpinned search_path in public (check_grants.mjs:110-153). Objects, function definer settings and default ACLs in private, audit, divat_integracao, divat_historico and stage_access_20260928 are not measured.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h05-db-roles-migrations",
+          "reviewed_paths": [
+            "docs/backup_schema.sql",
+            "docs/backup.md"
+          ],
+          "invariant": "Restore paths do not reintroduce privileges current policy removed.",
+          "method": "source",
+          "result": "The historical baseline would restore the pre-Phase-3 posture. It grants the diagnostic RPCs to anon and authenticated (backup_schema.sql:473,510,531,614) and SELECT on 14 tables to authenticated (:659-665), and its default-privilege closure runs only after the objects exist (:687-694). Its header and backup.md limit it to legacy Path B in a new/empty project and forbid running it on the active database. Path A restores roles with --no-role-passwords into a disposable PostgreSQL 17. Neither path targets the live database, so this is recorded as hardening.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    "scripts/check_migrations.mjs false negatives (artifacts/evidence-02.txt). The gate accepts role-membership GRANTs (GRANT service_role/pg_write_all_data TO anon|authenticated, GRANT anon TO <role>), public tables spelled CREATE UNLOGGED TABLE / \"public\".\"x\" / unqualified / ALTER TABLE … SET SCHEMA public, ALTER TABLE … DISABLE ROW LEVEL SECURITY, ALTER FUNCTION public.* SECURITY DEFINER, CREATE VIEW public.* without security_invoker over staging tables, ALTER DEFAULT PRIVILEGES … IN SCHEMA private GRANT … TO anon, and a function REVOKE not bound to the created signature. Fix: reject any role GRANT whose grantee or granted role is anon/authenticated/public/service_role/pg_*; normalise quotes and unqualified names before matching table creation and SET SCHEMA public; reject DISABLE RLS, SECURITY DEFINER in public and views without security_invoker=true; scope read grants and default-privilege changes by schema; bind the REVOKE to the created signature. Add each fixture as a recusa() case in tests/migrations-contract.test.mjs. The owner applies migrations and the daily check_grants catches most public-schema cases after application, so this is a reviewer-aid gap.",
+    "SECURITY DEFINER hygiene in schema audit. Before ALTER FUNCTION … SECURITY DEFINER, assert that proconfig pins search_path, preferably to pg_catalog, pg_temp with schema-qualified bodies. This matters most for audit.divat_security_digest(), whose DDL is not versioned (20260822151732:28; 20260824015915:13). Version its DDL, and extend divat_security_shape/check_phase3_audit to report owner, prosecdef, proconfig and ACL for functions in audit and private.",
+    "divat_auditor_ci is constrained only on the client side. Read-only mode comes from PGOPTIONS in scripts/lib/audit-database.mjs:131, and the role has no server-side limits. Add ALTER ROLE divat_auditor_ci SET default_transaction_read_only=on, SET statement_timeout, and CONNECTION LIMIT. In scripts/bootstrap_phase3_auditor.sql, assert that the role's memberships are exactly {divat_auditor}: the ALTER ROLE rotation path keeps any pre-existing memberships, and the check at :46 tests only one table. Avoid sending a plaintext PASSWORD in DDL (use psql \\password or a SCRAM verifier). Prefer sslmode=verify-full with the provider CA over the accepted require (audit-database.mjs:37).",
+    "scripts/rollback_phase3_test.sql should be deleted or rewritten. If it ran successfully, it would re-grant the diagnostic RPCs and f_unaccent to anon and authenticated and SELECT on 14 tables to authenticated, contradicting 20260930172521. Today it aborts atomically only because audit.divat_security_digest blocks the non-CASCADE DROP SCHEMA audit. It also lacks ON_ERROR_STOP, and its header targets gontnlfmothfglssbyyk while forbidding production, though that ref is now the sole official database.",
+    "Default-privilege and live-gate coverage for non-public schemas. anon has USAGE on private (20260729034018:41), but only function defaults are closed there (:96), and private is not in 20260930213009's internal_schemas list. Close table and sequence defaults for postgres in private and audit, and extend the live security shape beyond public to include schema ACLs (CREATE/USAGE for PUBLIC/anon/authenticated).",
+    "Migration lifecycle. 20260930213009 was applied straight to the database and versioned afterwards (line 1), and tarifa_promocional_exibicao_teste has no versioned CREATE. Require the versioned migration and a check_migrations pass before application, and version the table's DDL with its RLS and grants.",
+    "The 'postgres recovered membership' drift noted in 20260822144625:9-10 may be explained by the implicit ADMIN membership that PostgreSQL 16+ gives a CREATEROLE creator (grantor bootstrap superuser), which REVOKE … FROM postgres (grantor postgres) does not remove. This is not a privilege gain. Owner check: select roleid::regrole, member::regrole, grantor::regrole, admin_option, inherit_option, set_option from pg_auth_members where roleid in ('divat_audit_owner'::regrole,'divat_auditor'::regrole).",
+    "docs/backup_schema.sql (legacy Path B) restores pre-Phase-3 grants: diagnostic RPCs to anon/authenticated and table SELECT to authenticated. If Path B is ever used to rebuild a project, apply the Phase 3, 20260930172521 and 20260930213009 posture before exposing the Data API, or remove those GRANTs from the baseline."
+  ],
+  "uncovered": []
+}

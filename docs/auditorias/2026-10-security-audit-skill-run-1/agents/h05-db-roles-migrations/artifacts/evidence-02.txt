@@ -1,0 +1,42 @@
+target script: /home/user/DETRO-Banco-de-Dados/scripts/check_migrations.mjs
+exit 1 = gate rejects; exit 0 = gate accepts
+
+[01] exit=1 :: control: public table without RLS/REVOKE (canonical spelling)
+     sql: create table public.caso (id integer primary key);
+     gate: ✗ Migrações violam o contrato de segurança: - 20990101000000_caso.sql: public.caso é criada sem ENABLE ROW LEVEL SECURITY na mesma migração - 20990101000000_caso.sql: public.caso é criada sem REVOKE ALL explícito de anon/authenticated na mesma migração
+[02] exit=0 :: role membership: privileged role granted to anon
+     sql: grant service_role to anon;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[03] exit=0 :: role membership: predefined role granted to authenticated
+     sql: grant pg_write_all_data to authenticated;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[04] exit=0 :: role membership: anon granted to a new role
+     sql: create role caso_owner nologin; grant anon to caso_owner;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[05] exit=0 :: public table via UNLOGGED keyword, no RLS/REVOKE
+     sql: create unlogged table public.caso (id integer primary key);
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[06] exit=0 :: public table via quoted identifiers, no RLS/REVOKE
+     sql: create table "public"."caso" (id integer primary key);
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[07] exit=0 :: public table unqualified (lands in public via search_path), no RLS/REVOKE
+     sql: create table caso (id integer primary key);
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[08] exit=0 :: table moved into public from another schema, no RLS/REVOKE
+     sql: create schema caso_s; create table caso_s.caso (id int); alter table caso_s.caso set schema public;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[09] exit=0 :: RLS disabled on an existing public catalog table
+     sql: alter table public.tabela_vista_teste disable row level security;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[10] exit=0 :: anon RPC switched to SECURITY DEFINER
+     sql: alter function public.divat_busca_logradouro(text, integer) security definer;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[11] exit=0 :: view in public over closed staging table, SELECT to anon
+     sql: create view public.caso_v as select * from public.evento_dados; grant select on public.caso_v to anon;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[12] exit=0 :: default privileges opening reads on future private tables to anon
+     sql: alter default privileges for role postgres in schema private grant select on tables to anon;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+[13] exit=0 :: public function created, REVOKE targets a different function
+     sql: create function public.caso() returns int language sql security definer as $$ select 1 $$; revoke execute on function public.outra() from public;
+     gate: ✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.

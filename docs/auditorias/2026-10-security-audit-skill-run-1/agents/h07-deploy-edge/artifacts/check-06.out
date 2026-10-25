@@ -1,0 +1,8 @@
+step[2] run contains ${{ : False
+step[3] run contains ${{ : False
+cmd-subst: exit=0 marker_created=False GITHUB_OUTPUT='url<<__DEPLOY_URL_EOF__\nhttps://x$(touch /sbx/scratch/pwned-marker)\n__DEPLOY_URL_EOF__\n'
+backtick: exit=0 marker_created=False GITHUB_OUTPUT='url<<__DEPLOY_URL_EOF__\nhttps://x`touch /sbx/scratch/pwned-marker`\n__DEPLOY_URL_EOF__\n'
+quote-break: exit=0 marker_created=False GITHUB_OUTPUT='url<<__DEPLOY_URL_EOF__\nhttps://x"; touch /sbx/scratch/pwned-marker; #\n__DEPLOY_URL_EOF__\n'
+delimiter-injection: exit=0 marker_created=False GITHUB_OUTPUT='url<<__DEPLOY_URL_EOF__\nhttps://ok.invalid\n__DEPLOY_URL_EOF__\nextra<<Y\ninjected\nY\nurl<<Z\nhttps://second.invalid\nZ\n__DEPLOY_URL_EOF__\n'
+env-prod-rewrite: exit=0 marker_created=False GITHUB_OUTPUT='url<<__DEPLOY_URL_EOF__\nhttps://divatdetro.vercel.app\n__DEPLOY_URL_EOF__\n'
+env-cmd-subst: exit=0 marker_created=False GITHUB_OUTPUT='url<<__DEPLOY_URL_EOF__\nhttps://divatdetro.vercel.app\n__DEPLOY_URL_EOF__\n'

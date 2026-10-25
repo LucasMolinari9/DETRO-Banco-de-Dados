@@ -1,0 +1,10 @@
+{"fakepg": "listening", "port": 54329}
+{"step":"A validator","accepted":true,"host":"db.gontnlfmothfglssbyyk.supabase.co","sslmode":"require"}
+{"fakepg_conn": 0, "tls_established": "TLSv1.3", "startup_user": "divat_auditor_ci", "client_msg_type": "p", "captured_cleartext_password": "DUMMY-AUDITOR-PW-A"}
+{"step":"B require -> fake peer","executarConsulta":"threw","error_class":"AuditDatabaseError","msg":"psql terminou com falha ao consultar o auditor de teste (status 2)."}
+{"fakepg_conn": 1, "no_password_received": true, "reason": "SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)"}
+{"step":"C verify-full -> fake peer (control)","executarConsulta":"threw","error_class":"AuditDatabaseError","msg":"psql terminou com falha ao consultar o auditor de teste (status 2)."}
+{"step":"D validator (comma host)","accepted":true,"PGHOST":"127.0.0.1,aws-0-sa-east-1.pooler.supabase.com","PGPORT":"54329","user":"divat_auditor_ci.gontnlfmothfglssbyyk"}
+{"fakepg_conn": 2, "tls_established": "TLSv1.3", "startup_user": "divat_auditor_ci.gontnlfmothfglssbyyk", "client_msg_type": "p", "captured_cleartext_password": "DUMMY-AUDITOR-PW-D"}
+{"step":"D validated config used as-is","executarConsulta":"threw","error_class":"AuditDatabaseError","msg":"psql terminou com falha ao consultar o auditor de teste (status 2)."}
+psql: psql (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)

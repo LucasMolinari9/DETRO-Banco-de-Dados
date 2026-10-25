@@ -1,0 +1,48 @@
+{
+  "agent_id": "h07-deploy-edge",
+  "check": "05",
+  "command": [
+    "/usr/bin/python3",
+    "-I",
+    "/sbx/scratch/render_smoke_policy.py"
+  ],
+  "cwd": "/home/user/DETRO-Banco-de-Dados",
+  "env_allowlist": [
+    "LANG=C.UTF-8",
+    "PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin",
+    "HOME=/sbx/scratch/home",
+    "TMPDIR=/sbx/scratch/tmp",
+    "PYTHONDONTWRITEBYTECODE=1"
+  ],
+  "loopback": false,
+  "limits": {
+    "wall_clock_s": 120,
+    "cpu_rlimit_s": 120,
+    "cgroup_cpu": "1 core",
+    "cgroup_memory_bytes": 2147483648,
+    "cgroup_pids_max": 256,
+    "fsize_bytes": 16777216,
+    "nofile": 1024,
+    "nproc": 256,
+    "scratch_tmpfs": "64MiB",
+    "network": "none (new netns)",
+    "filesystem": "read-only except scratch",
+    "uid": 65534
+  },
+  "exit_status": 0,
+  "wall_s": 0.35,
+  "setup_output": "",
+  "promoted": [
+    {
+      "artifact": "agents/h07-deploy-edge/artifacts/check-05.out",
+      "bytes": 2222,
+      "sha256": "4bc7ada37ec4eaadd1256f7cf6fe2460ba560b0e2275741ffc0973a774d8d41d"
+    },
+    {
+      "artifact": "agents/h07-deploy-edge/artifacts/evidence-05.txt",
+      "bytes": 2222,
+      "sha256": "4bc7ada37ec4eaadd1256f7cf6fe2460ba560b0e2275741ffc0973a774d8d41d"
+    }
+  ],
+  "promotion_errors": []
+}

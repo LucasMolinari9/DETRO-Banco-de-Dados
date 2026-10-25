@@ -1,0 +1,26 @@
+== shallow? true  commits reachable from 539abe2: 144
+== oldest reachable commit: fc9cd49 2026-08-08
+== distinct JWTs across all reachable revisions (payload decoded; signature omitted):
+   {"iss":"supabase","ref":"gontnlfmothfglssbyyk","role":"anon","iat":1785255490,"exp":2100831490}
+   {"iss":"supabase","ref":"lwzsxuaqqeoamukduhev","role":"anon","iat":1779919866,"exp":2095495866}
+== high-confidence secret formats across history (excluding vendored rule packs):
+tests/check_grants.rig.mjs:33:// rede é usada. Montada por PARTES, não como um literal `postgresql://usuário:senha@host`
+tests/restore_rest.rig.mjs:103:const env = { SUPABASE_RESTORE_URL: url, SUPABASE_RESTORE_SECRET_KEY: 'sb_secret_teste' };
+tests/restore_rest.rig.mjs:104:const env = { SUPABASE_RESTORE_URL: url, SUPABASE_RESTORE_SECRET_KEY: 'sb_secret_teste' };
+tests/restore_rest.rig.mjs:82:  if (req.headers.apikey !== 'sb_secret_teste' || req.headers.authorization) authOpacaCorreta = false;
+tests/restore_rest.rig.mjs:83:  if (req.headers.apikey !== 'sb_secret_teste' || req.headers.authorization) authOpacaCorreta = false;
+== sensitive filenames ever tracked:
+   (none)
+== .gitignore coverage (git check-ignore --no-index):
+   ignored     .env
+   ignored     .env.local
+   NOT ignored credentials.json
+   NOT ignored server.pem
+   NOT ignored server.key
+   ignored     backup_2026-10-13/x.ndjson
+   ignored     x.dump
+   ignored     x.sql.gz
+   ignored     divat_security_snapshot_2026.sql
+   NOT ignored divat-backup.tar.age
+   NOT ignored .claude/settings.local.json
+   NOT ignored service-account.json

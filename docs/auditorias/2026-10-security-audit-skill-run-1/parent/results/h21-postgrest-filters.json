@@ -1,0 +1,115 @@
+{
+  "units": [
+    {
+      "coverage_id": "PostgREST%20anon%20queries%20and%20RPCs::anon%20statement_timeout%20%2B%20pgrst.db_max_rows::supabase::RESOURCE-EXHAUSTION-AND-AVAILABILITY.md%23Database%20and%20downstream%20query%20amplification",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "docs/backup_schema.sql",
+        "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+        "src/documentos/municipios-localidades.mjs",
+        "app.js",
+        "docs/seguranca.md",
+        "src/data/rest.mjs"
+      ],
+      "checks": [
+        {
+          "agent_id": "h21-postgrest-filters",
+          "reviewed_paths": [
+            "docs/backup_schema.sql",
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql"
+          ],
+          "invariant": "Every anon-reachable PostgREST statement, RPCs included, is capped per statement by a role timeout, and response rows are capped by pgrst.db_max_rows. No anon-executable function overrides the timeout or escalates privilege.",
+          "method": "source",
+          "result": "Settled. docs/backup_schema.sql:783-787 sets pgrst.db_max_rows=30000, authenticator statement_timeout=8s and lock_timeout=8s, anon statement_timeout=3s and authenticated statement_timeout=8s. These match the Supabase defaults. The only anon-executable RPCs are divat_busca_logradouro and divat_linhas_regiao; the assertion at 20260729034018:105-115 enforces that allowlist. Both are LANGUAGE sql STABLE with the default SECURITY INVOKER, and their only SET clause is search_path, which redefinition at 20260729034018:50-60 and baseline 328-364 both show. So the anon or authenticator timeout applies inside them. The audit.* SECURITY DEFINER functions are revoked from anon (20260729034018:79-84). Even if the anon-specific 3s were missing in the live database, the authenticator 8s session timeout still bounds each statement. The live role config cannot be observed here, but that fact does not decide any candidate (see the hardening notes)."
+        },
+        {
+          "agent_id": "h21-postgrest-filters",
+          "reviewed_paths": [
+            "src/documentos/municipios-localidades.mjs",
+            "app.js",
+            "docs/seguranca.md",
+            "docs/backup_schema.sql"
+          ],
+          "invariant": "No anon-callable filter or RPC lets a small request cause work beyond what direct anon REST access to the same public tables already allows, which is the comparable Supabase anon+RLS baseline.",
+          "method": "source",
+          "result": "Settled with no finding. Input-to-cost table: (1) divat_linhas_regiao (baseline 343-362; called at municipios-localidades.mjs:108) does a full-table GROUP BY codlinha with an ordered array_agg over itinerario_teste on every call, whatever the input. The cost is linear and capped by the 3s timeout. An anon client can already make an equal full scan or sort directly, e.g. itinerario_teste?order=nome_logradouro&limit=30000. (2) divat_busca_logradouro (20260729034018:50-60; municipios-localidades.mjs:54) runs an f_unaccent ilike with the user's wildcards left unescaped. Short or wildcard-only terms skip the trgm GIN index and force a seq scan, which is linear and capped at 3s. (3) Client limits (app.js:1241,1342; municipios-localidades.mjs:158,197,272) are at most 30000, equal to db_max_rows. (4) Embedding fan-out is negligible: the only FK is tarifa_atual_teste to tabela_vista_teste (baseline 244-251). (5) Plain request volume against the shared pool is the owner-accepted residual risk SEC-02 (docs/seguranca.md:132-135) and matches the comparable. No anon write path exists, so no anon principal can trigger Realtime-driven reload fan-out to other visitors. No superlinear or persistent shared effect is specific to this repo."
+        },
+        {
+          "agent_id": "h21-postgrest-filters",
+          "reviewed_paths": [
+            "src/data/rest.mjs"
+          ],
+          "invariant": "The client does not re-run deterministic server-side timeouts, which would multiply shared DB work per visitor action.",
+          "method": "local",
+          "result": "A sandboxed harness ran the real sbFetch against a stub fetch that returns HTTP 500 with code 57014 (statement timeout). The client made 3 fetches in about 1.2s and then raised the error (rest.mjs:5,75-80 retries on 5xx and 429; rest.mjs:88-93 also retries AbortError after the 20s client timeout). The same request therefore runs up to 3x when the DB is already slow. The extra load is self-traffic from each visitor, not something an attacker controls across principals, so it is recorded as hardening only.",
+          "artifact": "agents/h21-postgrest-filters/artifacts/check-01.out"
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "src%2Fdomain%2Fbusca.mjs%23orIlike%20%2B%20src%2Fdomain%2Fcore.mjs%23ilikeTerm%20search%20terms::PostgREST%20filter%20grammar%20under%20anon%20RLS::frontend::ATTACK-CLASSES.md%23Injection",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "src/domain/core.mjs",
+        "src/domain/busca.mjs",
+        "src/data/rest.mjs",
+        "app.js",
+        "src/documentos/municipios-localidades.mjs",
+        "src/documentos/estrutura-tarifas-portaria.mjs",
+        "src/documentos/quadro-empresas.mjs"
+      ],
+      "checks": [
+        {
+          "agent_id": "h21-postgrest-filters",
+          "reviewed_paths": [
+            "src/domain/core.mjs",
+            "src/domain/busca.mjs",
+            "src/data/rest.mjs"
+          ],
+          "invariant": "A search term that reaches PostgREST through ilikeTerm, orIlike or enc cannot escape its query-parameter value. It cannot add or override select, limit, order or other params, and cannot change the table, RPC or method.",
+          "method": "local",
+          "result": "A sandboxed harness imported the real ilikeTerm, orIlike, enc and sbFetch with a stub fetch. The captured URLs were parsed the way PostgREST parses them (split on & and ;, + becomes a space, then percent-decode). Characters & ; = + # stayed inside the value: params were always [or, select, order, limit] or [termo, select, limit]. ( ) * are replaced with spaces. However , and \" survive decoding inside or=(...). For example, 'Rio, Niteroi' becomes '(nome_ligacao.ilike.*Rio, Niteroi*,...)', which splits the logic tree. The wildcards % and _ also pass through. The #/linha/<cod> value goes through enc into codlinha=eq.<literal>, where a comma has no meaning. The URL path and the GET method stay constant.",
+          "artifact": "agents/h21-postgrest-filters/artifacts/check-01.out"
+        },
+        {
+          "agent_id": "h21-postgrest-filters",
+          "reviewed_paths": [
+            "app.js",
+            "src/documentos/municipios-localidades.mjs",
+            "src/documentos/estrutura-tarifas-portaria.mjs",
+            "src/documentos/quadro-empresas.mjs"
+          ],
+          "invariant": "Filter fragments built from untrusted input never run with a principal or data scope other than the one who supplied the input. Anon RLS and grants stay the only authority.",
+          "method": "source",
+          "result": "Settled with no finding. Every filter-building input falls into one of three groups. (a) Text the visitor types: hero doSearch at app.js:521-534, searchLines at app.js:1169-1171, Portarias at estrutura-tarifas-portaria.mjs:245-248, the Logradouro RPC at municipios-localidades.mjs:53-54, Localidades via orIlike at municipios-localidades.mjs:396-398, 421-423 and 466, and empresa eq./in. at quadro-empresas.mjs:258-267. (b) Owner-controlled DB rows: the localidades list, codlinha in.() lists, and the line prefill at app.js:972 and 1158. (c) The attacker-linkable hash route at app.js:1702-1717, which only reaches an eq. literal. A visitor can inject comma-separated conditions into or=(), but only into their own anon request. They could send that same request directly with the public anon key (the comparable baseline). RLS and grants are enforced server-side, and no other principal's request is affected."
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    "ilikeTerm (src/domain/core.mjs:16) strips only ( ) *. Commas and double quotes in a user's own search term (e.g. 'Rio, Niterói' in hero search, searchLines, Portarias text, or Localidades) survive percent-decoding and split the or=() logic tree. The result is a PostgREST 400 or a self-broadened query. The scope is the visitor's own request and is reachable directly via REST, so this is not a security finding. Fix: emit each logic-tree value double-quoted with \\\\ and \\\" escaped, e.g. col.ilike.\"*term*\", or strip , \" \\\\ in ilikeTerm. Add a tests/ case for ilikeTerm('a,b') and orIlike(['c'],['a,b']).",
+    "ilike wildcards % and _ are not escaped (ilikeTerm and the divat_busca_logradouro termo). Terms shorter than 3 characters or made only of wildcards defeat the pg_trgm GIN indexes and force seq scans; divat_busca_logradouro also calls f_unaccent per row. The anon 3s timeout and LIMIT early termination bound this. For predictable cost, enforce a minimum term length and escape % and _ (\\\\% and \\\\_).",
+    "divat_linhas_regiao (docs/backup_schema.sql:343-362, live definition not in migrations) aggregates the whole itinerario_teste table (GROUP BY codlinha with an array_agg ordered by id) on every anon call, regardless of p_regiao or p_modo. db_max_rows caps rows returned, not work done. A precomputed per-codlinha table, refreshed on import, would turn the anon RPC into an index lookup.",
+    "sbFetch (src/data/rest.mjs:75-93) retries HTTP 500, including PostgREST 57014 statement-timeout errors, plus 429 and the 20s AbortError, up to 2 times with fixed backoff and no jitter. A deterministic timeout therefore costs up to 3x DB time per visitor action exactly when the shared DB is degraded (check-01 [4]). Retry only 502, 503, 504 and 429 with jitter, and never when the body code is 57014.",
+    "The anon 3s, authenticator 8s and pgrst.db_max_rows=30000 settings exist only in the historical baseline docs/backup_schema.sql:783-787, not in supabase/migrations, and no gate verifies them (scripts/check_grants.mjs covers grants only). The owner should periodically confirm `select rolname, rolconfig from pg_roles where rolname in ('anon','authenticated','authenticator')` and consider adding it to the daily db-checks job. Raw anon request volume against the shared pool remains the documented accepted residual risk SEC-02 (docs/seguranca.md:132-135)."
+  ],
+  "uncovered": [
+    {
+      "surface": "anon Realtime postgres_changes subscriptions (supabase-js channel opened with the public anon key, 15 published tables)",
+      "boundary": "Realtime per-tenant connection/channel quotas and per-subscriber RLS evaluation on each change",
+      "subsystem": "supabase realtime / app.js REALTIME section",
+      "attack_class": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Database and downstream query amplification",
+      "starting_paths": [
+        "app.js",
+        "docs/backup_schema.sql",
+        "scripts/check_realtime.mjs"
+      ],
+      "reason": "This unit covers PostgREST statements bounded by statement_timeout and db_max_rows. Realtime subscriptions are a separate anon-reachable channel. Their cost (many sockets or subscriptions, each with server-side authorization work per WAL change) is bounded by Realtime quotas, not by the role timeouts reviewed here, and needs its own coverage."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+escaped  esc(payload)
+escaped  fmtLineName
+escaped  docHead
+escaped  tableHTML head/foot
+escaped  errorBox/emptyBox/loading
+escaped  evBandHTML+evBlocksHTML
+escaped  itinerarioTableHTML
+escaped  frotaBlockHTML
+escaped  quadroHorariosBodyHTML
+escaped  tarifaRowHTML (text fields payload, date fields ISO as PostgREST returns for `date`)
+escaped  tarifasPromocionaisHTML
+escaped  observacaoQHHTML
+escaped  metaRows key (value is raw-by-contract)
+escaped  LATENT fmtDate(ISO-prefixed text "2001-05-10<img ...>")
+RAW-TAG  LATENT fmtDate(non-date text)
+RAW-TAG  LATENT tarifaRowHTML with non-date data_criacao

@@ -1,0 +1,36 @@
+--- G0 control: literal write grant to anon
+SQL: grant insert on table public.tabela_vista_teste to anon;
+exit=1 REJECTED
+✗ Migrações violam o contrato de segurança:
+  - 20990101000000_caso.sql: GRANT de escrita (insert) para anon — papéis públicos só recebem SELECT/USAGE/EXECUTE
+
+--- G1 ownership transfer to anon
+SQL: alter table public.tabela_vista_teste owner to anon;
+exit=0 ACCEPTED
+✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+
+--- G2 write grant built with format()
+SQL: do $$ begin execute format('grant %s on table public.tabela_vista_teste to %I', 'insert, update, delete', 'anon'); end $$;
+exit=0 ACCEPTED
+✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+
+--- G3 drop restrictive block + disable RLS
+SQL: drop policy divat_block_client_insert on public.tabela_vista_teste; alter table public.tabela_vista_teste disable row level security;
+exit=0 ACCEPTED
+✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+
+--- G4 unqualified create table in public
+SQL: create table tabela_nova (id integer primary key);
+exit=0 ACCEPTED
+✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+
+--- G5 owner-rights view over staging granted to anon
+SQL: create view public.evento_textos_publico as select * from public.evento_textos; grant select on public.evento_textos_publico to anon;
+exit=0 ACCEPTED
+✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+
+--- G6 function created in private without revoke
+SQL: create function private.helper_novo() returns int language sql as 'select 1';
+exit=0 ACCEPTED
+✓ 1 migração(ões): RLS/revokes e allowlist de RPC validados.
+

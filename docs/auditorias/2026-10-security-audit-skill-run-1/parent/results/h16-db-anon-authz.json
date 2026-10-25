@@ -1,0 +1,246 @@
+{
+  "units": [
+    {
+      "coverage_id": "PostgREST%20%2Frest%2Fv1%2F%3Ctable%3E%20as%20anon::supabase%2Fmigrations%2F20260930213009_harden_divat_table_security_preserve_public_reads.sql%23RLS%2BGRANT::supabase::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+        "supabase/migrations/20260930172521_fecha_authenticated_tarifa_promocional.sql",
+        "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+        "supabase/migrations/20260924213756_backup_test_before_access_import_20260924.sql",
+        "supabase/migrations/20260924215931_create_private_access_import_stage_20260924.sql",
+        "supabase/migrations/20260928225059_create_private_access_stage_20260928.sql",
+        "supabase/migrations/20260929150227_stage_access_20260928_previews.sql",
+        "supabase/migrations/20260929151747_add_private_linha_estado_historico_teste.sql",
+        "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+        "supabase/migrations/20260929152336_add_private_tarifa_promocional_origem.sql",
+        "supabase/migrations/20260929152527_add_private_qh_observacao_conciliacao.sql",
+        "supabase/migrations/20260929152731_preserve_vista_source_code_in_status_history.sql",
+        "supabase/migrations/20260929153935_add_private_historical_tariff_versions.sql",
+        "supabase/migrations/20260929201822_access_complementos_e_proveniencia_20260929.sql",
+        "supabase/migrations/20260929202229_access_anomalias_origem_20260929.sql",
+        "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+        "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+        "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+        "docs/backup_schema.sql",
+        "scripts/check_grants.mjs",
+        "scripts/lib/security-policies.mjs",
+        "scripts/security_baseline.json",
+        "scripts/check_phase3_audit.mjs",
+        "scripts/check_migrations.mjs",
+        "tests/migrations-contract.test.mjs",
+        "app.js",
+        "src/data/rest.mjs",
+        "src/ui/blocos.mjs",
+        "src/data/campos.mjs"
+      ],
+      "checks": [
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql"
+          ],
+          "invariant": "Applying 20260930213009 leaves anon with SELECT only on the 15 catalog tables (no INSERT/UPDATE/DELETE/TRUNCATE), no access to non-catalog public tables (staging) or the six internal schemas, and the RESTRICTIVE FALSE policies keep blocking client writes even if a write grant or a permissive FOR ALL policy reappears.",
+          "method": "local",
+          "result": "Real migration file applied as a non-superuser `postgres` on a local PostgreSQL 16 fixture (unix socket only, dummy rows) whose pre-state granted ALL to anon/authenticated and had permissive FOR ALL TO public USING(true) policies on a catalog and a staging table plus anon USAGE/ALL on divat_integracao. After it: anon SELECT on tabela_vista_teste returns 1 row; INSERT/UPDATE/DELETE/TRUNCATE -> permission denied; anon/authenticated SELECT on public.evento_textos -> permission denied; anon on divat_integracao.memo_texto_origem -> permission denied for schema. Drift simulation (owner re-GRANTs INSERT, UPDATE to anon): INSERT -> 'new row violates row-level security policy divat_block_client_insert', UPDATE -> UPDATE 0, data unchanged. Side observation: this migration alone does not revoke authenticated SELECT on catalog tables (fixture B3); that closure is done by 20260729034018:85 and 20260930172521:92, and catalog data is public by design.",
+          "artifact": "agents/h16-db-anon-authz/artifacts/check-01.out"
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "supabase/migrations/20260930172521_fecha_authenticated_tarifa_promocional.sql",
+            "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+            "docs/backup_schema.sql"
+          ],
+          "invariant": "authenticated (any Auth user if signup were open) holds no table authority beyond anon on public tables, and no migration grants anon/authenticated/PUBLIC write privileges.",
+          "method": "source",
+          "result": "20260729034018:85-86 revokes ALL on all public tables/sequences from public and authenticated (asserted 0 authenticated table privileges at :153-164 and 0 anon write privileges at :141-151); 20260930172521:92-98 revokes the later tarifa_promocional_exibicao_teste SELECT from authenticated and retargets its policy TO anon; 20260930213009:32 revokes INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER from PUBLIC, anon, authenticated on every catalog table and :41-48 adds RESTRICTIVE FALSE policies TO anon, authenticated. No migration contains a write GRANT to a client role. Read policies in the baseline are FOR SELECT TO anon USING(true) only (docs/backup_schema.sql:640-653).",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260924213756_backup_test_before_access_import_20260924.sql",
+            "supabase/migrations/20260924215931_create_private_access_import_stage_20260924.sql",
+            "supabase/migrations/20260928225059_create_private_access_stage_20260928.sql",
+            "supabase/migrations/20260929150227_stage_access_20260928_previews.sql",
+            "supabase/migrations/20260929151747_add_private_linha_estado_historico_teste.sql",
+            "supabase/migrations/20260929152336_add_private_tarifa_promocional_origem.sql",
+            "supabase/migrations/20260929152527_add_private_qh_observacao_conciliacao.sql",
+            "supabase/migrations/20260929152731_preserve_vista_source_code_in_status_history.sql",
+            "supabase/migrations/20260929153935_add_private_historical_tariff_versions.sql",
+            "supabase/migrations/20260929202229_access_anomalias_origem_20260929.sql",
+            "supabase/migrations/20260929214137_tarifa_promocional_conciliacao_privada.sql",
+            "supabase/migrations/20261003205009_drop_verified_legacy_duplicate_schemas.sql",
+            "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql"
+          ],
+          "invariant": "Every non-public copy of catalog data (staging tables in public, Access stage, divat_integracao, divat_historico, legacy backup/import schemas, stage preview views) is unreachable for anon/authenticated through a parallel path (schema USAGE, table grant, or owner-rights view).",
+          "method": "source",
+          "result": "Each internal schema is created with REVOKE ALL ON SCHEMA from public/anon/authenticated (e.g. 20260929151747:2, 20260929152336:2, 20260928225059:1, 20260924213756:2); tables created without a table-level revoke (20260929151747, 152336, 152527, 153935) were closed by 20260930213009:52-69 (REVOKE ALL + RESTRICTIVE deny + per-schema default revokes). The three stage preview views are security_invoker=true and revoked from public/anon/authenticated (20260929150227:2-3,29-30,44-45,89-92). Legacy schemas were dropped (20261003205009:102-104). No view exists in public in the baseline or migrations, so there is no owner-rights view bypassing RLS today.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260929201822_access_complementos_e_proveniencia_20260929.sql",
+            "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+            "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+            "src/ui/blocos.mjs",
+            "src/data/campos.mjs",
+            "docs/backup_schema.sql",
+            "scripts/check_phase3_audit.mjs"
+          ],
+          "invariant": "Columns added to anon-readable catalog tables and the Realtime publication do not disclose data the product treats as private.",
+          "method": "source",
+          "result": "The provenance columns added to public.evento_teste/qh_teste (20260929201822:28-34) are deliberately rendered to visitors (src/ui/blocos.mjs:40,48,149; src/data/campos.mjs:25,27); the raw Access text/memos stay in divat_integracao. REPLICA IDENTITY FULL on tabela_vista_teste (20260929152011:1) only affects a table anon can already read in full. The publication holds only catalog tables (docs/backup_schema.sql:738-751) and scripts/check_phase3_audit.mjs:49 asserts it equals RT_TABLES; staging is not published. The recovery migration (20261003115732) inserts data only and changes no grants/policies.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "app.js",
+            "src/data/rest.mjs"
+          ],
+          "invariant": "The only credential shipped to visitors is the anon-role key, bound to the single project, and the client never needs or holds a broader key.",
+          "method": "source",
+          "result": "app.js:148-149 and :174-175 embed the same legacy JWT whose payload is role=anon, ref=gontnlfmothfglssbyyk; src/data/rest.mjs:65-72 sends it as apikey+Bearer on GET-only requests (no method/POST/PATCH/DELETE anywhere in the client). Authority therefore equals the anon grants/RLS reviewed above; no key-type confusion or broader-scope key is present.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "scripts/check_grants.mjs",
+            "scripts/lib/security-policies.mjs",
+            "scripts/security_baseline.json"
+          ],
+          "invariant": "The daily live gate detects regression of anon/authenticated table authority (write grants, MAINTAIN, non-RESTRICTIVE write policies, RLS off) on public tables.",
+          "method": "source",
+          "result": "check_grants.mjs:110-131 flags RLS off, INSERT/UPDATE/DELETE/TRUNCATE and MAINTAIN for anon/authenticated, and any non-SELECT policy unless security-policies.mjs:58-63 proves it RESTRICTIVE with literal false; it fails closed on missing/empty catalog fields (:67-92, security-policies.mjs:23-49). Baseline exceptions are limited to supabase_admin defaults and rls_auto_enable() (security_baseline.json). Scope is the public schema only (security-policies.mjs:15); authenticated SELECT is not checked (data is public by design).",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "scripts/check_migrations.mjs",
+            "tests/migrations-contract.test.mjs"
+          ],
+          "invariant": "The required migration-contract gate rejects any migration that would give anon/authenticated write or RLS-bypassing authority over public tables.",
+          "method": "local",
+          "result": "Running the real gate (copied, as tests/migrations-contract.test.mjs does) on one dummy migration per case: the literal 'grant insert ... to anon' control is REJECTED, but these are ACCEPTED (exit 0): ALTER TABLE public.tabela_vista_teste OWNER TO anon; a write GRANT built with execute format(... to %I, 'anon'); DROP POLICY divat_block_client_insert + DISABLE ROW LEVEL SECURITY; unqualified CREATE TABLE (no RLS/REVOKE required); an owner-rights view over public.evento_textos granted SELECT to anon; CREATE FUNCTION private.* without a revoke. No existing migration uses any of these shapes and migrations are applied manually by the owner, so this is a gate-completeness hardening item, not a present exposure.",
+          "artifact": "agents/h16-db-anon-authz/artifacts/check-02.out"
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "PostgREST%20%2Frest%2Fv1%2Frpc%2F%2A%20and%20schema%20private%20as%20anon::supabase%2Fmigrations%2F20260729034018_phase3_moderate_hardening.sql%23EXECUTE%20allowlist::supabase::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+        "supabase/migrations/20260822144625_phase3_repara_funcoes_publicas.sql",
+        "supabase/migrations/20260822151732_phase3_fecha_security_digest.sql",
+        "supabase/migrations/20260824015915_phase3_guarda_fecha_security_digest.sql",
+        "docs/backup_schema.sql",
+        "docs/seguranca.md",
+        "scripts/check_phase3_audit.mjs",
+        "scripts/check_migrations.mjs",
+        "src/documentos/municipios-localidades.mjs",
+        ".github/workflows/backup.yml",
+        "scripts/backup_rest.mjs"
+      ],
+      "checks": [
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "scripts/check_phase3_audit.mjs",
+            "src/documentos/municipios-localidades.mjs"
+          ],
+          "invariant": "anon can EXECUTE exactly divat_busca_logradouro(text,integer) and divat_linhas_regiao(text,text) in public; authenticated executes nothing in public/audit.",
+          "method": "source",
+          "result": "20260729034018:87-91 revokes EXECUTE on all public functions from public/anon/authenticated and grants only the two RPCs to anon; :107-124 asserts the anon set equals that allowlist and authenticated has 0 executable functions in public/audit (migration aborts otherwise). scripts/check_phase3_audit.mjs:42-47 re-asserts both conditions against the live catalog through the auditor login. The client only calls these two RPCs (src/documentos/municipios-localidades.mjs:54,108).",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "docs/backup_schema.sql"
+          ],
+          "invariant": "The anon RPCs cannot read beyond anon's table authority (no SECURITY DEFINER, no search_path hijack, no reads of staging/private tables).",
+          "method": "source",
+          "result": "divat_busca_logradouro is LANGUAGE sql STABLE, SECURITY INVOKER, search_path pinned to pg_catalog,public,private, reading only public.itinerario_teste through private.f_unaccent (20260729034018:50-60). divat_linhas_regiao is SQL STABLE INVOKER with pinned search_path reading only public.municipio_teste and public.itinerario_teste (docs/backup_schema.sql:343-364). Both run under anon RLS; neither uses dynamic SQL.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "supabase/migrations/20260822144625_phase3_repara_funcoes_publicas.sql",
+            "supabase/migrations/20260822151732_phase3_fecha_security_digest.sql",
+            "supabase/migrations/20260824015915_phase3_guarda_fecha_security_digest.sql",
+            "docs/backup_schema.sql",
+            "docs/seguranca.md",
+            ".github/workflows/backup.yml",
+            "scripts/backup_rest.mjs"
+          ],
+          "invariant": "The audit SECURITY DEFINER diagnostics (security posture, API shape, data quality, Realtime list, security digest) are unreachable for anon/authenticated and cannot be abused to exceed anon-level data authority.",
+          "method": "source",
+          "result": "Schema audit has REVOKE ALL from public/anon/authenticated/service_role and USAGE only for divat_auditor (20260729034018:39-43); all five functions are owned by NOLOGIN divat_audit_owner (inherits only anon, :33,35), EXECUTE revoked from public/anon/authenticated/service_role and granted only to divat_auditor, with in-migration assertions (:77-83,126-130; 20260822144625:32-63; 20260822151732:28-41; 20260824015915:13-23). Their bodies schema-qualify relations (public.%I, information_schema.columns; docs/backup_schema.sql:398-468) under a pinned search_path, so temp-schema shadowing by the caller does not redirect reads, and the definer has only anon-level data privileges. Outputs reach only the auditor; the scheduled REST backup uses the anon key without staging (.github/workflows/backup.yml:45-49, scripts/backup_rest.mjs:50,151), so no diagnostic/alternate reader exposes private data.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "scripts/check_migrations.mjs"
+          ],
+          "invariant": "Schema private grants anon only what divat_busca_logradouro needs (USAGE + EXECUTE on f_unaccent); the trigger function and any other private object stay closed.",
+          "method": "source",
+          "result": "20260729034018:40-41 revokes all on private from public/anon/authenticated/service_role then grants USAGE to anon; :45-48 moves f_unaccent and fn_vigor_auto, revokes both from everyone and re-grants EXECUTE only on f_unaccent (IMMUTABLE text normalizer, harmless if ever exposed). No table or other function is created in private by any migration. scripts/check_migrations.mjs:11 records that private is not in the Data API exposed schemas (a panel setting); even if exposed, the only anon-callable object is f_unaccent.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h16-db-anon-authz",
+          "reviewed_paths": [
+            "supabase/migrations/20260729034018_phase3_moderate_hardening.sql",
+            "docs/backup_schema.sql"
+          ],
+          "invariant": "Functions created later in public/private by postgres are born without anon/PUBLIC EXECUTE, as the phase-3 default-privilege lines intend.",
+          "method": "local",
+          "result": "On the PostgreSQL 16 fixture, executing 20260729034018:95-96 verbatim and then creating dummy functions in public and private as postgres left both with NULL ACL and has_function_privilege('anon',...,'execute') = true (part E1): a per-schema REVOKE cannot remove the built-in global PUBLIC EXECUTE. Only the global 'alter default privileges for role postgres revoke execute on functions from public' (present in docs/backup_schema.sql:691-692 but in no migration) closed it (E2: false/false). No function currently exists that relies on these defaults (every existing function has an explicit ACL), the gate requires an explicit REVOKE for new public functions (check_migrations.mjs:104-108) and check_phase3_audit.mjs:46 alarms on any extra anon RPC in public, so this is recorded as hardening.",
+          "artifact": "agents/h16-db-anon-authz/artifacts/check-01.out"
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    "scripts/check_migrations.mjs (required check migration-contract) accepts, with exit 0, migrations that hand anon write or RLS-bypassing authority: 'ALTER TABLE public.<t> OWNER TO anon' (owner bypasses RLS and holds all privileges), GRANTs built with execute format(... TO %I, 'anon') (role list is cut at the first quote, :28-33), 'DROP POLICY divat_block_client_*' and 'DISABLE ROW LEVEL SECURITY', unqualified 'CREATE TABLE t' (regex at :67 requires the 'public.' prefix), and 'CREATE VIEW public.v AS SELECT ... FROM <staging>' + GRANT SELECT TO anon (owner-rights view over a revoked table). Observed in agents/h16-db-anon-authz/artifacts/check-02.out. Add rejections for OWNER TO anon/authenticated/public, DROP POLICY on divat_block_client_*/divat_internal_no_client_access, DISABLE/NO FORCE ROW LEVEL SECURITY, CREATE VIEW in public without security_invoker=true, unqualified or quoted CREATE TABLE, and any EXECUTE/format() that builds GRANT/POLICY text; add these as recusa() cases in tests/migrations-contract.test.mjs.",
+    "supabase/migrations/20260729034018_phase3_moderate_hardening.sql:95-97 use per-schema 'ALTER DEFAULT PRIVILEGES ... IN SCHEMA ... REVOKE EXECUTE ON FUNCTIONS FROM public', which PostgreSQL ignores for the built-in global PUBLIC EXECUTE default (local fixture: new functions in public and private stayed anon-executable until the global revoke ran; check-01.out part E). The global revoke exists only in docs/backup_schema.sql:691-692, not in any migration, and no gate can see whether it is live (pg_default_acl rows do not show built-in defaults). Version 'alter default privileges for role postgres revoke execute on functions from public;' in a migration, extend check_migrations.mjs:104-105 to require an explicit REVOKE for 'create function private.' (private has anon USAGE), and extend audit.divat_security_shape/check_phase3_audit to report function ACLs in private and audit, not only public.",
+    "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql:32 omits MAINTAIN (PostgreSQL 17) from the client-role revoke that docs/backup_schema.sql:712-713 uses, and :35-39/:54-58 skip policy creation when a policy with the same NAME already exists without checking it is RESTRICTIVE/false. Neither is reachable through PostgREST today and check_grants.mjs:121,128 flags both live, but the migration should revoke MAINTAIN too and assert polpermissive=false with literal false quals instead of matching by name.",
+    "The live posture gates (scripts/check_grants.mjs via scripts/lib/security-policies.mjs:15 and audit.divat_security_shape, scripts/check_phase3_audit.mjs) inspect only schema public. Schema private (anon USAGE), audit and the internal schemas (divat_integracao, divat_historico, stage_access_20260928) have no daily drift alarm, and authenticated SELECT on public tables is not checked by any live gate. 20260822144625 documents an unexplained live regression (diagnostics back in public, anon-executable), so drift outside public would go unnoticed.",
+    "docs/backup_schema.sql (the documented rebuild baseline) still GRANTs EXECUTE on public.divat_data_quality/divat_api_shape/realtime_tables/divat_security_shape TO anon, authenticated (:473,510,531,614). Replaying it without the subsequent migrations re-exposes the security diagnostics through /rest/v1/rpc; mark those statements as superseded or move them behind the phase-3 migration in the restore runbook.",
+    "Whether PostgREST/pg_graphql expose schema private (anon has USAGE) and whether Auth signup is closed are dashboard facts; with today's objects neither changes anon/authenticated authority (only private.f_unaccent is anon-callable and authenticated has no grants), but both should be part of the quarterly panel review in docs/seguranca.md."
+  ],
+  "uncovered": [
+    {
+      "surface": "Disaster-recovery rebuild and restore paths: docs/backup_schema.sql replay, migrations replay order, scripts/restore_rest.mjs and the private dump restore",
+      "boundary": "post-restore grants, RLS, default privileges, function placement (public vs audit/private) and Realtime publication",
+      "subsystem": "supabase (docs/backup_schema.sql, supabase/migrations) + scripts",
+      "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline (restored copies)",
+      "starting_paths": [
+        "docs/backup_schema.sql",
+        "scripts/restore_rest.mjs",
+        "scripts/backup_private.py",
+        "docs/backup.md",
+        "supabase/migrations/20260729034018_phase3_moderate_hardening.sql"
+      ],
+      "reason": "Restored copies can re-create anon EXECUTE on diagnostics and table ACLs that the live hardening removed (baseline still grants them); no current coverage unit owns the restore lifecycle as an access-control boundary."
+    }
+  ]
+}

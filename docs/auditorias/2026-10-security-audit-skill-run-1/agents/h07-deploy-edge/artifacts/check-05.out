@@ -1,0 +1,19 @@
+deploy-smoke.yml triggers: ['deployment_status', 'workflow_dispatch']
+workflow permissions: {'contents': 'read'}
+smoke.if: github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && (github.event.deployment_status.environment_url != '' || github.event.deployment_status.target_url != ''))
+smoke.if references origin/creator/ref guard tokens: []
+smoke.environment (protection gate): None
+job-level env carrying secrets (visible to EVERY step): {'VERCEL_AUTOMATION_BYPASS_SECRET': '${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}'}
+step[0] checkout with={'persist-credentials': False} -> explicit ref: None (absent => event default github.ref/github.sha)
+step[2] run='url="$DEPLOY_URL" # Num despacho manual a URL foi escolhida a dedo — respeitá-la como veio' step-env=None
+step[3] run='node scripts/check_deploy.mjs "$DEPLOY_URL_RESOLVIDA" "$DEPLOY_ENVIRONMENT"' step-env={'DEPLOY_URL_RESOLVIDA': '${{ steps.alvo.outputs.url }}'}
+
+Sibling secret-bearing jobs and their fork guards:
+  db-checks.yml/realtime triggers=['pull_request', 'push', 'schedule', 'workflow_dispatch'] if=github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  db-checks.yml/qualidade triggers=['pull_request', 'push', 'schedule', 'workflow_dispatch'] if=github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  db-checks.yml/seguranca triggers=['pull_request', 'push', 'schedule', 'workflow_dispatch'] if=github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  deriva.yml/deriva triggers=['pull_request', 'push', 'schedule', 'workflow_dispatch'] if=github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+Emulation: final step executed from a fixture checkout whose scripts/check_deploy.mjs differs from main
+final step run line: node scripts/check_deploy.mjs "$DEPLOY_URL_RESOLVIDA" "$DEPLOY_ENVIRONMENT"
+emulated step exit=0 output=fixture script ran; argv=["https://divatdetro-abc123xyz-lucas-molinari-s-projects.vercel.app","Preview"]; bypass_env_present=true; bypass_env_len=24; matches_dummy=true

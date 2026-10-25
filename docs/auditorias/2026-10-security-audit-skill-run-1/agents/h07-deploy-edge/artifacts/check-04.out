@@ -1,0 +1,65 @@
+tracked=383 excluded_by_vercelignore=346 published=37
+PUBLISHED (git path):
+  app.js
+  index.html
+  manifest.webmanifest
+  src/data/campos.mjs
+  src/data/lookups.mjs
+  src/data/rest.mjs
+  src/documentos/estrutura-tarifas-portaria.mjs
+  src/documentos/frota-historico-itinerarios.mjs
+  src/documentos/municipios-localidades.mjs
+  src/documentos/quadro-empresas.mjs
+  src/documentos/shell.mjs
+  src/domain/agrupamento.mjs
+  src/domain/busca.mjs
+  src/domain/core.mjs
+  src/domain/view-state.mjs
+  src/ui/blocos.mjs
+  src/ui/doc.mjs
+  src/ui/empresas.mjs
+  src/ui/listas.mjs
+  src/ui/paginacao.mjs
+  styles.css
+  vendor/fonts/archivo-latin-600-normal.woff2
+  vendor/fonts/archivo-latin-700-normal.woff2
+  vendor/fonts/archivo-latin-800-normal.woff2
+  vendor/fonts/ibm-plex-mono-latin-500-normal.woff2
+  vendor/fonts/ibm-plex-mono-latin-600-normal.woff2
+  vendor/fonts/ibm-plex-sans-latin-400-normal.woff2
+  vendor/fonts/ibm-plex-sans-latin-500-normal.woff2
+  vendor/fonts/ibm-plex-sans-latin-600-normal.woff2
+  vendor/icon-192.png
+  vendor/icon-512.png
+  vendor/icon-maskable-512.png
+  vendor/icon-maskable.svg
+  vendor/icon.svg
+  vendor/supabase-js-2.110.7.min.js
+  vercel.json
+  version.json
+untracked_in_worktree=3 untracked_that_would_upload_via_cli=0
+forbidden-sample CLAUDE.md: published=false
+forbidden-sample CONTEXT.md: published=false
+forbidden-sample .mcp.json: published=false
+forbidden-sample .codex/config.toml: published=false
+forbidden-sample .github/workflows/ci.yml: published=false
+forbidden-sample docs/backup_schema.sql: published=false
+forbidden-sample scripts/check_grants.mjs: published=false
+forbidden-sample tests/check.js: published=false
+forbidden-sample .claude/settings.json: published=false
+forbidden-sample supabase/migrations: published=false
+forbidden-sample skills-lock.json: published=false
+forbidden-sample AGENTS.md: published=false
+forbidden-sample .vercelignore: published=false
+forbidden-sample .gitignore: published=false
+forbidden-sample tests/fixtures/deploy-smoke-fetch.mjs: published=false
+scan app.js: JWT role=anon ref=gontnlfmothfglssbyyk iss=supabase
+vercel.json top-level keys=headers
+header-rule source=/(.*)
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Cache-Control: public, max-age=0, must-revalidate
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'none'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://gontnlfmothfglssbyyk.supabase.co wss://gontnlfmothfglssbyyk.supabase.co; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'

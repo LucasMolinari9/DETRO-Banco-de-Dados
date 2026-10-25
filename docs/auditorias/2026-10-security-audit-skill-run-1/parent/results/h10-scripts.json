@@ -1,0 +1,289 @@
+{
+  "units": [
+    {
+      "coverage_id": "scripts%20CLI%20args%2C%20env%2C%20artifact%20files::scripts%20input%20validation%20%28URL%2Fref%2Frole%2Fpath%20checks%29::scripts::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+      "disposition": "candidate",
+      "reviewed_paths": [
+        "scripts/lib/audit-database.mjs",
+        "tests/audit-database.test.mjs",
+        "docs/seguranca.md",
+        "scripts/check_realtime.mjs",
+        "scripts/check_data_quality.mjs",
+        "scripts/check_deriva.mjs",
+        "scripts/check_grants.mjs",
+        "scripts/check_phase3_audit.mjs",
+        "scripts/backup_rest.mjs",
+        ".github/workflows/backup.yml",
+        "scripts/restore_rest.mjs",
+        "tests/restore_rest.rig.mjs",
+        "docs/backup.md",
+        "scripts/backup_private.py",
+        "scripts/recover_access_memos.py",
+        "scripts/lib/rig.mjs",
+        "tests/rig.test.js",
+        "scripts/check_deploy.mjs",
+        "scripts/update_superpowers.sh",
+        "tests/check.js",
+        "scripts/semgrep.sh"
+      ],
+      "checks": [
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "scripts/lib/audit-database.mjs"
+          ],
+          "invariant": "The auditor DB credential (SUPABASE_TEST_AUDIT_DATABASE_URL) is only sent to an authenticated server, and the host allowlist binds the connection to the intended project",
+          "method": "local",
+          "result": "Sandboxed harness importing the real module: validarConexaoAuditora accepted the direct-host URL with sslmode=require. executarConsulta then ran psql 16.15 against a loopback stand-in peer that presented a self-signed CN=attacker.invalid certificate and asked for AuthenticationCleartextPassword. psql completed TLS 1.3 and sent the dummy password in cleartext. The verify-full control sent no password. Separately, a pooler URL whose host was '127.0.0.1,aws-0-sa-east-1.pooler.supabase.com' passed the endsWith('.pooler.supabase.com') check. The validated config, used unchanged, made libpq connect to the first host in the list and hand over the dummy password.",
+          "artifact": "agents/h10-scripts/artifacts/check-01.out"
+        },
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "tests/audit-database.test.mjs",
+            "docs/seguranca.md",
+            "scripts/check_realtime.mjs",
+            "scripts/check_data_quality.mjs",
+            "scripts/check_deriva.mjs",
+            "scripts/check_grants.mjs",
+            "scripts/check_phase3_audit.mjs"
+          ],
+          "invariant": "Every gate that uses the auditor credential reaches it only through the validated transport, and the test contract does not enshrine an unauthenticated mode",
+          "method": "source",
+          "result": "All five gates call carregarConfiguracaoAuditora (check_realtime.mjs:41, check_data_quality.mjs:85, check_deriva.mjs:95, check_grants.mjs:55, check_phase3_audit.mjs:66). No other transport exists. Error paths never echo the URL, password or stderr. tests/audit-database.test.mjs:187-190 asserts that sslmode=require is accepted. docs/seguranca.md:147-153 records that the live secret depends on require (AUD-02, pending owner decision). check_phase3_audit.mjs:50 bounds impact: the auditor has no direct table SELECT.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "scripts/backup_rest.mjs",
+            ".github/workflows/backup.yml"
+          ],
+          "invariant": "The REST export sends its key only to an https://<ref>.supabase.co origin (or loopback), excludes staging in public mode, and never mixes or overwrites prior exports",
+          "method": "source",
+          "result": "SUPABASE_URL is parsed with WHATWG URL: https only (http only for localhost/127.0.0.1), no userinfo/query/hash/path, hostname ^[a-z0-9]+\\.supabase\\.co$. Requests concatenate the raw string, but appended text starts with '/' after a validated authority, so the host cannot differ. Authorization: Bearer is only added for JWT-shaped keys. Public mode is chosen whenever no secret/service key is present, and it drops the four staging tables. The output directory must be empty, files are created 0600, and there is a count=exact check that aborts on short exports. The SHA-256 manifest is documented as byte integrity only. Residual hardening only: default redirect 'follow' with the apikey header; non-exclusive writeFile; unquoted keyset values in or=(...).",
+          "artifact": null
+        },
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "scripts/restore_rest.mjs",
+            "tests/restore_rest.rig.mjs",
+            "docs/backup.md"
+          ],
+          "invariant": "Restore treats archive content as untrusted: table allowlist, no path traversal, insert-only, admin key required, explicit target confirmation, no overwrite of populated targets",
+          "method": "source",
+          "result": "Default is dry-run. --apply refuses publishable/anon keys (the JWT role check is only a sanity check; the server verifies). The target must normalize to https://<ref>.supabase.co or loopback, and --confirm-ref must equal the ref. Every allowlisted table must be empty before the first INSERT, and the final count is rechecked. Table names and file paths come from the fixed TODAS list, not the manifest. POST is insert-only, without upsert. The 'refuse the source project' guard depends on the archive-supplied manifest.url and is skipped when url is absent. It is backed by the emptiness preflight and needs the operator's own service key for the target. No lower-trust principal gains authority, so this is hardening.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "scripts/backup_private.py"
+          ],
+          "invariant": "The full-database backup credential is pinned to the official Session pooler, sent only over verified TLS, kept out of child env/log output, and plaintext dumps never leave a private temp dir",
+          "method": "source",
+          "result": "The URL must be the postgres(ql) scheme, host *.pooler.supabase.com, port 5432, path /postgres, user exactly postgres.gontnlfmothfglssbyyk, with a non-empty password and only sslmode/connect_timeout single-valued params. PGSSLMODE=verify-full and PGSSLROOTCERT=system are forced whatever the URL says (lines 59, 153). Inherited PG* variables and both secrets are removed from child env. stderr is reduced to fixed categories. umask is 077, and work happens in a TemporaryDirectory under RUNNER_TEMP. Only the age-encrypted tar is kept, and it is deleted if encryption is not confirmed. No issue found.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "scripts/recover_access_memos.py"
+          ],
+          "invariant": "Offline ACCDB/JSONL recovery stays within the given export directory and rejects malformed long-value chains",
+          "method": "source",
+          "result": "This is an owner-run offline tool over DETRO Access exports, with no lower-trust input path. table['file'] from the export manifest is joined unchecked, so absolute paths and '..' are accepted. Chain and bounds validation uses assert statements, which are stripped under python -O; that removes the cycle and size guards. Hardening only.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "scripts/lib/rig.mjs",
+            "tests/rig.test.js"
+          ],
+          "invariant": "The local test rig serves only the portal files and stays inside the repo root",
+          "method": "local",
+          "result": "The ..%2f traversal guard holds (existing AUD-04 test). The sandboxed check found three further behaviours. (1) Any Host header is accepted: 'rebind.attacker.example' was served /.git/HEAD and /CLAUDE.md with HTTP 200. (2) Files outside the .vercelignore published set are served, for example /scripts/check_grants.mjs. (3) /%00 makes fs.readFile throw ERR_INVALID_ARG_VALUE synchronously inside the request handler. That exception is uncaught, so it crashes the rig; with a handler installed, the request hung. This is a test-only loopback server running on fixed ports 8098-8100, mostly in CI, and exploiting it needs a browser DNS-rebinding window. Hardening, not a candidate.",
+          "artifact": "agents/h10-scripts/artifacts/check-02.out"
+        },
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "scripts/check_deploy.mjs"
+          ],
+          "invariant": "Within this unit, deploy smoke file handling only reads local repository files, and the bypass secret is not sent on followed redirects",
+          "method": "source",
+          "result": "Local reads are limited to repo files: app.js and import specifiers resolved relative to the importing file. When the secret is present, redirect is set to 'manual'. The host allowlist for VERCEL_AUTOMATION_BYPASS_SECRET (PREVIEW_DO_PROJETO plus HOSTS_PROD) belongs to the peer deploy-smoke coverage unit and was not re-assessed here.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h10-scripts",
+          "reviewed_paths": [
+            "scripts/update_superpowers.sh",
+            "tests/check.js",
+            "scripts/semgrep.sh"
+          ],
+          "invariant": "Vendoring and lint wrappers only delete or execute what they own",
+          "method": "source",
+          "result": "update_superpowers.sh runs rm -rf \"$DEST/${nome:?}\" on every name in .superpowers-manifest.json. tests/check.js:383-384 only counts those names, and no step validates them, so an entry like '../..' would delete outside the skills directory. That manifest is repo content, and repo writers already get code execution through hooks and scripts, so there is no privilege gain; recorded as hardening. semgrep.sh passes \"$@\" through and resolves the binary from PATH or .venv-semgrep. No untrusted input.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [
+        "scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server"
+      ],
+      "unresolved": []
+    }
+  ],
+  "candidates": [
+    {
+      "proposed_verdict": "confirmed",
+      "fingerprint": "scripts/lib/audit-database.mjs:SSLMODES_ACEITOS:sslmode-require-unverified-server",
+      "title": "Auditor DB credential sent over unauthenticated TLS (sslmode=require) and given in cleartext to any interceptor",
+      "description": "scripts/lib/audit-database.mjs is the single transport for the CI auditor credential SUPABASE_TEST_AUDIT_DATABASE_URL, used by the check_realtime, check_data_quality, check_grants, check_deriva and check_phase3_audit gates and by atualizar-baseline. It accepts sslmode=require and passes it to psql as PGSSLMODE. Under require, libpq encrypts but does not authenticate the server when ~/.postgresql/root.crt is absent, which is the case on GitHub-hosted runners. It also sets no require_auth or channel_binding, so it answers whatever authentication method the peer asks for. An on-path or DNS-level attacker between the runner and db.gontnlfmothfglssbyyk.supabase.co (or the pooler) can present any certificate and request AuthenticationCleartextPassword, and receives the divat_auditor_ci password. Locally, the validated configuration sent a dummy password in cleartext to a loopback peer presenting a self-signed certificate for an unrelated name. The verify-full control sent nothing. docs/seguranca.md §9.5 records that the live secret currently depends on require. The sibling privileged path, scripts/backup_private.py, forces verify-full with system roots.",
+      "root_cause": "SSLMODES_ACEITOS includes 'require' (and 'verify-ca'), and executarConsulta passes the chosen sslmode to libpq with no server-certificate verification and no PGREQUIREAUTH/PGCHANNELBINDING. The control that should bind the credential to the real server therefore fails open on certificate verification and on the authentication method.",
+      "intended_behavior": "The auditor credential should only be released to a server that has proved it is the Supabase endpoint for gontnlfmothfglssbyyk: verify-full against a pinned Supabase CA. Password exposure should also be limited by refusing cleartext/MD5 auth (require_auth=scram-sha-256, ideally with channel_binding=require), matching the verify-full posture already enforced by scripts/backup_private.py.",
+      "trace": [
+        {
+          "kind": "entrypoint",
+          "file": ".github/workflows/db-checks.yml",
+          "line": 83,
+          "scope": "jobs.realtime.env",
+          "description": "The secret SUPABASE_TEST_AUDIT_DATABASE_URL is injected into the gate environment. It is injected the same way at db-checks.yml:101 and :131, deriva.yml:64 and atualizar-baseline.yml:100."
+        },
+        {
+          "kind": "propagation",
+          "file": "scripts/check_realtime.mjs",
+          "line": 41,
+          "scope": "top-level gate",
+          "description": "The gate loads the credential through carregarConfiguracaoAuditora(). check_data_quality.mjs:85, check_deriva.mjs:95, check_grants.mjs:55 and check_phase3_audit.mjs:66 load it the same way."
+        },
+        {
+          "kind": "propagation",
+          "file": "scripts/lib/audit-database.mjs",
+          "line": 112,
+          "scope": "carregarConfiguracaoAuditora",
+          "description": "Reads env[ENV_VAR] and passes it to validarConexaoAuditora."
+        },
+        {
+          "kind": "propagation",
+          "file": "scripts/lib/audit-database.mjs",
+          "line": 96,
+          "scope": "validarConexaoAuditora",
+          "description": "Only checks that sslmode is in SSLMODES_ACEITOS (line 37: require, verify-ca, verify-full). 'require' passes without any root-certificate requirement."
+        },
+        {
+          "kind": "propagation",
+          "file": "scripts/lib/audit-database.mjs",
+          "line": 100,
+          "scope": "validarConexaoAuditora",
+          "description": "Returns a frozen config that carries the password and sslmode='require'."
+        },
+        {
+          "kind": "sink",
+          "file": "scripts/lib/audit-database.mjs",
+          "line": 129,
+          "scope": "executarConsulta",
+          "description": "Spawns psql with PGPASSWORD (line 128) and PGSSLMODE=require, without PGSSLROOTCERT, PGREQUIREAUTH or PGCHANNELBINDING. libpq completes TLS with any server certificate and sends the password in cleartext when the peer requests it."
+        }
+      ],
+      "evidence": [
+        {
+          "file": "scripts/lib/audit-database.mjs",
+          "line": 37,
+          "description": "SSLMODES_ACEITOS = new Set(['require', 'verify-ca', 'verify-full']) — an unauthenticated TLS mode is accepted."
+        },
+        {
+          "file": "scripts/lib/audit-database.mjs",
+          "line": 16,
+          "description": "The module's security contract presents 'require' as acceptable TLS for the credential."
+        },
+        {
+          "file": "tests/audit-database.test.mjs",
+          "line": 187,
+          "description": "The test suite asserts that sslmode=require is accepted, so the fail-open mode is part of the guarded contract."
+        },
+        {
+          "file": "docs/seguranca.md",
+          "line": 148,
+          "description": "AUD-02 records that the validator accepts require 'que cifra sem conferir o certificado' and that the current secret would break the four mandatory checks if require were refused. The live secret therefore relies on require."
+        },
+        {
+          "file": "scripts/backup_private.py",
+          "line": 59,
+          "description": "The sibling credential path forces PGSSLMODE=verify-full and PGSSLROOTCERT=system regardless of the URL. This is the stronger equivalent control the auditor path lacks."
+        },
+        {
+          "file": "scripts/check_phase3_audit.mjs",
+          "line": 50,
+          "description": "Impact bound: the auditor login is asserted to have no direct table SELECT. What leaks is a minimal but persistent DB login to the shared database."
+        }
+      ],
+      "conditions": [
+        {
+          "kind": "system_configuration",
+          "description": "The SUPABASE_TEST_AUDIT_DATABASE_URL secret uses sslmode=require, which docs/seguranca.md:147-153 records as the current state (the secret value itself is not observable), and the runner has no ~/.postgresql/root.crt (default on GitHub-hosted runners)."
+        },
+        {
+          "kind": "network_routing",
+          "description": "The attacker can intercept or redirect TCP traffic, or DNS resolution, from a GitHub-hosted runner to db.gontnlfmothfglssbyyk.supabase.co or the Supabase pooler. The gates run daily and on every same-repo PR."
+        },
+        {
+          "kind": "third_party_dependency",
+          "description": "libpq (postgresql-client 16 on ubuntu-latest) has no require_auth or channel_binding set, so it answers an AuthenticationCleartextPassword request."
+        }
+      ],
+      "execution": {
+        "attacker_perspective": "An on-path network or DNS attacker between the CI runner and Supabase poses as the PostgreSQL server for db.gontnlfmothfglssbyyk.supabase.co, presents any self-signed certificate, and requests cleartext password authentication.",
+        "payloads": [
+          "postgresql://divat_auditor_ci:DUMMY-AUDITOR-PW-A@db.gontnlfmothfglssbyyk.supabase.co:5432/postgres?sslmode=require",
+          "Fake server reply after SSLRequest: 'S'; after the TLS handshake (self-signed CN=attacker.invalid) and StartupMessage: AuthenticationCleartextPassword = b'R' + int32(8) + int32(3)",
+          "Control: same URL with sslmode=verify-full"
+        ],
+        "instructions": [
+          "Inside the OS sandbox (uid 65534, no external network, isolated loopback only), generate a self-signed certificate for CN=attacker.invalid with openssl. Start scratch/fakepg.py on 127.0.0.1:54329; it answers SSLRequest with 'S', wraps TLS, requests AuthenticationCleartextPassword, records the PasswordMessage, then refuses the login.",
+          "Import the real validarConexaoAuditora/executarConsulta from scripts/lib/audit-database.mjs. Validate the payload URL and confirm it is accepted with sslmode=require.",
+          "Call executarConsulta with that validated config, changing only host/port to 127.0.0.1:54329 to stand in for DNS or route redirection of the real hostname, using psqlBin=/usr/bin/psql (16.15).",
+          "Repeat with sslmode=verify-full as a control.",
+          "Run: python3 -I run_check.py --check 01 --loopback --timeout 180 --cwd /sbx/scratch -- /bin/sh /sbx/scratch/run_audit.sh"
+        ],
+        "observed_result": "A: the validator accepted host db.gontnlfmothfglssbyyk.supabase.co with sslmode=require. B: the fake peer logged tls_established TLSv1.3, startup_user divat_auditor_ci, client_msg_type 'p' and captured_cleartext_password 'DUMMY-AUDITOR-PW-A'; executarConsulta then threw AuditDatabaseError (status 2). C (verify-full control): the fake peer logged no_password_received after the client aborted TLS. Recorded in agents/h10-scripts/artifacts/check-01.out."
+      },
+      "remediation": {
+        "strategy": "Accept only sslmode=verify-full, with a pinned, versioned Supabase CA certificate passed through PGSSLROOTCERT. Always set PGREQUIREAUTH=scram-sha-256, which stops cleartext/MD5 password disclosure even before the secret is rotated, and set PGCHANNELBINDING=require where the endpoint supports it. Reject libpq multi-host lists (',' in hostname). Rotate the divat_auditor_ci password after switching the secret. Regression tests: replace the 'require is accepted' loop in tests/audit-database.test.mjs with assertions that require and verify-ca are refused, that a comma host is refused, and that the env given to psql contains PGSSLMODE=verify-full, PGSSLROOTCERT and PGREQUIREAUTH=scram-sha-256. Add a loopback fake-server test like check-01 that asserts no PasswordMessage is sent to an unverified peer.",
+        "code_changes": [
+          {
+            "file_name": "scripts/lib/audit-database.mjs",
+            "fixed_code": "const SSLMODES_ACEITOS = new Set(['verify-full']);\nconst SUPABASE_CA = new URL('./supabase-ca.crt', import.meta.url).pathname; // certificado público versionado\n// em validarConexaoAuditora, antes da checagem de host:\nif (url.hostname.includes(',')) falhar('Conexão recusada: lista de hosts não é aceita.');\n// em executarConsulta, env do psql:\n      PGSSLMODE: 'verify-full',\n      PGSSLROOTCERT: SUPABASE_CA,\n      PGREQUIREAUTH: 'scram-sha-256',\n      PGCHANNELBINDING: 'require',"
+          }
+        ]
+      },
+      "severity": {
+        "likelihood": {
+          "score": "low",
+          "reason": "Requires an on-path or DNS-level position between a GitHub-hosted runner and Supabase. Such access is hard to obtain, although the credential is exercised daily and on every PR."
+        },
+        "impact": {
+          "score": "low",
+          "reason": "It exposes a protected CI secret, a persistent login to the shared production database valid until rotated. However, divat_auditor_ci is minimal: audit diagnostics and catalog reads, no table SELECT or writes. The gain is metadata disclosure and resource use within role limits."
+        },
+        "overall_severity": "low"
+      },
+      "confidence": {
+        "score": "medium",
+        "reason": "The fail-open transport is source-visible and was reproduced locally against the real module and psql 16.15, with a verify-full control. That the live secret uses require is taken from docs/seguranca.md:147-153 rather than observed."
+      }
+    }
+  ],
+  "hardening": [
+    "scripts/lib/audit-database.mjs:78: the pooler check url.hostname.endsWith('.pooler.supabase.com') does not account for postgresql: URLs having an opaque host in which ',' is legal. '127.0.0.1,aws-0-sa-east-1.pooler.supabase.com' was accepted, and libpq connected to the first host in the list and sent the password (check-01 step D). Not a separate candidate because whoever sets the URL already knows the password, but it breaks the module's 'only the test project' contract and lets a gate audit an arbitrary server. Reject ',' and pin the exact pooler hostnames.",
+    "scripts/lib/rig.mjs:69-87: the test static server serves the entire repo root to any Host header on fixed ports 8098-8100. That includes .git/ and any gitignored ./backup_<date>/ NDJSON that scripts/backup_rest.mjs writes into the current directory by default. A /%00 request also throws ERR_INVALID_ARG_VALUE synchronously in the handler, leaving the exception uncaught (check-02). Serve only the .vercelignore published set, require Host 127.0.0.1:<port>, and validate paths before readFile.",
+    "scripts/update_superpowers.sh:55-56: skill names from .superpowers-manifest.json reach rm -rf \"$DEST/${nome:?}\" unvalidated, so '../..' deletes outside .claude/skills or .agents/skills. Validate ^[a-z0-9][a-z0-9-]*$ and resolve the result inside DEST.",
+    "scripts/restore_rest.mjs:249: the documented 'recusa o projeto de origem' relies on the archive-supplied manifest.url and is skipped when it is absent or spelled differently (for example with a trailing dot). Also hard-refuse the official ref gontnlfmothfglssbyyk, and hash files while streaming them during --apply instead of in a separate validation pass (TOCTOU). The manifest SHA-256 is self-attesting, so authenticity depends on artifact custody.",
+    "scripts/backup_rest.mjs:114 and scripts/restore_rest.mjs:215,229: fetch uses the default redirect:'follow' while sending a secret or service key in the custom apikey header, which undici keeps across cross-origin redirects (as noted in scripts/check_deploy.mjs:77-78). Use redirect:'error'.",
+    "scripts/backup_rest.mjs:131,173: writeFile uses the default 'w' flag after a one-time empty-directory check, so a symlink planted later in a shared OUT directory is followed and truncated. Use flag 'wx'. The composite keyset or=(...) at lines 83-93 also interpolates values that PostgREST URL-decodes before parsing; quote them.",
+    "scripts/recover_access_memos.py:13-46,62: binary-structure validation relies on assert, which python -O strips (removing the cycle and size guards), and table['file'] from the export manifest is joined without confinement to the export directory."
+  ],
+  "uncovered": []
+}

@@ -1,0 +1,19 @@
+== [1] searchLines-shaped or=() via real ilikeTerm + sbFetch (stub) ==
+{"term":"Rio, Niteroi","path":"http://stub.invalid/rest/v1/tabela_vista_teste","keys":["or","select","order","limit"],"or":"(nome_ligacao.ilike.*Rio, Niteroi*,numero_ligacao.ilike.*Rio, Niteroi*,codlinha.ilike.*Rio,Niteroi*)"}
+{"term":"a,codlinha.not.is.null","path":"http://stub.invalid/rest/v1/tabela_vista_teste","keys":["or","select","order","limit"],"or":"(nome_ligacao.ilike.*a,codlinha.not.is.null*,numero_ligacao.ilike.*a,codlinha.not.is.null*,codlinha.ilike.*a,codlinhanotisnull*)"}
+{"term":"x&select=*&limit=99999","path":"http://stub.invalid/rest/v1/tabela_vista_teste","keys":["or","select","order","limit"],"or":"(nome_ligacao.ilike.*x&select= &limit=99999*,numero_ligacao.ilike.*x&select= &limit=99999*,codlinha.ilike.*x&select= &limit=99999*)"}
+{"term":"x;limit=1","path":"http://stub.invalid/rest/v1/tabela_vista_teste","keys":["or","select","order","limit"],"or":"(nome_ligacao.ilike.*x;limit=1*,numero_ligacao.ilike.*x;limit=1*,codlinha.ilike.*x;limit=1*)"}
+{"term":"a+b#frag","path":"http://stub.invalid/rest/v1/tabela_vista_teste","keys":["or","select","order","limit"],"or":"(nome_ligacao.ilike.*a+b#frag*,numero_ligacao.ilike.*a+b#frag*,codlinha.ilike.*a+b#frag*)"}
+{"term":"%_%_%","path":"http://stub.invalid/rest/v1/tabela_vista_teste","keys":["or","select","order","limit"],"or":"(nome_ligacao.ilike.*%_%_%*,numero_ligacao.ilike.*%_%_%*,codlinha.ilike.*%_%_%*)"}
+{"term":"\"q\",x","path":"http://stub.invalid/rest/v1/tabela_vista_teste","keys":["or","select","order","limit"],"or":"(nome_ligacao.ilike.*\"q\",x*,numero_ligacao.ilike.*\"q\",x*,codlinha.ilike.*\"q\",x*)"}
+{"term":"(a*b)","path":"http://stub.invalid/rest/v1/tabela_vista_teste","keys":["or","select","order","limit"],"or":"(nome_ligacao.ilike.* a b *,numero_ligacao.ilike.* a b *,codlinha.ilike.* a b *)"}
+== [2] RPC arg (divat_busca_logradouro) and orIlike (localidades) ==
+{"term":"a,b","rpc_params":[["termo","a,b"],["select","codlinha"],["limit","2000"]],"orIlike_params":[["or","(nome_logradouro.ilike.*a,b*)"],["select","codlinha"],["limit","2000"]]}
+{"term":"x&p_ibge=1","rpc_params":[["termo","x&p_ibge=1"],["select","codlinha"],["limit","2000"]],"orIlike_params":[["or","(nome_logradouro.ilike.*x&p_ibge=1*)"],["select","codlinha"],["limit","2000"]]}
+{"term":"%","rpc_params":[["termo","%"],["select","codlinha"],["limit","2000"]],"orIlike_params":[["or","(nome_logradouro.ilike.*%*)"],["select","codlinha"],["limit","2000"]]}
+== [3] hash route #/linha/<cod> value via enc() ==
+{"cod":"1,2","params":[["codlinha","eq.1,2"],["select","codlinha"],["limit","1"]]}
+{"cod":"x&limit=999","params":[["codlinha","eq.x&limit=999"],["select","codlinha"],["limit","1"]]}
+{"cod":"x;select=*","params":[["codlinha","eq.x;select=*"],["select","codlinha"],["limit","1"]]}
+== [4] retry behaviour on HTTP 500 / 57014 (statement timeout) ==
+{"fetch_calls":3,"elapsed_ms_approx":1200,"error":"canceling statement due to statement timeout"}

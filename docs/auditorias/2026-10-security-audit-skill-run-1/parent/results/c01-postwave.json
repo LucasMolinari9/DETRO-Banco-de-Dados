@@ -1,0 +1,47 @@
+{
+  "missing_units": [
+    {
+      "surface": "anon Realtime postgres_changes subscriptions opened with the public anon key (app.js initRealtime: one public channel 'divat-rt' per visitor with 15 unfiltered event:'*' bindings), and the server-side authorization and delivery work that each owner WAL change triggers for every subscription",
+      "boundary": "Supabase Realtime per-project connection, channel and join quotas; client-only eventsPerSecond:5; publication scope of 15 tables, including the bulk-loaded itinerario_teste/qh_intervalo_teste/qh_predeterminado_teste; REPLICA IDENTITY FULL on tabela_vista_teste. Neither the anon statement_timeout nor pgrst.db_max_rows bounds this path",
+      "subsystem": "supabase realtime / frontend app.js REALTIME section",
+      "attack_class": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Database and downstream query amplification",
+      "starting_paths": [
+        "app.js",
+        "docs/backup_schema.sql",
+        "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql",
+        "supabase/migrations/20261003115732_recover_empty_itinerary_and_timetables.sql",
+        "supabase/migrations/20260930213009_harden_divat_table_security_preserve_public_reads.sql",
+        "docs/etl.md",
+        "scripts/check_realtime.mjs",
+        "vendor/supabase-js-2.110.7.min.js"
+      ],
+      "selected_companion_blocks": [
+        "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+        "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Database and downstream query amplification",
+        "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+        "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Unbounded buffering and cardinality",
+        "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Quota-accounting scope and reset gaps",
+        "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+        "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+      ],
+      "excluded_blocks": [
+        {
+          "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Retry storm and fail-open amplification",
+          "reason": "The app.js#initRealtime coverage unit already settles client reload/retry fan-out on Realtime events: active-tab reloads are debounced, background tabs are only marked stale, and sbFetch retries are bounded (its check 4)."
+        },
+        {
+          "block": "PROTOCOLS-RPC-AND-MESSAGING.md#Topic, routing-key, and subscription scope gaps",
+          "reason": "The app.js#initRealtime unit already settles subscription authorization scope: the publication holds only anon-readable catalog tables, and broadcast/presence have no binding (its checks 1-2)."
+        },
+        {
+          "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Decompression and representation amplification",
+          "reason": "No decompression or document parsing on the Realtime path."
+        }
+      ],
+      "reason": "Source-backed gap (lead from h21-postgrest-filters, verified). app.js:1607-1612 creates a supabase-js client with the public anon key for every visitor and subscribes one public channel 'divat-rt' to 15 unfiltered postgres_changes '*' bindings. The eventsPerSecond:5 limit is enforced only by the client. docs/backup_schema.sql:738-751 publishes those 15 tables, including itinerario_teste and the qh_* tables, with anon SELECT policies USING(true) (backup_schema.sql:640-644). Migration 20261003115732 bulk-inserts into itinerario_teste, qh_intervalo_teste and qh_predeterminado_teste: tens of thousands of rows, which CLAUDE.md records as 52,385 itineraries, 9,553 intervals and 25,748 departures. Migration 20260929152011 sets REPLICA IDENTITY FULL on tabela_vista_teste. Each owner WAL change is therefore authorized and delivered per subscription. One anon principal can multiply that work by opening extra sockets, channels and bindings with the public key, limited only by Realtime quotas, not by the role timeouts. The 'PostgREST anon queries and RPCs' unit limited its invariants to PostgREST statements bounded by statement_timeout/db_max_rows. The 'app.js#initRealtime' unit checked only subscription scope, control-plane use and client reload/retry fan-out, plus a hardening note on broadcast quota. No unit measured the per-change × per-subscription server work that an anon principal can amplify on the shared DB/Realtime during owner imports, or the subscription cardinality that principal can hold. The other uncovered leads are already settled: the brainstorming companion by the server.cjs IPC unit (helper.js:70 innerHTML is a static string, and agent HTML is rendered by design); issue-text injection by the agent-context unit (check 4); restore lifecycle by the migrations unit (check 5) and the scripts unit (restore_rest check); deploy-smoke by the deploy-smoke unit, whose candidate fingerprint is pending."
+    }
+  ],
+  "reassign_ids": [],
+  "resolved_prior_leads": [],
+  "stop": false
+}

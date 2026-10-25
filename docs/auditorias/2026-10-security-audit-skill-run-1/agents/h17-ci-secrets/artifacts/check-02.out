@@ -1,0 +1,98 @@
+
+## .github/workflows/atualizar-baseline.yml
+  triggers=['workflow_dispatch'] permissions={'contents': 'write', 'pull-requests': 'write'}
+  job medir: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=DEFAULT(true) ref=DEFAULT(event ref)
+    step 'Medir e escrever o slot': secrets=['SUPABASE_PROD_AUDIT_DATABASE_URL', 'SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=['scripts/check_data_quality.mjs', 'scripts/check_grants.mjs']
+    step 'Abrir o PR com o diff': secrets=['GITHUB_TOKEN'] runs_repo_code=[]
+
+## .github/workflows/atualizar-semgrep-rulesets.yml
+  triggers=['workflow_dispatch'] permissions={'contents': 'write', 'pull-requests': 'write'}
+  job atualizar: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=DEFAULT(true) ref=DEFAULT(event ref)
+    step 'Abrir o PR com o diff': secrets=['GITHUB_TOKEN'] runs_repo_code=[]
+
+## .github/workflows/backup-private.yml
+  triggers=['workflow_dispatch'] permissions={'contents': 'read'}
+  job backup: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Exigir os dois secrets antes de acessar o banco': secrets=['BACKUP_AGE_PUBLIC_KEY', 'SUPABASE_BACKUP_DATABASE_URL'] runs_repo_code=[]
+    step 'Dump, restauração, todas as contagens e criptografia': secrets=['BACKUP_AGE_PUBLIC_KEY', 'SUPABASE_BACKUP_DATABASE_URL'] runs_repo_code=['scripts/backup_private.py']
+
+## .github/workflows/backup.yml
+  triggers=['schedule', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job backup: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Dump NDJSON via REST (modo público)': secrets=[] runs_repo_code=['scripts/backup_rest.mjs']
+
+## .github/workflows/ci.yml
+  triggers=['pull_request', 'push', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job check: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Gate de pré-publicação (sintaxe + anti-drift + testes)': secrets=[] runs_repo_code=['tests/check.js']
+    step 'Bancadas offline de backup e restauração': secrets=[] runs_repo_code=['tests/backup_rest.rig.mjs', 'tests/restore_rest.rig.mjs']
+
+## .github/workflows/db-checks.yml
+  triggers=['pull_request', 'push', 'schedule', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job realtime: if="github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository" environment=None job_env_secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Instalar cliente PostgreSQL': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=[]
+    step 'RT_TABLES (app.js) x publicacao supabase_realtime': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=['scripts/check_realtime.mjs']
+  job qualidade: if="github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository" environment=None job_env_secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Instalar cliente PostgreSQL': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=[]
+    step 'Qualidade dos dados pos-ETL (orfaos referenciais, U+FFFD)': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=['scripts/check_data_quality.mjs']
+  job seguranca: if="github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository" environment=None job_env_secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Instalar cliente PostgreSQL': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=[]
+    step 'Regressao do gate (permissoes perigosas e bloqueios RESTRICTIVE)': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=['tests/check_grants.rig.mjs']
+    step 'RLS, grants, policies e privilegios de funcao': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=['scripts/check_grants.mjs']
+
+## .github/workflows/deploy-smoke.yml
+  triggers=['deployment_status', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job smoke: if="github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' &&\n (github.event.deployment_status.environment_url != '' ||\n  github.event.deployment_status.target_url != ''))" environment=None job_env_secrets=['VERCEL_AUTOMATION_BYPASS_SECRET'] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Resolve a URL a verificar': secrets=['VERCEL_AUTOMATION_BYPASS_SECRET'] runs_repo_code=[]
+    step 'Headers, allowlist e configuração do Supabase': secrets=['VERCEL_AUTOMATION_BYPASS_SECRET'] runs_repo_code=['scripts/check_deploy.mjs']
+
+## .github/workflows/deriva.yml
+  triggers=['pull_request', 'push', 'schedule', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job deriva: if="github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository" environment=None job_env_secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Instalar cliente PostgreSQL': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=[]
+    step 'Verificador de deriva docs×banco': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=['scripts/check_deriva.mjs']
+
+## .github/workflows/graft.yml
+  triggers=['pull_request', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job mapa: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Gerar grafo estrutural': secrets=[] runs_repo_code=['scripts/graft.sh']
+    step 'Conferir cobertura de JavaScript e módulos ES': secrets=[] runs_repo_code=['scripts/graft.sh', 'tests/sbFetch.test.js']
+    step 'Gerar relatórios e visualização': secrets=[] runs_repo_code=['scripts/graft.sh']
+
+## .github/workflows/phase3-security.yml
+  triggers=['pull_request', 'push', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job migration-contract: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'RLS, revokes e allowlist na mesma migração': secrets=[] runs_repo_code=['scripts/check_migrations.mjs']
+  job test-auditor: if="github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')" environment=None job_env_secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Exigir credencial auditora do banco em uso': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=[]
+    step 'Executar diagnósticos pelo auditor mínimo': secrets=['SUPABASE_TEST_AUDIT_DATABASE_URL'] runs_repo_code=['scripts/check_phase3_audit.mjs']
+
+## .github/workflows/semgrep.yml
+  triggers=['pull_request', 'push', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job semgrep: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+
+## .github/workflows/views.yml
+  triggers=['pull_request', 'push', 'workflow_dispatch'] permissions={'contents': 'read'}
+  job views: if=None environment=None job_env_secrets=[] permissions=(workflow)
+    checkout persist-credentials=False ref=DEFAULT(event ref)
+    step 'Laço de fumaça das 20 views': secrets=[] runs_repo_code=['scripts/check_views.mjs']
+    step 'Regressão das abas do modal': secrets=[] runs_repo_code=['scripts/check_abas.mjs']
+    step 'Regressão da seleção de linha e do filtro de situação': secrets=[] runs_repo_code=['scripts/check_selecao_linha.mjs']
+    step 'Corrida entre abas (contexto explícito dos documentos)': secrets=[] runs_repo_code=['scripts/check_corrida_abas.mjs']
+
+workflows_with_job_environment= []
+=> no job declares `environment:`; every secret above resolves from repository/organization scope.

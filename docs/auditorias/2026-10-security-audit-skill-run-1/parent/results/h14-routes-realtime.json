@@ -1,0 +1,158 @@
+{
+  "units": [
+    {
+      "coverage_id": "app.js%23applyRoute%20location.hash::app.js%23VIEW_META%2FLOADERS%2FVIEW_TOPIC%20plain-object%20lookup::frontend::CLIENT-SIDE.md%23Client-side%20navigation%20confusion",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app.js",
+        "src/domain/view-state.mjs",
+        "src/domain/core.mjs",
+        "src/documentos/shell.mjs",
+        "index.html",
+        "scripts/lib/rig.mjs",
+        "vercel.json",
+        "scripts/check_selecao_linha.mjs"
+      ],
+      "checks": [
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "app.js",
+            "src/domain/view-state.mjs",
+            "src/domain/core.mjs",
+            "src/documentos/shell.mjs"
+          ],
+          "invariant": "Hash-route segments (linha/topico/consulta) must not reach an executing or navigation sink, must not drive a keyed or recursive write (prototype pollution), and must only select views or topics the app defines.",
+          "method": "source",
+          "result": "applyRoute (app.js:1701-1737) decodes the segments with a try/catch decodeURIComponent. `cod` goes only to sbFetch through enc()/encodeURIComponent (app.js:1716). `topico` is compared against SECTIONS by strict equality inside selectTopic (app.js:397-398). `view` is only READ from the plain objects VIEW_META/VIEW_TOPIC/LOADERS/VIEW_TABLES (app.js:290-291,1145,1425), so inherited names such as __proto__, constructor and toString pass the truthiness checks (app.js:1726,1731,1439-1444). Route input never keys a write: every VIEW_META/VIEW_TOPIC/LOADERS assignment uses static SECTIONS keys, and beginGen/makeCtx write only to the per-run view object (view-state.mjs:25-29,65-67). The view strings that reach the DOM are fixed Object.prototype names or own keys. The title goes through textContent and the tab label through esc (app.js:1121,849-851). There is no location.href/assign/window.open sink, only same-origin pushState/replaceState and location.reload. Result: no navigation confusion and no pollution gadget. Inherited keys cause only a broken modal (see the local checks and the hardening note).",
+          "artifact": null
+        },
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "app.js",
+            "scripts/check_selecao_linha.mjs"
+          ],
+          "invariant": "The history write-back (syncHash/closeModal) must not navigate off-origin or to an attacker-chosen destination.",
+          "method": "source",
+          "result": "syncHash (app.js:1685-1698) builds a '#/…' fragment from activeLine.codlinha (encodeURIComponent), currentTopicKey (always a valid SECTIONS key, because selectTopic returns before assigning an unknown key) and currentView.key. Otherwise it uses location.pathname+location.search. pushState/replaceState cannot change origin, and the cross-origin case ('//host' pathname) throws a SecurityError that line 1697 catches. closeModal calls history.back() only when this document pushed the modal entry and the line has not changed (app.js:1074-1081). A deep-link entry does not set _modalPushed, so back() cannot leave the site. Invariant holds.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "app.js",
+            "index.html",
+            "scripts/lib/rig.mjs",
+            "vercel.json"
+          ],
+          "invariant": "Real app.js in Chromium with the production CSP: prototype-key routes must not execute code, navigate, or disclose data.",
+          "method": "local",
+          "result": "#/consulta/__proto__ opened the modal with an empty title and the body 'Erro ao carregar: view.loader is not a function'. #/consulta/constructor and #/consulta/toString opened the modal with an empty title and a permanent 'Carregando…'. In all three cases the side panel had 0 cards. There was no pageerror, the origin stayed http://127.0.0.1, and nothing was navigated. The controls #/consulta/naoexiste and #/consulta/portarias behaved normally. Impact is limited to a broken UI in the visitor's own tab.",
+          "artifact": "agents/h14-routes-realtime/artifacts/check-02.out"
+        },
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "app.js",
+            "index.html",
+            "scripts/lib/rig.mjs",
+            "vercel.json"
+          ],
+          "invariant": "An unknown topic in the hash must fall back to the default topic and not suppress the boot render.",
+          "method": "local",
+          "result": "With no hash the page rendered 4 topic buttons and 7 cards. #/topico/naoexiste and #/topico/__proto__ rendered 0 topic buttons and 0 cards. applyRoute passes any non-direct topico string to selectTopic, which returns before renderSideNav/renderSideContent, and the boot render only happens through applyRoute. After closing the #/consulta/__proto__ modal the hash was cleared but the panel stayed empty (0/0) until reload. This is an availability defect in the visitor's own view, with no execution, disclosure or shared effect, so it is recorded as hardening.",
+          "artifact": "agents/h14-routes-realtime/artifacts/check-03.out"
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app.js%23initRealtime%20postgres_changes%20%2B%20app.js%23checarNovaVersao::Realtime%20channel%20authorization%20%2B%20same-origin%20version.json::frontend::ATTACK-CLASSES.md%23Business%20logic",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app.js",
+        "src/domain/view-state.mjs",
+        "src/data/rest.mjs",
+        "src/data/lookups.mjs",
+        "vendor/supabase-js-2.110.7.min.js",
+        "docs/backup_schema.sql",
+        "scripts/check_realtime.mjs",
+        "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql"
+      ],
+      "checks": [
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "app.js",
+            "docs/backup_schema.sql",
+            "scripts/check_realtime.mjs",
+            "supabase/migrations/20260929152011_set_vista_teste_replica_identity_full.sql"
+          ],
+          "invariant": "The anon Realtime subscription is scoped to the public catalog tables that anon can already read through REST, and no staging or private table is in the publication.",
+          "method": "source",
+          "result": "initRealtime (app.js:1602-1618) subscribes postgres_changes event '*', schema 'public', for exactly the 15 RT_TABLES (app.js:1526-1529). In the repo, the supabase_realtime publication contains only public catalog tables (docs/backup_schema.sql:738-751). No migration adds staging, private or audit tables. The only migration touching replication sets REPLICA IDENTITY FULL on public.tabela_vista_teste. scripts/check_realtime.mjs enforces RT_TABLES == publication live, every day. Events expose the same public rows that are readable through REST, which matches the comparable baseline. Live RLS/grants and publication state are owned by the PostgREST access-control peer units.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "app.js",
+            "src/domain/view-state.mjs",
+            "vendor/supabase-js-2.110.7.min.js"
+          ],
+          "invariant": "Realtime payloads must not act as a control plane: a lower-trust producer cannot inject content or privileged actions through the channel.",
+          "method": "source",
+          "result": "onRealtime (app.js:1596-1601) uses the closure table name, not the payload, for cache invalidation. dispatchRealtime/tabMatchesEvent (view-state.mjs:113-129) reads only payload.new/old.codlinha for a String equality test. Payload content is never rendered or stored, and the only effects are cache invalidation, a debounced re-fetch and stale marking. In the vendored realtime-js the channel filter (vendor offset ~62600, _updateFilterMessage) dispatches by phoenix event and requires server-assigned subscription ids for postgres_changes. A client broadcast arrives as event 'broadcast', and the portal has no binding for it. Presence is sent as enabled:false because there are no presence bindings (offset ~56000). So other anon channel members cannot trigger the postgres_changes callbacks. The legitimate producer is the DB WAL, which only privileged writers can change (write grants are peer-owned). Invariant holds.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "src/domain/view-state.mjs"
+          ],
+          "invariant": "Realtime dispatch across tabs must tolerate any view state the router can create.",
+          "method": "local",
+          "result": "I imported the real dispatchRealtime/tabMatchesEvent. For a tab whose view.tables is the value VIEW_TABLES['__proto__']||[] yields (Object.prototype), both functions throw 'TypeError: (view.tables || []).includes is not a function'. The control case without that tab returns {reload:null, stale:[2]}. While a prototype-key route tab exists, every realtime event aborts stale marking and reload for all tabs in that modal session. This is a robustness defect in the visitor's own session, recovered by closing the modal; it is recorded as hardening.",
+          "artifact": "agents/h14-routes-realtime/artifacts/check-01.out"
+        },
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "app.js",
+            "src/data/rest.mjs",
+            "src/data/lookups.mjs",
+            "vendor/supabase-js-2.110.7.min.js"
+          ],
+          "invariant": "Realtime events and REST failures must not create unbounded or attacker-driven reload/retry fan-out against the shared DB.",
+          "method": "source",
+          "result": "Reloads of the active tab use a trailing 350 ms debounce (app.js:1547-1550), so continuous event streams collapse into one reload. Background tabs are only marked stale and make no fetch (app.js:1588-1593). A failed live reload is not retried (app.js:1579-1584). sbFetch makes at most 3 attempts (SB_RETRIES=2, rest.mjs:5,69-98) with 400/800 ms backoff, a 20 s timeout per attempt and no jitter. realtime-js reconnects with backoff [1s,2s,5s,10s]. One path is not debounced: the codempresa_teste invalidator (lookups.mjs:122) calls getEmpresas() immediately on every event, without sharing an in-flight request. Only privileged DB writers can produce these events, so no lower-trust principal reaches the amplification; recorded as hardening. realtime.params.eventsPerSecond is only appended to the WebSocket URL; the vendored client has no reference to it.",
+          "artifact": null
+        },
+        {
+          "agent_id": "h14-routes-realtime",
+          "reviewed_paths": [
+            "app.js"
+          ],
+          "invariant": "The version auto-reload must be driven only by the same-origin deploy marker and must not loop or reach the DB.",
+          "method": "source",
+          "result": "checarNovaVersao (app.js:1643-1663) sends a same-origin HEAD /version.json with cache:no-store, compares the ETag or Last-Modified, and treats the first measurement as the reference. It reloads only when the value changes, and defers the reload while the modal is open (window.__divatReload). The only producer is a Vercel deploy by repo writers. It has no DB cost, and a reload resets the reference, so there is no reload loop. Invariant holds.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    "Route keys are looked up on plain objects without an own-property check: VIEW_META/VIEW_TOPIC (app.js:290-291), LOADERS (app.js:1145) and VIEW_TABLES (app.js:1425). As a result, #/consulta/__proto__, #/consulta/constructor and #/consulta/toString open a modal with an empty title that errors or never finishes loading (check-02). The resulting tab's view.tables is not an array, which makes tabMatchesEvent throw on every realtime event (view-state.mjs:115, check-01). Fix: build these maps with Object.create(null) or Map, or gate applyRoute/openView on Object.hasOwn(VIEW_META, view); add an Array.isArray guard in tabMatchesEvent; add the prototype-key hashes to scripts/check_selecao_linha.mjs.",
+    "An unvalidated #/topico/<any-string> suppresses the boot render (app.js:1727-1730 together with the early return at app.js:398): 0 topic buttons and 0 cards (check-03). This is the same failure class as the fixed #/linha/%E0 regression guarded in check_selecao_linha §6, but this case is unguarded. Fix: fall back to DEFAULT_TOPIC unless SECTIONS.some(s => s.key === topico) and the topic is not direct, and add the case to the gate.",
+    "The codempresa_teste Realtime invalidator (src/data/lookups.mjs:122) re-fetches the full company table immediately on every event, with no debounce or in-flight sharing. A bulk owner write of K rows therefore triggers K concurrent full-table GETs per connected visitor, and each GET can be retried up to 3 times. Fix: memoize the in-flight getEmpresas promise and fold the refetch into the existing 350 ms debounce.",
+    "sbFetch (src/data/rest.mjs:69-98) retries 5xx, 429, timeouts and network errors twice with a fixed 400/800 ms backoff. It adds no jitter and ignores Retry-After. The multiplier is bounded (x3), but it is synchronized across all visitors during DB saturation (anon statement_timeout produces 500s). Consider adding jitter, honoring Retry-After, and not retrying 429.",
+    "The Realtime channel uses a fixed, public, predictable topic 'divat-rt' (app.js:1611, private:false). Any holder of the anon key can join and broadcast to every visitor's socket. The vendored client drops these messages because the portal has no broadcast or presence bindings, so there is no control effect. The deliveries still count against the project's Realtime message and rate quotas. The owner can check the Realtime 'Allow public access' setting in the dashboard, or use a per-client random topic name or a private channel.",
+    "window.__divatReload (app.js:1082,1652) is a window global that markup with id=\"__divatReload\" could override (DOM clobbering); the only effect is a page reload when the modal closes. Use a module-scoped variable."
+  ],
+  "uncovered": []
+}

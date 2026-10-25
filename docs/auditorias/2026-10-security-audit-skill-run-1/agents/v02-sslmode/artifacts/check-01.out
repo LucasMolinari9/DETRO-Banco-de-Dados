@@ -1,0 +1,14 @@
+uid=65534 HOME=/sbx/scratch/home PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin
+ls: cannot access '/sbx/scratch/home/.postgresql/root.crt': No such file or directory
+cert_ok
+{"step":"R","validator_accepted":true,"host":"db.gontnlfmothfglssbyyk.supabase.co","sslmode":"require"}
+{"step":"R","threw":"AuditDatabaseError","msg":"psql terminou com falha ao consultar o auditor de teste (status 2)."}
+{"step":"F","validator_accepted":true,"host":"db.gontnlfmothfglssbyyk.supabase.co","sslmode":"verify-full"}
+{"step":"F","threw":"AuditDatabaseError","msg":"psql terminou com falha ao consultar o auditor de teste (status 2)."}
+{"step":"C","validator_accepted":true,"host":"db.gontnlfmothfglssbyyk.supabase.co","sslmode":"verify-ca"}
+{"step":"C","threw":"AuditDatabaseError","msg":"psql terminou com falha ao consultar o auditor de teste (status 2)."}
+--- peer log ---
+{"peer": "listening", "port": 54331}
+{"conn": 0, "sslrequest": true, "tls": "TLSv1.3", "startup_user": "divat_auditor_ci", "msg_type": "p", "password_received": "DUMMY-V02-REQUIRE"}
+{"conn": 1, "sslrequest": true, "password_received": null, "error": "SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)"}
+{"conn": 2, "sslrequest": true, "password_received": null, "error": "SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)"}
