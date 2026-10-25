@@ -280,9 +280,9 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
   mas a flag temporária ainda leva todos os hosts ao banco oficial. O dono decidiu não criar
   outro banco nesta entrega. Ao alterar essa matriz, rode `tests/environment.test.js`
   e o smoke real; ver [ADR-0002](docs/adr/0002-ambiente-de-teste-isolado.md).
-- **Auto-deploy:** conectar o repo GitHub `LucasMolinari9/LucasCTEC` ao projeto Vercel pelo
-  **dashboard** (OAuth, ação única) → **push na `main` = deploy** (e **push em branch = preview
-  deploy**, use-o). Sem essa conexão, publica-se rodando o MCP `deploy_to_vercel` após o push.
+- **Auto-deploy:** conectar o repo GitHub `LucasMolinari9/DETRO-Banco-de-Dados` ao projeto
+  Vercel pelo **dashboard** (OAuth, ação única) → **push na `main` = deploy** (e **push em branch
+  = preview deploy**, use-o). Sem essa conexão, publica-se rodando o MCP `deploy_to_vercel` após o push.
 - **Atualização automática para todos os usuários** (sem limpar cache):
   1. `Cache-Control: public, max-age=0, must-revalidate` (no `vercel.json`) → cada visita
      revalida (`index.html` **e** `app.js`).
@@ -562,8 +562,9 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
 
 ### Issue tracker
 
-Issues vivem no GitHub Issues do repo (`LucasMolinari9/LucasCTEC`), via `gh` CLI. Ver
-`docs/agents/issue-tracker.md`.
+Issues vivem no GitHub Issues do repo (`LucasMolinari9/DETRO-Banco-de-Dados`, antes
+`LucasCTEC`). Na sessão na nuvem, pelas ferramentas MCP do GitHub — a `gh` do container não está
+autenticada. Ver `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
