@@ -54,10 +54,10 @@ jobs:
           bash scripts/graft.sh map > graft-report/mapa.txt
           bash scripts/graft.sh ask 'loadTarifas sbFetch' --source > graft-report/consulta.txt
           bash scripts/graft.sh skeleton src/domain/core.mjs > graft-report/core.txt
-          bash scripts/graft.sh viz --export graft-report --title 'LucasCTEC — mapa do código'
+          bash scripts/graft.sh viz --export graft-report --title 'DETRO-Banco-de-Dados — mapa do código'
           {
-            echo '## Mapa estrutural do LucasCTEC'
-            echo 'Relatórios e visualização HTML disponíveis no artefato graft-lucasctec.'
+            echo '## Mapa estrutural do DETRO-Banco-de-Dados'
+            echo 'Relatórios e visualização HTML disponíveis no artefato graft-detro-banco-de-dados.'
             echo '```text'
             cat graft-report/mapa.txt
             echo '```'
@@ -65,7 +65,7 @@ jobs:
       - name: Salvar relatórios
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: graft-lucasctec
+          name: graft-detro-banco-de-dados
           path: graft-report/
           if-no-files-found: error
           retention-days: 7

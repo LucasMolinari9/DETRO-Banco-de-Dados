@@ -66,7 +66,7 @@ Ela não comprova a configuração de `gontnlfmothfglssbyyk`.
 ## 5. Conferências necessárias nos painéis
 
 Em 30/09/2026, a API confirmou a `main` protegida pelo ruleset ativo
-[Proteção da main](https://github.com/LucasMolinari9/LucasCTEC/rules/21211640): exige PR,
+[Proteção da main](https://github.com/LucasMolinari9/DETRO-Banco-de-Dados/rules/21211640): exige PR,
 bloqueia exclusão e force-push, exige resolução de discussões e oito checks obrigatórios
 com branch atualizada (`check`, `views`, `semgrep`, `migration-contract`, `seguranca`,
 `qualidade`, `realtime`, `deriva`). Não há atores com bypass; a conexão atual não pode ignorar

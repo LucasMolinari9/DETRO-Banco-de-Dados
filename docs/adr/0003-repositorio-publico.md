@@ -1,6 +1,7 @@
 # O repositório fica público
 
-O `LucasMolinari9/LucasCTEC` já foi privado. O `docs/seguranca.md` chegou a listar "tornar o
+O repositório — na época `LucasMolinari9/LucasCTEC`, hoje `LucasMolinari9/DETRO-Banco-de-Dados`
+— já foi privado. O `docs/seguranca.md` chegou a listar "tornar o
 repositório privado" entre as ações de maior ganho para o dono, com o passo a passo do painel do
 GitHub — uma instrução acionável, escrita quando essa era a postura vigente. A postura mudou e a
 instrução ficou; o manual de segurança passou a mandar fazer o oposto da decisão em vigor. Esta

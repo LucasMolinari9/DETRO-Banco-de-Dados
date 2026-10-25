@@ -61,7 +61,12 @@ permissions:
 
 jobs:
   views:
-    runs-on: ubuntu-latest
+    # Preso ao 24.04, e não ao `ubuntu-latest`: em 25/10/2026 o `ubuntu-latest` passou a ser o
+    # Ubuntu 26.04, e o Playwright fixado abaixo recusa instalar o Chromium nele ("Playwright does
+    # not support chromium on ubuntu26.04-x64") — o job morria antes do primeiro teste e travava
+    # todo PR, porque este check é obrigatório. Sair do 24.04 exige um Playwright que suporte o
+    # sistema novo: troque os dois no mesmo commit.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

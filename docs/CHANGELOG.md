@@ -4,6 +4,34 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 25/10/2026 — repo renomeado: docs e skills passam a `DETRO-Banco-de-Dados`
+
+O repositório deixou de se chamar `LucasMolinari9/LucasCTEC` e passou a
+`LucasMolinari9/DETRO-Banco-de-Dados`. Issues, PRs e runs do Actions vieram junto (conferido: a
+#121 e os quatro runs citados nos docs respondem no nome novo). O que ainda usava o nome antigo:
+- **Issue tracker das skills** (`docs/agents/issue-tracker.md`, lido por `/triage`, `/to-tickets`
+  e `/wayfinder`): mandava usar `gh` no nome antigo. Na sessão na nuvem a `gh` do container não
+  está autenticada e o acesso ao GitHub vale só para o nome atual, então as três falhariam. Cada
+  operação foi reescrita com as ferramentas MCP do GitHub. Duas armadilhas ficaram escritas:
+  `labels` e `assignees` substituem o conjunto inteiro, e o MCP não lê nem escreve as dependências
+  nativas de issue — na nuvem, o bloqueio do wayfinder é a linha `Blocked by:`.
+- **Links vivos** (`docs/seguranca.md`, `docs/planos/fase-3-hardening-moderado.md`) e o ADR-0003
+  usam o nome novo. O GitHub redireciona o nome antigo, mas só enquanto ninguém criar outro repo
+  com ele.
+- **Graft:** título do relatório e artefato passam a `graft-detro-banco-de-dados` (README junto).
+- **Vercel:** o `CLAUDE.md` tratava "conectar o repo" como passo pendente; a conexão existe e já
+  segue o nome novo (o push desta branch gerou preview).
+- **Teste de ambiente:** o exemplo de preview `lucasctec-git-…` virou o formato real dos previews
+  (`divatdetro-git-<branch>-lucas-molinari-s-projects.vercel.app`).
+- **`views.yml` preso ao `ubuntu-24.04`:** o PR desta mudança pegou o `ubuntu-latest` já no
+  Ubuntu 26.04, onde o Playwright 1.56.1 não instala o Chromium. O job morria na instalação, e
+  por ser check obrigatório travava todo PR — não só este. A `main` passou em 21/10, ainda no
+  sistema anterior.
+- **Ficam como estão:** os links deste CHANGELOG (cronologia) e o `run` de
+  `.semgrep/vendor/.manifest.json`, que o workflow gera a partir de `github.repository` e que se
+  corrige na próxima atualização dos rulesets — editá-lo à mão contraria a regra da cópia
+  vendorizada.
+
 ## 21/10/2026 — uso interno: fora dos buscadores e licenças de terceiros
 
 Revisão contra uma lista de "17 itens de conformidade" de sites feitos com IA. O dono confirmou
