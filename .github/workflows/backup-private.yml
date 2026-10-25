@@ -16,6 +16,15 @@ jobs:
   backup:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # A senha `postgres` (SUPABASE_BACKUP_DATABASE_URL) deve existir SÓ como secret deste
+    # Environment, restrito à `main` e com o dono como revisor obrigatório (NV-2; achado A03 da
+    # revisão de 25/10/2026). Esta linha sozinha não protege nada: enquanto houver cópia em
+    # Repository secrets, qualquer branch com escrita alcança a senha. O passo a passo do painel
+    # está em docs/backup.md. `deployment: false` porque isto não é deploy: sem ele o GitHub
+    # registraria um deployment a cada backup, e o deploy-smoke.yml escuta deployment_status.
+    environment:
+      name: backup-integral
+      deployment: false
     services:
       restore:
         image: postgres:17

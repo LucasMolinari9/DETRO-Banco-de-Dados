@@ -4,6 +4,26 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 25/10/2026 — revisão estática de segurança: Semgrep falha fechado, backup ganha Environment
+
+Uma revisão estática sobre um ZIP da `main` (sem rodar nada, sem banco) não achou vulnerabilidade
+crítica nova e reconfirmou três pendências já registradas (A01 = AUD-02, A02 = NV-1, A03 = NV-2),
+mais uma melhoria de processo (A04). Cada uma foi conferida contra o código:
+- **A04 — `scripts/semgrep.sh` caía sozinho para as regras locais** com `.semgrep/vendor/`
+  incompleto e saía 0: o falso verde de 14/08 por outra porta. Reproduzido contra o script
+  antigo. Agora sai 2 sem escanear; cobertura reduzida só com `--so-locais`, e os modos offline
+  imprimem a linha `conjuntos:` — `tests/semgrep-wrapper.test.mjs`.
+- **A03 — o backup integral não referenciava Environment.** O job passa a usar
+  `backup-integral` com `deployment: false`, e o `docs/backup.md` deixa de mandar cadastrar a
+  senha `postgres` como *repository secret*. A proteção só existe depois do passo do painel
+  (revisor, branch `main`, mover o secret e apagar a cópia de repositório).
+- **A02 — não acatada a correção proposta** (fixar o checkout do `deploy-smoke.yml` numa revisão
+  confiável): no `deployment_status` o YAML vem do commit implantado, que reescreveria o checkout.
+  A barreira continua sendo a *Git Fork Protection* da Vercel; o motivo ficou no §9.6.
+- **A01 — sem mudança de código**, por decisão anterior do dono (§9.5); registrado que o
+  `PGSSLROOTCERT` tem de entrar no ambiente que o módulo monta para o psql.
+- **Validade do `divat_auditor_ci` medida: 30/11/2026**, não 31/10 como no exemplo de bootstrap.
+
 ## 25/10/2026 — auditoria independente: seis defeitos de tela/PDF/dados corrigidos com teste
 
 Um relatório de auditoria (Codex sobre um snapshot da `main`, mais Semgrep, Gitleaks e OSV, sem

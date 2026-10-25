@@ -47,14 +47,34 @@ O workflow [backup-private.yml](../.github/workflows/backup-private.yml), **Back
 criptografado**, aceita somente `workflow_dispatch`, com `contents: read`, checkout sem
 credenciais persistidas e actions presas ao SHA. Não modifica a origem.
 
-Pré-requisitos em **Settings → Secrets and variables → Actions → New repository secret**:
+O job referencia o Environment **`backup-integral`**. A senha administrativa mora **só** nele,
+nunca em *Repository secrets*: secret de repositório chega a qualquer branch que alguém com
+escrita envie (agentes inclusive), e o Environment é o que restringe à `main` e exige a
+aprovação do dono (NV-2 em [segurança](seguranca.md) §9.6). Pelo navegador do celular, no site
+do GitHub (o app não mostra estas telas):
+
+1. **Settings → Environments → `backup-integral`** (se não existir, **New environment** com esse
+   nome exato — o GitHub também o cria vazio na primeira execução, sem proteção nenhuma).
+2. **Required reviewers:** marque e adicione a sua conta. Deixe *Prevent self-review* desmarcado,
+   senão você não aprova um backup que você mesmo disparou.
+3. **Deployment branches and tags → Selected branches and tags → Add rule → `main`**.
+4. **Environment secrets → Add secret**, com os dois abaixo.
+5. Em **Settings → Secrets and variables → Actions → Repository secrets**, **apague**
+   `SUPABASE_BACKUP_DATABASE_URL` se ele estiver lá. Sem este passo os anteriores não protegem
+   nada: o job lê o do Environment, mas uma branch que tire o `environment:` do YAML lê o do
+   repositório.
 
 - `SUPABASE_BACKUP_DATABASE_URL`: URI do **Connect → Session pooler**, porta **5432**, do
   projeto oficial, com sua senha. Só o dono cadastra; nunca enviar a URI ao agente/chat.
 - `BACKUP_AGE_PUBLIC_KEY`: destinatário público age X25519. A chave privada correspondente
-  fica exclusivamente com o dono, fora do GitHub. Sem ela o backup não abre.
+  fica exclusivamente com o dono, fora do GitHub. Sem ela o backup não abre. É pública, mas
+  fica no mesmo Environment para os dois secrets do job andarem juntos.
 
-O agente dispara e acompanha o workflow. Ele instala o cliente PostgreSQL 17, faz `pg_dump
+Com o revisor configurado, toda execução para em **Waiting for review** até o dono tocar em
+**Review deployments → Approve** na página do run.
+
+O agente dispara o workflow na `main`, o dono aprova e o agente acompanha. Ele instala o
+cliente PostgreSQL 17, faz `pg_dump
 -Fc` **sem filtro de schema ou tabela** e `pg_dumpall --roles-only --no-role-passwords`.
 Contagens e dump compartilham um snapshot `REPEATABLE READ READ ONLY` exportado. A contagem
 cobre cada tabela de cada schema, incluindo vazias, partições e schemas internos do Supabase;

@@ -375,6 +375,9 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    `run-shell-injection`** chegaram ao CI em 09/08. `--full` (rede, bloqueada no ambiente do
    Claude) vira conferência de frescor. **Para atualizar a cópia, nunca edite à mão:** aba
    Actions → workflow `atualizar-semgrep-rulesets` → abre PR com o diff.
+   Com `.semgrep/vendor/` incompleto o padrão **sai 2 sem escanear** (desde 25/10/2026; antes
+   caía sozinho para as locais e saía 0). Cobertura reduzida só com `--so-locais`, e a linha
+   `conjuntos:` da saída diz o que rodou — relate-a junto do "verde".
    Runbook e como escrever regra nova: **`docs/semgrep.md`**.
 2c. **Deriva docs×banco — `node scripts/check_deriva.mjs`** (precisa de rede). Confere que toda
    tabela/coluna/RPC que o repo afirma existe mesmo — pelo auditor PostgreSQL mínimo
