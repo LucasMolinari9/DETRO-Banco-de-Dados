@@ -48,7 +48,7 @@ Requer **Node.js 22+ e npm**; o primeiro uso baixa a ferramenta do registro npm.
 O portal continua estático e sem `package.json` ou build.
 
 **Pelo celular:** no site do GitHub, abra **Actions → Graft — mapa do código →
-Run workflow**. Abra a execução para ler o resumo; o artefato `graft-lucasctec`
+Run workflow**. Abra a execução para ler o resumo; o artefato `graft-detro-banco-de-dados`
 contém relatórios e `index.html`, a visualização interativa para abrir após extrair
 o ZIP. O workflow também confere a integração quando ela muda em uma PR.
 

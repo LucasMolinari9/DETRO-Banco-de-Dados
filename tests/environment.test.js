@@ -13,7 +13,7 @@ const CONFIG = Object.freeze({
 const casos = [
   ['host canônico de produção', 'divatdetro.vercel.app', 'producao', CONFIG.prodUrl],
   ['produção com caixa e ponto final', 'DIVATDETRO.VERCEL.APP.', 'producao', CONFIG.prodUrl],
-  ['preview Vercel', 'lucasctec-git-feature-exemplo.vercel.app', 'teste', CONFIG.testeUrl],
+  ['preview Vercel', 'divatdetro-git-feature-exemplo-lucas-molinari-s-projects.vercel.app', 'teste', CONFIG.testeUrl],
   ['localhost', 'localhost', 'teste', CONFIG.testeUrl],
   ['arquivo local sem hostname', '', 'teste', CONFIG.testeUrl],
   ['hostname desconhecido', 'portal-exemplo.invalid', 'teste', CONFIG.testeUrl],

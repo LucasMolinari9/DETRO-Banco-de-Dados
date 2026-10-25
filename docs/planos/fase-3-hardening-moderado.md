@@ -72,9 +72,9 @@ para `audit` e fecharam grants públicos divergentes. Os identificadores aplicad
 migrations porque uma instrução antiga citava timestamps diferentes.
 
 Os runs manuais de 22/08/2026 comprovaram o auditor mínimo naquela data:
-[Phase 3](https://github.com/LucasMolinari9/LucasCTEC/actions/runs/32585853817),
-[DB checks](https://github.com/LucasMolinari9/LucasCTEC/actions/runs/32585854923) e
-[Deriva](https://github.com/LucasMolinari9/LucasCTEC/actions/runs/32585856069).
+[Phase 3](https://github.com/LucasMolinari9/DETRO-Banco-de-Dados/actions/runs/32585853817),
+[DB checks](https://github.com/LucasMolinari9/DETRO-Banco-de-Dados/actions/runs/32585854923) e
+[Deriva](https://github.com/LucasMolinari9/DETRO-Banco-de-Dados/actions/runs/32585856069).
 Eles são evidência datada, não substituem uma nova execução depois das correções atuais.
 
 ## Rollback histórico
