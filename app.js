@@ -17,7 +17,7 @@ import {
 // beginGen é o `makeCtx`/`nextGen` do próprio módulo, e importá-lo aqui seria binding morto (e
 // um convite a recriar o `const view = currentView, gen = beginGen(view)` que a fase eliminou).
 import {
-  isCurrentGen, commitViewResult, pushDetail, popDetail,
+  isCurrentGen, commitViewResult, pushDetail, popDetail, invalidarView,
   makeCtx, withLine, withHost,
   MAX_TABS, makeTab, openTabState, closeTabState,
   dispatchRealtime,
@@ -125,7 +125,7 @@ configurarListas({ aoSelecionarLinha: row => {
 // declaração existir. O fecho só a lê quando de fato CHAMADO, muito depois de o arquivo inteiro
 // já ter sido avaliado (nenhum documento abre no load).
 configurarDocumentos({
-  selecionarLinha: selectLine,
+  selecionarLinha: (row, view) => selecionarLinhaDaView(view, row),
   novoCtx: (view, pane, host) => novoCtx(view, pane, host),
   montarPainelBusca: (ctx, options) => searchPanel(ctx, options),
   abrirView: options => runView(options),
@@ -634,6 +634,19 @@ function selectLine(row) {
   paintBanner(row);
   updateNeedChips(); renderTabs(); syncHash();
 }
+// Seleção que vem de um DOCUMENTO (a busca de linha dele resolveu, ou o usuário clicou na lista
+// que ela montou): vai para a aba DONA da `view`, não para a que estiver na tela quando a resposta
+// chegar. Aba de segundo plano só guarda a linha — banner e rota são da aba ativa, e o
+// `activateTab` pinta a linha guardada quando o usuário voltar. View que já não está em aba
+// nenhuma (substituída ou fechada) não seleciona nada. Até 25/10/2026 a busca chamava
+// `selectLine` direto e a linha caía na aba errada (DIVAT-01 — check_corrida_abas.mjs ATO 3).
+function selecionarLinhaDaView(view, row){
+  if (!view) { selectLine(row); return; }
+  const dona = tabs.find(t => t.view === view);
+  if (!dona) return;
+  if (dona.id === activeTabId) selectLine(row);
+  else { dona.line = row; renderTabs(); }
+}
 // `activeLine` é um snapshot do row (congelado no clique). Sem isto, uma edição ao vivo em
 // tabela_vista_teste (nome, empresa, cancelamento) recarregava o modal mas deixava o BANNER
 // exibindo os dados antigos. Rebusca a linha ativa e re-renderiza o banner (chamado pelo Realtime).
@@ -1112,6 +1125,9 @@ async function runView(view, { silent=false } = {}){
   nav.goingBack = false;
   const wasOpen = overlay.classList.contains('open');
   if (!wasOpen) lastFocused = document.activeElement;
+  // a view que sai desta aba (troca de documento no MESMO pane) perde o que ainda estava no ar:
+  // o loader dela, resolvendo depois, pintava por cima do documento novo (check_corrida_abas ATO 5)
+  if (currentView && currentView !== view) invalidarView(currentView);
   setCurrentView(view);
   // fixa o pane DESTA view no momento em que ela começa a rodar — não o `modalBody` ao vivo. É
   // ele que vai para o `ctx.pane` do loader logo abaixo: quem escreve depois de um await escreve
@@ -1134,7 +1150,7 @@ async function runView(view, { silent=false } = {}){
   // ser a mais nova no momento em que o loader começa.
   const ctx = novoCtx(view, view._pane);
   try { await view.loader(ctx); }
-  catch(e){ ctx.pane.innerHTML = errorBox(e.message); }
+  catch(e){ if (isCurrentGen(view, ctx.gen)) ctx.pane.innerHTML = errorBox(e.message); }
 }
 
 /* --- Busca de linha — wrappers de documento ---------------------- */
@@ -1186,11 +1202,15 @@ async function lineSearchRun(ctx, term, { render, emptyMsg, prompt, useActive = 
   }
   if (useActive && line && lineMatchesTerm(line, term)) return render(ctx);
   const lines = await searchLines(term);
+  // busca ultrapassada (outra busca no mesmo documento, ou o documento saiu da aba): nem tela,
+  // nem seleção de linha — senão ela vence a mais nova (DIVAT-01)
+  if (!isCurrentGen(view, gen)) return;
   if (!lines.length){ host.innerHTML = emptyBox('Nenhuma linha encontrada para “'+esc(term)+'”.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
-  if (lines.length === 1){ selectLine(lines[0]); return render(withLine(ctx, lines[0])); }
+  if (lines.length === 1){ selecionarLinhaDaView(view, lines[0]); return render(withLine(ctx, lines[0])); }
   await getEmpresas();
+  if (!isCurrentGen(view, gen)) return;
   host.innerHTML = `<p class="doc-note">${lines.length} linha(s) encontradas — ${prompt}:</p>` + linhasTable(lines);
-  host.querySelectorAll('tr[data-row]').forEach(tr=>tr.addEventListener('click',()=>{ const l=JSON.parse(tr.dataset.row); selectLine(l); render(withLine(ctx, l)); }));
+  host.querySelectorAll('tr[data-row]').forEach(tr=>tr.addEventListener('click',()=>{ const l=JSON.parse(tr.dataset.row); selecionarLinhaDaView(view, l); render(withLine(ctx, l)); }));
   commitViewResult(view, gen, { pdfHTML:null });
 }
 // resolve o termo → 1 linha (renderiza o documento) ou várias (lista p/ escolher)
@@ -1243,6 +1263,7 @@ LOADERS.empresasRegulares = async ({ view, gen, pane }) => {
     sbFetch('tabela_vista_teste', `select=codempresa,cancelado,paralisado&limit=5000`),
     getEmpresas()
   ]);
+  if (!isCurrentGen(view, gen)) return;   // view substituída/recarregada enquanto esperava
   const cnt = {};
   lineRows.forEach(r=>{ const k=r.codempresa||'—'; cnt[k]=cnt[k]||{total:0,ativas:0}; cnt[k].total++; if(isLinhaAtiva(r))cnt[k].ativas++; });
   // dedup do cadastro por RJ (uma entrada por codempresa) — mesma regra que o getEmpresas usa
@@ -1274,7 +1295,8 @@ LOADERS.empresasRegulares = async ({ view, gen, pane }) => {
       if(q && !(norm(e.nome_empresa||'').includes(q) || String(e.codempresa||'').includes(termo))) return false;
       return true;
     });
-    if(!f.length){ result.innerHTML = emptyBox('Nenhuma empresa com esse filtro.'); return; }
+    // vazio também escreve o PDF (null), senão sai a lista do filtro anterior (DIVAT-03)
+    if(!f.length){ result.innerHTML = emptyBox('Nenhuma empresa com esse filtro.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
     paginateTable(result, f, {
       cols, rowHTML:e=>rowHTML(e), foot:t=>t+' empresa(s)', unit:'empresas',
       bind:c=>c.querySelectorAll('tr[data-emp]').forEach(tr=>tr.addEventListener('click',()=>openEmpresaLigacoes(tr.dataset.emp))),
@@ -1299,6 +1321,7 @@ function openEmpresaLigacoes(cod){
       sbFetch('tabela_vista_teste', `codempresa=eq.${enc(cod)}&select=${LINE_FIELDS}&order=nome_ligacao&limit=500`),
       getEmpresas()
     ]);
+    if (!isCurrentGen(view, gen)) return;
     pane.innerHTML = `<div class="doc">${docHead('Ligações por Empresa')}
       ${metaRows([['Empresa',esc(empNome(cod)),true],['Registro','RJ-'+esc(cod)],['Total',rows.length+' ligação(ões)']])}
       <div id="empLigResult"></div></div>`;
@@ -1372,10 +1395,18 @@ function searchPanel(ctx, { title, placeholder, value='', selectOpts, onRun, aut
     ${note?`<div class="doc-obs tight"><b>Nota:</b> ${esc(note)}</div>`:''}
     <div class="doc-search"><div class="sp-field"><input id="spInput" type="text" placeholder="${esc(placeholder)}" value="${esc(value)}" aria-label="${esc(placeholder)}" autocomplete="off"${suggest?' role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="spDrop"':''}>${dropHTML}</div>${selHTML}<button id="spBtn">Buscar</button></div>
     <div id="spHost"></div></div>`;
-  const input=pane.querySelector('#spInput'), btn=pane.querySelector('#spBtn'), host=pane.querySelector('#spHost'), sel=pane.querySelector('#spSel');
-  const run = async()=>{ closeSug(); host.innerHTML=loading();
-    const rctx = novoCtx(ctx.view, pane, host);
-    try{ await onRun(input.value.trim(), rctx, sel?sel.value:undefined); }catch(e){ host.innerHTML=errorBox(e.message);} };
+  const input=pane.querySelector('#spInput'), btn=pane.querySelector('#spBtn'), sel=pane.querySelector('#spSel');
+  let host=pane.querySelector('#spHost');
+  // Cada busca desenha num `#spHost` NOVO, que substitui o anterior no DOM: a busca ultrapassada
+  // continua escrevendo no host DELA, que já saiu da tela. É o que impede a resposta velha de
+  // vencer a nova em qualquer documento de painel, sem um guard em cada await (DIVAT-01 —
+  // check_corrida_abas.mjs ATO 4). O render inicial do lineDocView pega o host da abertura, e
+  // por isso uma busca feita antes de ele resolver também o tira da tela.
+  const run = async()=>{ closeSug();
+    const novo = host.cloneNode(false); host.replaceWith(novo); host = novo;
+    novo.innerHTML=loading();
+    const rctx = novoCtx(ctx.view, pane, novo);
+    try{ await onRun(input.value.trim(), rctx, sel?sel.value:undefined); }catch(e){ novo.innerHTML=errorBox(e.message);} };
   let closeSug = ()=>{};
   if(suggest){
     const drop = pane.querySelector('#spDrop');
@@ -1712,11 +1743,12 @@ async function applyRoute(){
     else if (seg[i] === 'consulta' && seg[i+1]) view   = dec(seg[++i]);
   }
   _applyingRoute = true;
+  let linhaMudou = false;
   try {
     if (cod && (!activeLine || String(activeLine.codlinha) !== String(cod))){
       try {
         const rows = await sbFetch('tabela_vista_teste', `codlinha=eq.${enc(cod)}&select=${LINE_FIELDS}&limit=1`);
-        if (rows[0]) selectLine(rows[0]);
+        if (rows[0]){ selectLine(rows[0]); linhaMudou = true; }
       } catch(_){ /* linha inacessível → segue sem selecionar */ }
     }
     if (!cod && activeLine){ setActiveLine(null); banner.classList.add('is-hidden'); updateNeedChips(); }
@@ -1732,7 +1764,10 @@ async function applyRoute(){
       || DEFAULT_TOPIC;
     if (currentTopicKey !== topicoAlvo) selectTopic(topicoAlvo);
     if (view && VIEW_META[view]){
-      if (!(overlay.classList.contains('open') && currentView && currentView.key === view)) openView(view);
+      // a mesma consulta já aberta só é poupada se a LINHA também não mudou: trocar só a linha do
+      // endereço deixava banner numa linha e tela/PDF na outra (DIVAT-02 — check_selecao_linha §9)
+      const mesmaAberta = overlay.classList.contains('open') && currentView && currentView.key === view;
+      if (linhaMudou || !mesmaAberta) openView(view);
     } else if (!view && overlay.classList.contains('open')){
       closeModal();
     }

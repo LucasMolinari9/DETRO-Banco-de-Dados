@@ -84,7 +84,7 @@ exibe e **atualiza ao vivo** (Realtime).
   `lookups.mjs` importa a fronteira REST diretamente; `configurarListas({aoSelecionarLinha})`
   passa a ação de shell de clicar numa linha (selecionar + fechar o modal + toast) e
   `configurarDocumentos({selecionarLinha, novoCtx})` passa a ação de tornar uma
-  linha ativa e a fábrica de ctx novo (o segundo slot, acrescentado para o painel de
+  linha ativa (na aba DONA do documento) e a fábrica de ctx novo (o segundo slot, acrescentado para o painel de
   Portarias) para TODOS os documentos de `src/documentos/`. Os quatro **falham fechado**: sem
   configuração, `docHead`/`getEmpresas`/`bindLineRows`/`sbFetch` lançam em vez de sair mudos —
   regressão silenciosa aqui é invisível para todo gate. Módulo que precise de mais
@@ -237,7 +237,7 @@ em **`docs/estrutura-frontend.md`**. Visão geral:
 | *(fora do `app.js`)* `src/domain/core.mjs` | `fmtCode/fmtTime/fmtDate`, `esc/enc/ilikeTerm/orDash`, `norm`, `debounce`, `isLinhaAtiva`/`isVigente` | Formatação, escaping, normalização de texto, o `debounce` compartilhado e as regras de situação da linha. |
 | *(fora do `app.js`)* `src/domain/agrupamento.mjs` | `groupBy`, `countBy`, `fmtMoney`, `byCodlinha`, `rjOrder`, `scoreEmpresa`/`dedupEmpresasPorRJ`, `classifyMunLines`/`terminaisDoMunicipio`, `resumoFrota`/`filtrarFrotaEmpresas` | Agregação, ordenação e filtros de conjunto — importados pelo `app.js` e pelos testes, sem cópia no meio. |
 | *(fora do `app.js`)* `src/domain/busca.mjs` | `yearOf`/`matchEvent`, `localidadesQueCasam`, `orIlike`, `municipiosExatos` | Filtro do histórico de eventos e preparação do termo PostgREST; o I/O de localidades mora no módulo C4. |
-| *(fora do `app.js`)* `src/domain/view-state.mjs` | `beginGen`/`isCurrentGen`/`commitViewResult`/`pushDetail`/`popDetail`, `makeCtx`/`withLine`/`withHost`/`nextGen`, `MAX_TABS`/`makeTab`/`openTabState`/`closeTabState`, `tabMatchesEvent`/`dispatchRealtime`, `pageBounds`, `filtrarSituacao` | Regras puras sobre o ESTADO DO QUE ESTÁ NA TELA: qual tentativa de carga ainda vale, quais abas existem, qual delas se importa com um evento, e que fatia/subconjunto uma lista mostra. Quem APLICA a decisão (DOM, fetch, toast) continua no `app.js`. |
+| *(fora do `app.js`)* `src/domain/view-state.mjs` | `beginGen`/`isCurrentGen`/`invalidarView`/`commitViewResult`/`pushDetail`/`popDetail`, `makeCtx`/`withLine`/`withHost`/`nextGen`, `MAX_TABS`/`makeTab`/`openTabState`/`closeTabState`, `tabMatchesEvent`/`dispatchRealtime`, `pageBounds`, `filtrarSituacao` | Regras puras sobre o ESTADO DO QUE ESTÁ NA TELA: qual tentativa de carga ainda vale, quais abas existem, qual delas se importa com um evento, e que fatia/subconjunto uma lista mostra. Quem APLICA a decisão (DOM, fetch, toast) continua no `app.js`. |
 | *(fora do `app.js`)* `src/ui/doc.mjs` | `configurarDoc`, `docHead`, `metaRows`, `colClass`, `tableHTML`, `loading`/`emptyBox`/`emptyLinha`/`errorBox`, `bannerTrunc` | Markup de documento e estados de tela — string de HTML, sem DOM nem estado. O SVG do logo chega por `configurarDoc` no bootstrap. |
 | *(fora do `app.js`)* `src/ui/paginacao.mjs` | `paginate`, `paginateTable`, `paginateEvents` | Paginação **só de tela** (25/pág), agnóstica de conteúdo; `paginateEvents` é o de UM evento por página, com filtros. Recebem `view`/`gen` de quem chama. |
 | *(fora do `app.js`)* `src/ui/listas.mjs` | `configurarListas`, `situacaoSelectHTML`, `linhasTable`, `bindLineRows`, `paginateLines`, `lineResults` | A família de listas de LINHA, o hub de ~10 cards. O clique numa linha é ação de shell e chega por `configurarListas({aoSelecionarLinha})`. |
@@ -347,6 +347,10 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    único gate que **cria** a ordenação do bug: o stub segura a resposta até a troca de aba ter
    acontecido. Os outros três esperam a requisição assentar antes de agir e por isso podem ficar
    verdes com um render pintando o pane errado. Roda no CI, no mesmo `views.yml`.
+   **Ao mexer em corte de consulta (`limit=`, `slice`, lotes) ou no PDF de um estado vazio**, rode
+   `node scripts/check_resultados.mjs` — mesma bancada, com fixtures grandes o bastante para
+   atingir os cortes e com estados vazios depois de um resultado, o que as 3 linhas do rig não
+   alcançam. Roda no CI, no mesmo `views.yml`.
 > Os cinco gates abaixo (2a–2e) têm **runbook no cabeçalho do próprio script**. Aqui fica só
 > quando rodar e **o que quebra se você esquecer** — o detalhe mora junto da ferramenta, que é
 > onde quem a opera vai olhar. Este arquivo é lido no início de toda sessão; runbook de gate não.
@@ -490,6 +494,14 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
   documento é regressão. `activeLine`/`currentView` continuam com mais de um escritor legítimo (o
   wiring de abas, as limpezas) e isso **fica**: o que acabou foi um documento os LER. Guardado por
   `scripts/check_corrida_abas.mjs`, o único gate que CRIA a ordenação do bug.
+- **Resposta velha não pinta por cima da nova — três mecanismos (auditoria de 25/10/2026):**
+  (1) cada busca de painel desenha num `#spHost`/`#locHost` NOVO, que substitui o anterior no DOM
+  (`searchPanel` e o `run` do Localidade), e a busca ultrapassada escreve num host que saiu da
+  tela, sem guard em cada await; (2) o `runView` chama `invalidarView` na view que sai da aba, e
+  o loader que pinta o **pane** depois de um await confere `isCurrentGen` — o pane não é trocado,
+  então **documento novo que pinte o pane depois de um await precisa do guard**; (3) linha
+  selecionada por um documento passa por `selecionarLinhaDaView` (`app.js`) e vai para a aba
+  DONA, não para a ativa. Guardados pelos ATOS 3–5 do `check_corrida_abas.mjs`.
 - **NUNCA atribua `currentView.pdfHTML` direto — use o seam do ciclo de vida da view:**
   `beginGen`/`commitViewResult`/`pushDetail`/`popDetail` (em `src/domain/view-state.mjs`,
   importados no topo do `app.js`; o `let currentView` a que eles se aplicam continua na seção

@@ -299,6 +299,25 @@ aba 2 não foi sobrescrito; (c) o pane **da aba 1** e o `pdfHTML` **dela** receb
 atrasada. A (c) não é decoração: sem ela, uma implementação que descartasse toda resposta
 pós-troca-de-aba passaria em (a) e (b).
 
+**A mesma aba, tentativa mais nova (auditoria de 25/10/2026).** O `gen` só protegia o `pdfHTML`;
+a TELA de uma busca ultrapassada no mesmo documento, ou de um documento substituído na mesma aba,
+ainda era pintada. Três mecanismos fecham isso, cada um no ponto que inicia a tentativa:
+
+- **Host novo por busca.** O `run` do `searchPanel` (e o do Localidade) troca o `#spHost`
+  (`#locHost`) por um clone vazio antes de chamar o documento. A busca ultrapassada continua
+  escrevendo no host dela, que saiu do DOM — cobre todo documento de painel sem um guard em cada
+  `await`.
+- **`invalidarView` no `runView`.** A view que sai da aba (troca de documento no mesmo pane) tem a
+  geração invalidada. Como o pane não é trocado, o loader que pinta o **pane** depois de um
+  `await` confere `isCurrentGen` — Empresas Regulares, Ligações por Empresa, Linhas no Município e
+  as cascas de Logradouro, Município e Região e Terminais.
+- **Seleção na aba dona.** A linha que um documento seleciona (busca resolvida, clique na lista)
+  passa por `selecionarLinhaDaView`: aba ativa → `selectLine`; aba de segundo plano → só guarda a
+  linha, que o `activateTab` pinta quando o usuário voltar; view que já não está em aba nenhuma →
+  nada.
+
+Os ATOS 3–5 do `check_corrida_abas.mjs` criam essas três ordenações.
+
 **A Fase C1 endureceu a (c) do ATO 1, e a razão vale como aviso geral sobre asserção de PDF.** Ela
 afirmava só que o PDF da aba 1 continha o TÍTULO do documento e uma linha da tabela — e nenhuma das
 duas coisas distingue o `pdfHTML` committado do **fallback** do `baixarPdf` (`app.js`, seção

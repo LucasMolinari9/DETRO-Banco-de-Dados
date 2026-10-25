@@ -320,6 +320,28 @@ export async function launchPage(chromium, { segurar } = {}) {
   return { browser, page };
 }
 
+// Captura o HTML que o botão PDF montaria, sem abrir diálogo de impressão: o stub de
+// `window.print` lê o container `.pdf-export` (que o baixarPdf acabou de criar) e dispara o
+// `afterprint` que o próprio app.js escuta, para o cleanup rodar e o próximo clique não ser
+// barrado pela trava de reentrância. Mora aqui porque dois gates perguntam "o que o PDF sai
+// dizendo" (check_corrida_abas e check_resultados) — duas cópias divergiriam em silêncio.
+export async function pdfDaAbaAtiva(page) {
+  await page.evaluate(() => {
+    window.__pdf = null;
+    if (!window.__printStub) {
+      window.__printStub = true;
+      window.print = () => {
+        const el = document.querySelector('.pdf-export');
+        window.__pdf = el ? el.innerHTML : '';
+        window.dispatchEvent(new Event('afterprint'));
+      };
+    }
+  });
+  await page.click('#btnPdf');
+  await page.waitForFunction(() => window.__pdf !== null, null, { timeout: 15000 });
+  return page.evaluate(() => window.__pdf);
+}
+
 /* ================================================================
    PLACAR
    ================================================================ */

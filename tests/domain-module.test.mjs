@@ -57,7 +57,7 @@ assert.deepEqual(busca.municipiosExatos({ 3303302: { nome: 'Niterói' } }, ['nit
 // view-state.mjs: mesmo critério. `MAX_TABS` é constante, não função — entra separado, e é
 // justamente o símbolo que a auditoria de 27/07/2026 achou exportado sem guarda nenhuma.
 const VS_ESPERADOS = ['beginGen', 'isCurrentGen', 'commitViewResult', 'pushDetail', 'popDetail',
-  'makeCtx', 'withLine', 'withHost', 'nextGen',
+  'makeCtx', 'withLine', 'withHost', 'nextGen', 'invalidarView',
   'makeTab', 'openTabState', 'closeTabState', 'tabMatchesEvent', 'dispatchRealtime',
   'pageBounds', 'filtrarSituacao'];
 for (const nome of VS_ESPERADOS) assert.equal(typeof viewState[nome], 'function', `view-state.${nome} ausente`);
@@ -69,6 +69,17 @@ assert.equal(viewState.MAX_TABS, 5);
   assert.equal(viewState.commitViewResult(view, gen1, { pdfHTML: 'velho' }), false);
   assert.equal(viewState.commitViewResult(view, gen2, { pdfHTML: 'novo' }), true);
   assert.equal(view.pdfHTML, 'novo');
+}
+// `invalidarView`: a view substituída na MESMA aba descarta o que ainda estava no ar — tela e
+// PDF (DIVAT-01/C01, auditoria de 25/10/2026). Sem view (modal fechado) é no-op, não lança.
+{
+  const view = { pdfHTML: 'atual' };
+  const ctx = viewState.makeCtx(view);
+  viewState.invalidarView(view);
+  assert.equal(viewState.isCurrentGen(view, ctx.gen), false);
+  assert.equal(viewState.commitViewResult(view, ctx.gen, { pdfHTML: 'atrasado' }), false);
+  assert.equal(view.pdfHTML, 'atual');
+  viewState.invalidarView(null);
 }
 // o CONTEXTO (Fase A): `makeCtx` cunha a geração; `withLine`/`withHost` PRESERVAM view+gen.
 // A preservação é o invariante da fase, não detalhe: derivar com geração nova devolveria a

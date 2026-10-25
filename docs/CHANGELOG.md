@@ -4,6 +4,38 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 25/10/2026 — auditoria independente: seis defeitos de tela/PDF/dados corrigidos com teste
+
+Um relatório de auditoria (Codex sobre um snapshot da `main`, mais Semgrep, Gitleaks e OSV, sem
+banco nem navegador) não achou vulnerabilidade de acesso; os cinco achados (DIVAT-01 a 05) eram
+de consistência. Cada um foi conferido contra o código (o snapshot era idêntico à `main`) e
+reproduzido num teste que falhou antes da correção:
+- **Linhas no Município lia só 4.000 trechos** (C04 do Codex, que o relatório final tinha
+  descartado sem justificar). O Rio tem ~13,5 mil: a lista e o "Total" saíam incompletos, sem
+  aviso. Agora usa a mesma leitura da busca entre municípios (30 mil, o teto do PostgREST) e
+  avisa se o teto for atingido — `check_resultados.mjs` §1.
+- **DIVAT-01 — corridas de tela.** A busca de linha atrasada selecionava a linha na aba ATIVA, não
+  na que pediu; duas buscas no mesmo documento deixavam a tela com a velha e o PDF com a nova; e
+  trocar de documento na mesma aba com um loader no ar deixava o antigo pintar por cima. Três
+  mecanismos (host novo por busca, `invalidarView` no `runView`, seleção na aba dona) — ATOS 3–5
+  do `check_corrida_abas.mjs`.
+- **DIVAT-03 — estado vazio exportava o PDF anterior** (lista vazia, filtro Canceladas sem
+  resultado, filtro textual de Seções por Empresa e, achado na conferência, o filtro de Empresas
+  Regulares) — `check_resultados.mjs` §3.
+- **DIVAT-04 — busca de A para B só examinava 200 candidatas** e afirmava "nenhuma linha" sobre o
+  resto. Consulta em lotes de 200 — `check_resultados.mjs` §2.
+- **DIVAT-02 — trocar só a linha do endereço** com o documento aberto mudava o banner e mantinha
+  tela/PDF da linha anterior. Só acontece editando/colando o endereço: o Voltar/Avançar do portal
+  não produz essa sequência, ao contrário do que o relatório dizia — `check_selecao_linha.mjs` §9.
+- **DIVAT-05 — carga de lookup anterior à invalidação repovoava o cache** com o dado antigo.
+  Época por cache em `src/data/lookups.mjs` — `tests/ui-data-module.test.mjs`.
+
+Não acatado: o item 5 do plano do relatório (revisar permissões no banco vivo e testar em
+navegador) já é o que fazem o `db-checks.yml` e o `views.yml`; o relatório também tratava o portal
+como aberto a qualquer pessoa, mas desde 21/10 ele é de uso interno — nenhum achado muda por isso.
+O helper que captura o PDF nos gates de navegador (`pdfDaAbaAtiva`) foi para `scripts/lib/rig.mjs`,
+porque passou a ter dois usuários.
+
 ## 25/10/2026 — repo renomeado: docs e skills passam a `DETRO-Banco-de-Dados`
 
 O repositório deixou de se chamar `LucasMolinari9/LucasCTEC` e passou a

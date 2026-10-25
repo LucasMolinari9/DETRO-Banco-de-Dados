@@ -273,7 +273,8 @@ export async function secoesPorEmpresaRun(ctx, term){
   const paint = ()=>{
     const q = norm(inp.value.trim());
     const f = q ? rows.filter(r=>norm(`${orDash(r.secao)} ${fmtCode(r.codlinha)} ${r.codlinha} ${r.nome_ligacao||''}`).includes(q)) : rows;
-    if(!f.length){ result.innerHTML = emptyBox('Nenhuma seção com esse filtro.'); return; }
+    // vazio também escreve o PDF (null), senão sai o da busca anterior — mesmo caso do lineResults
+    if(!f.length){ result.innerHTML = emptyBox('Nenhuma seção com esse filtro.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
     paginateTable(result, f, { cols, rowHTML:r=>rowHTML(r), foot:t=>t+' seção(ões)', unit:'seções', view, gen });
   };
   inp.addEventListener('input', debounce(paint));
