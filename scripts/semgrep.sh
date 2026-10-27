@@ -23,7 +23,13 @@
 #   ./scripts/semgrep.sh            # locais + vendorizados (offline) — o padrão
 #   ./scripts/semgrep.sh --full     # locais + registry AO VIVO (precisa de rede)
 #   ./scripts/semgrep.sh --test     # testa as REGRAS contra .semgrep/tests/
+#   ./scripts/semgrep.sh --so-locais  # SÓ as regras locais — cobertura reduzida, pedida às claras
 #   ./scripts/semgrep.sh --baseline-commit=origin/main   # só o que a SUA branch introduziu
+#
+# O padrão FALHA (sai 2) se `.semgrep/vendor/` estiver incompleto, em vez de cair sozinho para
+# as regras locais: até 25/10/2026 ele avisava e seguia, e um "saiu 0" com cobertura menor que a
+# do CI é o falso verde de 14/08 de novo (achado A04 da revisão estática de 25/10/2026).
+# Quem quer mesmo rodar só as locais pede `--so-locais`, e a linha "conjuntos:" diz o que rodou.
 #
 # `--full` continua existindo como conferência de FRESCOR: se ele acusar o que o padrão não
 # acusou, a cópia vendorizada está velha — rode o workflow.
@@ -90,7 +96,7 @@ for _R in $REGISTRY_IDS; do
   [ -f "$VENDOR_DIR/$_R.yml" ] || VENDOR_FALTANDO="$VENDOR_FALTANDO p/$_R"
 done
 # `if` e não `x && y`: sob `set -e`, uma AND-OR list cujo lado esquerdo falha devolve não-zero
-# e pode abortar o script. Aqui o caminho "faltando" é NORMAL (é o estado de hoje), não erro.
+# e pode abortar o script — e quem decide o que fazer com o "faltando" é o modo, lá embaixo.
 if [ -z "$VENDOR_FALTANDO" ]; then
   VENDOR_RULES="--config=$VENDOR_DIR"
 fi
@@ -115,18 +121,13 @@ aviso_versao() {
   echo "         pipx install 'semgrep==$V_CI' --force" >&2
 }
 
-aviso_sem_vendor() {
-  [ -n "$VENDOR_RULES" ] && return 0
-  if [ -n "$(printf '%s' "$VENDOR_FALTANDO" | tr -d ' ')" ] && [ -d "$VENDOR_DIR" ]; then
-    echo "AVISO: .semgrep/vendor/ está INCOMPLETO — falta:$VENDOR_FALTANDO" >&2
-    echo "       Rodar um subconjunto daria verde enganoso, então o scan caiu para SÓ as" >&2
-    echo "       regras locais. Restaure os arquivos ou rode o workflow de atualização." >&2
-  else
-    echo "AVISO: .semgrep/vendor/ está vazio — este scan rodou SÓ as regras locais." >&2
-    echo "       O CI roda também os rulesets do registry, então verde aqui ainda NÃO é" >&2
-    echo "       evidência de verde no CI. Para preencher: aba Actions → 'Atualizar rulesets" >&2
-    echo "       do Semgrep' → Run workflow (ele abre um PR com o diff)." >&2
-  fi
+falha_sem_vendor() {
+  echo "ERRO: .semgrep/vendor/ está incompleto — falta:$VENDOR_FALTANDO" >&2
+  echo "      Sem o conjunto completo, um scan verde aqui NÃO é evidência de verde no CI." >&2
+  echo "      Restaure os arquivos (git checkout -- .semgrep/vendor) ou rode a aba Actions →" >&2
+  echo "      'Atualizar rulesets do Semgrep' → Run workflow (ele abre um PR com o diff)." >&2
+  echo "      Para rodar só as regras locais sabendo que a cobertura é menor: --so-locais" >&2
+  exit 2
 }
 
 case "${1:-}" in
@@ -140,11 +141,20 @@ case "${1:-}" in
     # shellcheck disable=SC2086
     exec "$SEMGREP" scan $COMMON $LOCAL_RULES $REGISTRY "$@" .
     ;;
+  --so-locais)
+    shift
+    export SEMGREP_ENABLE_VERSION_CHECK=0
+    echo "semgrep.sh: conjuntos: SÓ regras locais (--so-locais) — NÃO equivale ao CI" >&2
+    # shellcheck disable=SC2086
+    exec "$SEMGREP" scan $COMMON $LOCAL_RULES "$@" .
+    ;;
   *)
     # O padrão usa apenas arquivos locais; não espere pelo timeout de um version check de rede.
     export SEMGREP_ENABLE_VERSION_CHECK=0
-    aviso_sem_vendor
-    if [ -n "$VENDOR_RULES" ]; then aviso_versao; fi
+    if [ -z "$VENDOR_RULES" ]; then falha_sem_vendor; fi
+    aviso_versao
+    # shellcheck disable=SC2086
+    echo "semgrep.sh: conjuntos: regras locais + vendorizados ($(echo $REGISTRY | sed 's/--config=//g'))" >&2
     # shellcheck disable=SC2086
     exec "$SEMGREP" scan $COMMON $LOCAL_RULES $VENDOR_RULES "$@" .
     ;;

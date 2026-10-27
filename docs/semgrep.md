@@ -127,11 +127,18 @@ na instalação é o dono, e o `pipx` acima já sobrevive entre sessões.
 ./scripts/semgrep.sh                   # locais + vendorizados (offline) — o padrão
 ./scripts/semgrep.sh --full            # locais + registry AO VIVO (precisa de rede)
 ./scripts/semgrep.sh --test            # testa as REGRAS contra .semgrep/tests/
+./scripts/semgrep.sh --so-locais       # SÓ as regras locais — cobertura reduzida, pedida às claras
 ./scripts/semgrep.sh --baseline-commit=origin/main   # só o que a SUA branch introduziu
 ```
 
 `--full` continua existindo como **conferência de frescor**: se ele acusar algo que o padrão
 não acusou, a cópia vendorizada está velha — rode o workflow de atualização.
+
+Se `.semgrep/vendor/` estiver **incompleto**, o padrão **sai 2 sem escanear** e diz o que falta.
+Até 25/10/2026 ele avisava e caía sozinho para as regras locais, saindo 0 — e esse "0" com
+cobertura menor que a do CI é exatamente o falso verde que a vendorização veio matar (achado A04
+da revisão estática de 25/10/2026). Quem quer rodar só as locais pede `--so-locais`. Os dois
+modos offline imprimem uma linha `conjuntos:` dizendo o que rodou; cite-a junto do resultado.
 
 Sai com código != 0 quando há achado (`--error`), então serve de gate em script. Argumento
 extra é repassado ao `semgrep scan` — é assim que o `--baseline-commit` chega lá (ele **aborta**

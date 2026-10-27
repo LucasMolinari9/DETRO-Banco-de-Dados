@@ -45,8 +45,8 @@ A segurança depende de grants mínimos, RLS e allowlist de funções. RLS sozin
 TRUNCATE ou todos os privilégios administrativos.
 
 Senhas PostgreSQL, `service_role`, chaves secretas e a chave privada de recuperação nunca vão
-para arquivos servidos, Git, logs ou chat. Secrets de Actions ficam em environments com acesso
-restrito. O certificado de criptografia pode ser público; sua chave privada fica com o dono,
+para arquivos servidos, Git, logs ou chat. Secret administrativo de Actions fica em Environment
+com acesso restrito, não em *Repository secrets* (o do backup integral: §9.6). O certificado de criptografia pode ser público; sua chave privada fica com o dono,
 fora do Git e dos artifacts de Actions.
 
 As contas Supabase, GitHub e Vercel controlam o serviço. Proteja cada uma com senha única e MFA;
@@ -157,24 +157,34 @@ junto, os checks obrigatórios `realtime`, `seguranca`, `deriva` e `qualidade` f
 A documentação da Supabase usa o certificado baixado do painel, e não há confirmação de que
 `sslrootcert=system` funcione. Caminho: versionar o certificado público,
 apontar `PGSSLROOTCERT` para ele, validar num run manual e só então trocar o secret e recusar
-`require`. A auditoria de 13/10/2026 confirmou o achado (C-1, severidade baixa) e sugeriu um
+`require`. O `PGSSLROOTCERT` tem de entrar no `env` que o `executarConsulta` monta do zero para
+o psql: posto só no `env:` do workflow, não chega ao processo filho (revisão estática de
+25/10/2026, A01, que reconfirmou o achado). A auditoria de 13/10/2026 confirmou o achado (C-1, severidade baixa) e sugeriu um
 passo intermediário: `PGREQUIREAUTH=scram-sha-256` impede a entrega da senha em texto claro
 sem trocar o secret, mas também precisa de um run manual antes, porque o pooler pode não aceitar.
 
 **9.6 — Pendências da auditoria de 13/10/2026 que só o painel responde.** O relatório
 (metodologia `cloudflare/security-audit-skill`, commit auditado `539abe2`) não testou nada
 contra o ambiente real; as checagens abaixo são leituras do dono, sem mudar nada.
-- **Validade do `divat_auditor_ci`.** O exemplo do `scripts/bootstrap_phase3_auditor.sql` usa
-  `valid until 2026-10-31`. Se foi usado literalmente, os quatro checks obrigatórios de banco
-  falham fechados a partir de 01/11. Conferir:
+- **Validade do `divat_auditor_ci`: 30/11/2026 23:59:59 UTC** (medido em 25/10/2026; o exemplo
+  do `scripts/bootstrap_phase3_auditor.sql` diz 31/10, mas não foi o valor aplicado). Sem
+  renovar, os quatro checks obrigatórios de banco falham fechados a partir de 01/12. Conferir:
   `select rolvaliduntil from pg_roles where rolname = 'divat_auditor_ci';`
 - **NV-1, deploy smoke.** O `deploy-smoke.yml` roda o código do commit implantado com
   `VERCEL_AUTOMATION_BYPASS_SECRET` a cada `deployment_status`. Depende de a Vercel implantar
   PR de fork (*Git Fork Protection*, em Settings → Security) e da visibilidade do repositório.
+  **Fixar o `actions/checkout` na `main` não fecha isto**, e por isso não foi feito (proposta
+  da revisão de 25/10/2026, A02): no `deployment_status` o `GITHUB_SHA` é o commit implantado, e
+  o próprio YAML do workflow vem desse commit, então um commit hostil reescreve o checkout, o
+  `if:` ou o passo inteiro. A barreira está fora do repo: o que a Vercel aceita implantar. Quem
+  tem escrita já alcança os secrets do repositório por qualquer workflow de branch.
 - **NV-2, segredo do backup integral.** Se `SUPABASE_BACKUP_DATABASE_URL` estiver em
   *Repository secrets*, qualquer branch enviada por quem tem escrita, agentes inclusive, alcança
   a senha `postgres`. Correção: mover para um Environment restrito à `main`, com o dono como
-  revisor, e usar um login de backup somente leitura.
+  revisor, e usar um login de backup somente leitura. **Desde 25/10/2026 o job já referencia
+  o Environment `backup-integral`** (lado do código); falta o painel — criar as regras, mover o
+  secret e apagar a cópia de repositório, passo a passo em [backup](backup.md). O login de
+  backup somente leitura continua pendente.
 - **NV-3, custo do Realtime anônimo.** Cotas do plano, spend cap e o uso nas importações em massa.
 
 Corrigidos na mesma data: o gate de migrações passou a recusar papel concedido a público,
