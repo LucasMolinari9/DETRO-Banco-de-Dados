@@ -622,13 +622,25 @@ domínio deste repo (`db-change`), que **não** é do Superpowers e não é toca
 - A contagem acima é conferida pelo `tests/check.js` §[2b] contra o manifesto: ao mudar a leva
   de skills, o gate cobra o número aqui e no comentário do hook.
 - **Há um segundo conjunto de skills, de outra origem.** Além das 14 do Superpowers e da
-  `db-change`, `.claude/skills/` contém **21 symlinks** para `.agents/skills/`, que hospeda
-  skills vindas de `mattpocock/skills` e travadas por hash em `skills-lock.json` (raiz; 95
-  arquivos versionados sob `.agents/`). Os dois conjuntos são independentes: o
+  `db-change`, `.claude/skills/` contém **22 symlinks** para `.agents/skills/`, que hospeda
+  skills de três origens — `mattpocock/skills` (19), `supabase/agent-skills` (2) e
+  `cloudflare/security-audit-skill` (1) — travadas por hash em `skills-lock.json` (raiz). O
+  hash é o `computeSkillFolderHash` do Skills CLI (sha256 de caminho + conteúdo de cada arquivo
+  da pasta, em ordem `localeCompare`); reproduzir à mão bate com as entradas existentes.
+  `.agents/skills/` guarda também a segunda cópia das skills do Superpowers (ver
+  `.semgrepignore`), sem symlink. Os conjuntos são independentes: o
   `update_superpowers.sh` remove só o que o manifesto do Superpowers lista, então nunca toca
   nestas — e o instalador delas (a skill `setup-matt-pocock-skills`) não toca nas do Superpowers.
-  `.claude/skills/` tem, no total, **15 diretórios reais + 21 symlinks = 36 entradas** — número
+  `.claude/skills/` tem, no total, **15 diretórios reais + 22 symlinks = 37 entradas** — número
   conferido pelo `tests/check.js` §[2b] contra o disco.
+- **`security-audit` (Cloudflare, MIT; licença em `.agents/LICENSE-security-audit-skill.txt`,
+  fora da pasta da skill para não mudar o hash).** Vendorizada em 28/10/2026 do commit
+  `c1c8a8c` do upstream. Por padrão é só *guia*; o fluxo completo (6 fases, subagentes,
+  `findings.json` validado por `validate-findings.cjs`) roda só com pedido explícito de
+  auditoria. **Neste repo:** o diretório de saída fica **fora do repo** (o relatório descreve
+  vulnerabilidades — não vai para o Git sem decisão do dono), nada se testa contra o portal
+  publicado nem contra o Supabase, e achado que dependa de painel (Vercel, Supabase, GitHub)
+  sai como `needs_validation`, não como confirmado.
 
 ### Mudanças de banco
 

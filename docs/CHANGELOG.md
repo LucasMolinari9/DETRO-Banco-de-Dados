@@ -4,6 +4,19 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 28/10/2026 — skill `security-audit` (Cloudflare) vendorizada
+
+A skill `cloudflare/security-audit-skill` (MIT, commit `c1c8a8c`) entrou em
+`.agents/skills/security-audit/` com symlink em `.claude/skills/` e entrada no
+`skills-lock.json`, no mesmo formato das skills do mattpocock. O `npx skills add` não rodou no
+ambiente do Claude (execução de código baixado bloqueada); a instalação foi a cópia da pasta, e o
+`computedHash` foi calculado reproduzindo o algoritmo do Skills CLI 1.7.4 — conferido antes
+contra três entradas existentes (`tdd`, `supabase`, `triage`), que bateram. Os 65 testes dos
+validadores da própria skill passam na cópia vendorizada. A licença ficou em
+`.agents/LICENSE-security-audit-skill.txt`, fora da pasta, porque dentro dela mudaria o hash.
+O `CLAUDE.md` corrige junto a contagem de `.claude/skills/` (37 entradas) e troca os "95 arquivos
+sob `.agents/`", que já estavam defasados e não tinham guarda, pelas três origens do lockfile.
+
 ## 25/10/2026 — revisão estática de segurança: Semgrep falha fechado, backup ganha Environment
 
 Uma revisão estática sobre um ZIP da `main` (sem rodar nada, sem banco) não achou vulnerabilidade
