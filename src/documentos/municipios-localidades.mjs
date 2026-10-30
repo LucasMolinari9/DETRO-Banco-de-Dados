@@ -564,6 +564,8 @@ export async function localidades(ctx){
       BLblTxt.textContent = bIsMun ? 'Município B' : (f.kind==='municipio' ? 'Município B' : 'Cruzar com');
     }
     host.innerHTML = emptyBox('Preencha os campos e clique em Buscar.');
+    // trocar de filtro descarta o resultado anterior: o PDF não pode seguir com ele
+    commitViewResult(view, novoCtx(view, pane, host).gen, { pdfHTML:null });
   }
   filtersBar.addEventListener('click', e=>{
     const btn = e.target.closest('.loc-filter-btn'); if(!btn) return;
@@ -576,18 +578,19 @@ export async function localidades(ctx){
   const run = async () => {
     const f = LOC_FILTERS[modeIdx];
     const a=(A.value||'').trim(), b=(B.value||'').trim();
-    if(!a){ host.innerHTML = emptyBox(`Informe ${f.aType==='municipio'?'o município':'a localidade'}.`); return; }
     // `#locHost` NOVO por busca, como o `#spHost` do searchPanel (app.js): a busca ultrapassada
-    // segue escrevendo no host dela, que saiu da tela (DIVAT-01)
+    // segue escrevendo no host dela, que saiu da tela (DIVAT-01). Vem antes das validações: os
+    // avisos delas também substituem o resultado anterior, e por isso zeram o pdfHTML dele
     const novo = host.cloneNode(false); host.replaceWith(novo); host = novo;
     const rctx = novoCtx(view, pane, host);
+    if(!a){ host.innerHTML = emptyBox(`Informe ${f.aType==='municipio'?'o município':'a localidade'}.`); commitViewResult(view, rctx.gen, { pdfHTML:null }); return; }
     if(f.kind==='localidade'){
       const bTipo = f.bMode==='municipio' ? 'municipio' : 'localidade';
       const bb = f.bMode==='none' ? '' : b;
-      if(bb && bTipo==='localidade' && a.toLowerCase()===bb.toLowerCase()){ host.innerHTML=emptyBox('Use localidades diferentes nos dois campos.'); return; }
+      if(bb && bTipo==='localidade' && a.toLowerCase()===bb.toLowerCase()){ host.innerHTML=emptyBox('Use localidades diferentes nos dois campos.'); commitViewResult(view, rctx.gen, { pdfHTML:null }); return; }
       await mostrarLinhasPorLocalidade(rctx, a, bb, bTipo);
     }else{
-      if(b && a.toLowerCase()===b.toLowerCase()){ host.innerHTML=emptyBox('Use municípios diferentes nos dois campos.'); return; }
+      if(b && a.toLowerCase()===b.toLowerCase()){ host.innerHTML=emptyBox('Use municípios diferentes nos dois campos.'); commitViewResult(view, rctx.gen, { pdfHTML:null }); return; }
       await mostrarLinhasEntreMunicipios(rctx, a, b, f.directional);
     }
   };
