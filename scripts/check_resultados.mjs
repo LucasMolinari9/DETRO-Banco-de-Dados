@@ -18,6 +18,7 @@
 //    correspondência deixavam o `pdfHTML` da consulta ANTERIOR no lugar: a tela dizia "nenhuma",
 //    o PDF saía com as linhas de antes. Em 30/10 a mesma classe apareceu no Município e Região
 //    (§3e) e na busca de Município A → B (§3f): saídas que só pintavam o host e retornavam.
+//    Em Localidades (§3g), também as validações antes da busca e a troca de filtro.
 //
 // Uso:
 //   node scripts/check_resultados.mjs
@@ -215,6 +216,24 @@ async function buscar(termo){
     const pdfF = await pdfDaAbaAtiva(page);
     check(tela.test(telaF) && !PDF_ALVO.test(pdfF), `§3f · ${caso}: o PDF não traz a linha da busca anterior`,
       !tela.test(telaF) ? 'a tela não mostrou o estado esperado' : PDF_ALVO.test(pdfF) ? 'o PDF saiu com a linha ALVO' : '');
+  }
+
+  // (g) Localidades, ANTES de chegar à busca: campo A vazio, A igual a B e a troca de filtro
+  // também só pintavam o host — cada caso vem depois de uma busca do mesmo filtro que acha ALVO
+  for (const [filtro, [a0, b0], acao, tela, caso] of [
+    [3, ['Rio de Janeiro', 'Niteroi'], () => entreMunicipios('', 'Niteroi'), /Informe o município/, 'campo A vazio'],
+    [3, ['Rio de Janeiro', 'Niteroi'], () => entreMunicipios('Niteroi', 'niteroi'), /Use municípios diferentes/, 'municípios A e B iguais'],
+    [1, ['Niteroi', 'Rio de Janeiro'], () => entreMunicipios('Niteroi', 'niteroi'), /Use localidades diferentes/, 'localidades A e B iguais'],
+    [3, ['Rio de Janeiro', 'Niteroi'], () => page.click('.modal-body.active .loc-filter-btn[data-idx="4"]'), /Preencha os campos/, 'troca de filtro'],
+  ]) {
+    await page.click(`.modal-body.active .loc-filter-btn[data-idx="${filtro}"]`);
+    await entreMunicipios(a0, b0);
+    check(PDF_ALVO.test(await pdfDaAbaAtiva(page)), `§3g · antes de "${caso}", o PDF traz a linha ALVO`);
+    await acao();
+    const telaG = await textoDoPane();
+    const pdfG = await pdfDaAbaAtiva(page);
+    check(tela.test(telaG) && !PDF_ALVO.test(pdfG), `§3g · ${caso}: o PDF não traz a linha da busca anterior`,
+      !tela.test(telaG) ? 'a tela não mostrou o estado esperado' : PDF_ALVO.test(pdfG) ? 'o PDF saiu com a linha ALVO' : '');
   }
 }
 
