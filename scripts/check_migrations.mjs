@@ -121,15 +121,30 @@ for (const file of files) {
     else if (PAPEIS_PUBLICOS.has(dono.toLowerCase())) fail(file, `OWNER TO ${dono} — papel público não pode ser dono de objeto`);
   }
 
-  // As 19 tabelas de public têm RLS, e as stagings ficam fechadas por ele; nenhuma migração desliga.
+  // As tabelas de public têm RLS, e as stagings ficam fechadas por ele; nenhuma migração desliga.
   if (/\bdisable\s+row\s+level\s+security\b/i.test(sql)) {
     fail(file, 'DISABLE ROW LEVEL SECURITY — RLS não se desliga por migração');
   }
 
   // As RESTRICTIVE de 20260930213009 seguram a escrita mesmo se um GRANT voltar; sem elas, sobra
   // só o GRANT. Os nomes são os que aquela migração cria.
-  for (const [acao, nome] of comandos(sql, /\b(drop|alter)\s+policy\s+(?:if\s+exists\s+)?(divat_block_client_[a-z0-9_]+|divat_internal_no_client_access)\b/gi)) {
-    fail(file, `${acao.toUpperCase()} POLICY ${nome} — policy de bloqueio do hardening não se remove nem se altera`);
+  // Única saída: um DROP seguido, no mesmo arquivo, da MESMA policy na MESMA tabela AS RESTRICTIVE
+  // e com o bloqueio literal do hardening. Foi o que precisaram as três tabelas do sync de
+  // 28/10/2026, que ganharam essas policies PERMISSIVE fora do repositório.
+  const recriadas = [...sql.matchAll(/\bcreate\s+policy\s+(\S+)\s+on\s+(\S+)([^;]*)/gi)]
+    .map(m => ({ nome: m[1].toLowerCase(), tabela: m[2].toLowerCase(), corpo: m[3].trim().toLowerCase(), pos: m.index }));
+  const BLOQUEIO = {
+    insert: /^as restrictive for insert to anon, ?authenticated with check \(false\)$/,
+    update: /^as restrictive for update to anon, ?authenticated using \(false\) with check \(false\)$/,
+    delete: /^as restrictive for delete to anon, ?authenticated using \(false\)$/,
+  };
+  for (const m of sql.matchAll(/\b(drop|alter)\s+policy\s+(?:if\s+exists\s+)?(divat_block_client_[a-z0-9_]+|divat_internal_no_client_access)\b(?:\s+on\s+([a-z0-9_.]+))?/gi)) {
+    const [, acao, nome, tabela] = m;
+    const cmd = /^divat_block_client_(insert|update|delete)$/i.exec(nome)?.[1].toLowerCase();
+    const trocada = acao.toLowerCase() === 'drop' && cmd && tabela && recriadas.some(r =>
+      r.pos > m.index && r.nome === nome.toLowerCase() && r.tabela === tabela.toLowerCase() && BLOQUEIO[cmd].test(r.corpo));
+    if (trocada) continue;
+    fail(file, `${acao.toUpperCase()} POLICY ${nome} — policy de bloqueio do hardening não se remove nem se altera (só se troca por ela mesma AS RESTRICTIVE, no mesmo arquivo)`);
   }
 
   // public é exposto pela Data API: função DEFINER ali roda com o dono para quem a chamar. As de
