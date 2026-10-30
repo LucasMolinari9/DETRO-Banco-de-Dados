@@ -74,14 +74,15 @@ export async function municipioRegiao(ctx){
     host.querySelectorAll('tr[data-ibge]').forEach(tr=>tr.addEventListener('click',()=>openLinhasPorIbge(tr.dataset.ibge, ibge[tr.dataset.ibge]?.nome)));
   };
   montarPainelBusca(ctx, { title:'Município e Região', placeholder:'Nome do município (ou escolha uma região)', selectOpts:[['','Todas as regiões'],...regioes.map(r=>[r,r])], onRun: async(term, rctx, region)=>{
-    const host = rctx.host;
+    const { view, gen, host } = rctx;
     await getEmpresas();
     // 1) município digitado → vai pras linhas do município (lista se houver vários)
     if(term){
       const municipios = Object.entries(ibge).filter(([,v])=> (!region||v.regiaoPrograma===region) && norm(v.nome).includes(norm(term)) );
-      if(!municipios.length){ host.innerHTML = emptyBox('Nenhum município.'); return; }
+      // as saídas que só pintam o host zeram o pdfHTML: senão o PDF sairia com a região anterior
+      if(!municipios.length){ host.innerHTML = emptyBox('Nenhum município.'); commitViewResult(view, gen, { pdfHTML:null }); return; }
       if(municipios.length===1){ openLinhasPorIbge(municipios[0][0], municipios[0][1].nome); return; }
-      munTable(municipios, host); return;
+      munTable(municipios, host); commitViewResult(view, gen, { pdfHTML:null }); return;
     }
     // 2) Região Programa escolhida → duas métricas do print (RPC divat_linhas_regiao):
     //    "origem na região" (1º trecho da linha na região) × "trafega dentro da região"
@@ -124,6 +125,7 @@ export async function municipioRegiao(ctx){
     }
     // 3) nada informado → orienta
     host.innerHTML = emptyBox('Escolha uma região para ver as linhas, ou digite o nome de um município.');
+    commitViewResult(view, gen, { pdfHTML:null });
   }, auto:true});
 };
 /* --- DOC · Municípios / entre-municípios -------------------------- */
@@ -251,18 +253,20 @@ async function mostrarLinhasEntreMunicipios(ctx, aTerm, bTerm, directional){
   const a = (aTerm||'').trim(), b = (bTerm||'').trim();
   if(!a){ host.innerHTML = emptyBox('Informe ao menos o primeiro município.'); return; }
   const codsA = findCods(a);
-  if(!codsA.length){ host.innerHTML = emptyBox(`Nenhum município com o nome "${esc(a)}".`); return; }
+  // as saídas que só pintam o host zeram o pdfHTML: senão o PDF sairia com a busca anterior
+  if(!codsA.length){ host.innerHTML = emptyBox(`Nenhum município com o nome "${esc(a)}".`); commitViewResult(view, gen, { pdfHTML:null }); return; }
   if(!b){
     if(codsA.length===1){ openLinhasPorIbge(codsA[0], nameOf(codsA[0])); return; }
     host.innerHTML = tableHTML([{t:'Município'},{t:'Região',w:'160px'},{t:'IBGE',w:'100px'}],
       codsA.map(c=>`<tr class="clickable" tabindex="0" role="button" data-ibge="${esc(c)}"><td class="td-logr">${esc(nameOf(c))}</td><td class="td-tipo">${esc(orDash(ibge[c].regiao))}</td><td class="td-num">cód. ${esc(c)}</td></tr>`).join(''),
       codsA.length+' município(s) · clique para ver as linhas');
     host.querySelectorAll('tr[data-ibge]').forEach(tr=>tr.addEventListener('click',()=>openLinhasPorIbge(tr.dataset.ibge, nameOf(tr.dataset.ibge))));
+    commitViewResult(view, gen, { pdfHTML:null });
     return;
   }
   if(a.toLowerCase()===b.toLowerCase()){ host.innerHTML = emptyBox('Use municípios diferentes nos dois campos.'); return; }
   const codsB = findCods(b);
-  if(!codsB.length){ host.innerHTML = emptyBox(`Nenhum município com o nome "${esc(b)}".`); return; }
+  if(!codsB.length){ host.innerHTML = emptyBox(`Nenhum município com o nome "${esc(b)}".`); commitViewResult(view, gen, { pdfHTML:null }); return; }
   host.innerHTML = loading();
   try{
     const all = new Set();    // direcional: A→B, nessa ordem
