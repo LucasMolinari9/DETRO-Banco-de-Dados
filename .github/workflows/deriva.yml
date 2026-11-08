@@ -2,7 +2,7 @@
 #
 # Por que existe: as 8 divergências da auditoria de 26/07/2026 nasceram todas de um fato do
 # banco copiado à mão para um doc e nunca mais conferido. O script confere o formato de
-# app.js/CLAUDE.md/docs/schema.md contra divat_api_shape().
+# app.js, os módulos de src/ e CLAUDE.md/docs/schema.md contra divat_api_shape().
 #
 # SECRET desde a migração para o auditor PostgreSQL (scripts/lib/audit-database.mjs): o job
 # exige SUPABASE_TEST_AUDIT_DATABASE_URL (login mínimo `divat_auditor_ci`, projeto de TESTE) —
@@ -38,12 +38,14 @@ on:
       - CLAUDE.md
       - docs/schema.md
       - app.js
+      - 'src/**'
       - scripts/check_deriva.mjs
+      - tests/check_deriva.test.mjs
       - scripts/lib/audit-database.mjs
       - .github/workflows/deriva.yml
-  # Sem filtro de paths: `deriva` é check obrigatório da `main`. Com `pull_request.paths`, uma
-  # PR fora da lista não cria run e fica presa em "Waiting for status to be reported". O filtro
-  # de push acima continua cobrindo mudanças relevantes sem duplicar runs na `main`.
+  # Sem filtro de paths para permitir exigir `deriva` em um ruleset. Com esse controle ativo,
+  # uma PR fora de pull_request.paths ficaria presa aguardando um status que não nasce.
+  # A proteção atual depende do painel; ver docs/seguranca.md §5. O push mantém filtro próprio.
   pull_request:
 
 # GITHUB_TOKEN no mínimo: nenhum destes workflows faz push, abre PR ou comenta.
