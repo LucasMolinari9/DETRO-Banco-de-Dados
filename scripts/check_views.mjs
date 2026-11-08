@@ -5,7 +5,7 @@
 //
 // Por que existe: ~39,5% do app.js é a seção MODAL / SISTEMA DE VIEWS (render/DOM). O
 // tests/check.js é offline e sem dependências de propósito, então só cobre a lógica PURA
-// copiada nos *.harness.js — nada do render. Este script fecha esse buraco pela borda mais
+// dos módulos reais — nada do render. Este script fecha esse buraco pela borda mais
 // barata: em vez de 17 testes escritos à mão, UM laço genérico que abre cada view e falha se
 // ela lançar erro, ficar presa no spinner, pintar nada ou pintar menos que o contrato.
 //
@@ -29,7 +29,7 @@ const LINHA = '549000001';   // 549M — a linha das fixtures com dado em todas 
    ----------------------------------------------------------------
    Lista explícita (e não varrida do DOM) para que uma view NOVA que
    ninguém listou aqui apareça como falha de drift, no espírito das
-   cópias verbatim guardadas pelo tests/check.js.
+   contratos estruturais guardados pelo tests/check.js.
 
    `busca`: termo digitado quando a view abre com painel de busca —
    escolhido para casar as fixtures do rig e forçar o render do

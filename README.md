@@ -8,10 +8,10 @@ histórico/eventos, empresas e relatórios. Os dados são mantidos pelo dono dir
 
 ## Como funciona (resumo)
 
-- **Frontend = três arquivos estáticos:** [`index.html`](index.html) (HTML),
+- **Frontend estático:** [`index.html`](index.html) (HTML),
   [`styles.css`](styles.css) (todo o CSS) e [`app.js`](app.js) (~1,7k linhas num
   IIFE). Não há build, framework nem `package.json`: é só servir a pasta. O JS entra por
-  `<script src>` clássico no fim do `<body>` — **nada de `<script>` inline**, porque a CSP
+  `<script type="module" src="app.js">` no fim do `<body>` — **nada de `<script>` inline**, porque a CSP
   publica `script-src 'self'` e bloquearia.
 - A lógica **pura** vai saindo do `app.js` para módulos ES nativos em [`src/domain/`](src/domain)
   (hoje `core.mjs`, `agrupamento.mjs`, `busca.mjs` e `view-state.mjs`), importados tanto pelo
@@ -33,11 +33,16 @@ histórico/eventos, empresas e relatórios. Os dados são mantidos pelo dono dir
 
 ## Rodar localmente
 
-São arquivos estáticos — basta servir a pasta:
+Requer Python 3 para o servidor abaixo e um navegador com módulos ES nativos. Na raiz do
+repositório, sirva os arquivos por HTTP; abrir `index.html` por `file://` não é o procedimento:
 
 ```bash
-python3 -m http.server 8000   # depois abra http://localhost:8000
+python3 -m http.server 8000 --bind 127.0.0.1
 ```
+
+Abra `http://127.0.0.1:8000`. O frontend não carrega `.env`: URL e chave pública são configuradas
+em `app.js`. Na configuração vigente, localhost e previews consultam o mesmo banco oficial;
+servir a pasta localmente não cria isolamento. Ver [ADR-0002](docs/adr/0002-ambiente-de-teste-isolado.md).
 
 ## Graft — contexto para agentes
 
@@ -75,7 +80,9 @@ usa um provedor de IA e não faz parte desta configuração.
 
 ## Testes (gate de pré-publicação)
 
-A lógica pura do `app.js` tem testes em [`tests/`](tests/) (Node puro, sem dependências).
+A lógica dos módulos reais tem testes em [`tests/`](tests/), sem pacotes npm adicionais.
+Para o gate local, use Node.js 22.12+ ou 20.19+ (suporte a `require()` de `.mjs`), Git e shell
+POSIX; o CI seleciona a linha Node 20. Os requisitos do Graft e do navegador são separados.
 **Antes de publicar, rode:**
 
 ```bash
@@ -83,24 +90,32 @@ node tests/check.js
 ```
 
 Ele valida a sintaxe do `app.js`, garante que **não** voltou `<script>` inline no `index.html`,
-confere as cópias de teste (guarda anti-drift) e roda todos os testes. Só publique se sair
-**tudo verde**.
+confere publicação dos assets e deriva docs × código, e roda `*.test.js` e `*.test.mjs`.
+Só publique se sair **tudo verde**.
 
 Esse gate é **offline e sem dependências** de propósito. As checagens que precisam de navegador
 ou de rede ficam de fora dele e rodam no CI:
 
 | Comando | O que cobre | Precisa de |
 |---|---|---|
-| `node tests/check.js` | sintaxe, anti-drift, lógica pura | nada |
-| `node scripts/check_views.mjs` | abre as 20 views (cenários) num navegador headless | Chromium |
-| `node scripts/check_abas.mjs` | regressão das abas do modal | Chromium |
+| `node tests/check.js` | sintaxe, assets, deriva docs × código e testes | Node, Git e shell POSIX |
+| `node scripts/check_views.mjs` | abre as 20 views (cenários) num navegador headless | Playwright + Chromium |
+| `node scripts/check_abas.mjs` | regressão das abas do modal | Playwright + Chromium |
+| `node scripts/check_selecao_linha.mjs` | seleção, rotas e filtro de situação | Playwright + Chromium |
+| `node scripts/check_corrida_abas.mjs` | respostas atrasadas entre abas | Playwright + Chromium |
+| `node scripts/check_resultados.mjs` | completude dos resultados e PDF em estado vazio | Playwright + Chromium |
 | `./scripts/semgrep.sh` | padrões proibidos (`eval`, CDN em runtime, `pdfHTML` fora do seam) | Semgrep |
-| `node scripts/check_realtime.mjs` | publicação Realtime × `RT_TABLES` | rede |
-| `node scripts/check_deriva.mjs` | deriva docs × banco | rede |
-| `node scripts/check_data_quality.mjs` | órfãos referenciais e `U+FFFD` no banco (pós-ETL) | rede |
-| `node scripts/check_grants.mjs` | RLS, grants, policies e funções expostas | rede |
+| `node scripts/check_realtime.mjs` | publicação Realtime × `RT_TABLES` | `psql`, rede e credencial auditora |
+| `node scripts/check_deriva.mjs` | deriva docs × banco | `psql`, rede e credencial auditora |
+| `node scripts/check_data_quality.mjs` | órfãos referenciais e `U+FFFD` no banco (pós-ETL) | `psql`, rede e credencial auditora |
+| `node scripts/check_grants.mjs` | RLS, grants, policies e funções expostas | `psql`, rede e credencial auditora |
 | `node tests/backup_rest.rig.mjs` | paginação, contagem, hash e chave publishable | nada |
 | `node tests/restore_rest.rig.mjs` | validação e travas do importador NDJSON | nada |
+
+Instalação do Playwright/Chromium e limites das fixtures: [tests/README.md](tests/README.md).
+A credencial auditora é `SUPABASE_TEST_AUDIT_DATABASE_URL`, com login mínimo e TLS descritos em
+[hardening moderado](docs/planos/fase-3-hardening-moderado.md); ela aponta ao banco oficial,
+apesar do nome TEST. Esses gates vivos não são testes offline e não usam a chave pública do site.
 
 O CI roda esses em workflows **separados de propósito**, para que um vermelho não esconda o
 outro: [`ci.yml`](.github/workflows/ci.yml) (gate leve),
@@ -117,7 +132,8 @@ segurança/grants) e
 
 - **Host: Vercel** (config em [`vercel.json`](vercel.json)) — cabeçalhos de segurança (CSP) e cache.
 - Com o auto-deploy conectado, **push na `main` = deploy automático**. As telas dos usuários se
-  atualizam sozinhas (detector de versão por ETag no próprio JS).
+  atualizam pelo ETag/Last-Modified de `/version.json`. Todo deploy que alterar HTML, CSS, JS
+  ou módulos deve incrementar esse arquivo; o carimbo visual do rodapé é independente.
 - Mudanças **de dados** não exigem deploy — o site lê o Supabase ao vivo.
 
 ## Estrutura do repositório
@@ -125,7 +141,7 @@ segurança/grants) e
 | Caminho | O que é |
 |---|---|
 | `index.html` | A marcação do portal. |
-| `app.js` | Todo o JS, num IIFE. Dividido em seções com marcas `/* ===== TÍTULO ===== */`. |
+| `app.js` | Shell ESM: importa `src/` e compõe DOM, abas, rotas e Realtime num IIFE. |
 | [`src/`](src/) | Módulos ES extraídos do `app.js`: domínio puro, markup/paginação de UI, caches de dados e as famílias de documentos do modal. Reaberto arquivo a arquivo no `.vercelignore`. |
 | `styles.css` | Todo o CSS, inclusive os `@font-face` das fontes vendoradas. |
 | `vendor/` | `supabase-js` (versão fixa), fontes (Archivo, IBM Plex Mono/Sans) e o ícone. Nada disso vem de CDN em runtime. |

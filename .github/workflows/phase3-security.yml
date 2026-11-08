@@ -31,9 +31,9 @@ on:
       - app.js
       - scripts/bootstrap_phase3_auditor.sql
       - .github/workflows/phase3-security.yml
-  # Sem filtro de paths: `migration-contract` é check obrigatório da `main`. Mesmo uma PR sem
-  # SQL precisa criar o job e reportar o status; caso contrário o ruleset espera um contexto que
-  # nunca nascerá. O job é offline e leva segundos.
+  # Sem filtro de paths para permitir exigir `migration-contract` por ruleset. Mesmo PR sem
+  # SQL precisa reportar o status quando esse controle está ativo. A proteção atual da main
+  # depende do painel (docs/seguranca.md §5); o job em si é offline.
   pull_request:
 
 permissions:

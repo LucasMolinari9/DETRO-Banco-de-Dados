@@ -72,9 +72,8 @@ PR com o diff. Se divergir, ele falha em vez de propor uma cópia que mente.
 A provenance fica em `.semgrep/vendor/.manifest.json`: versão do binário, data, contagem por
 ruleset e o link do run. Espelha o `.claude/skills/.superpowers-manifest.json`.
 
-**Enquanto `.semgrep/vendor/` estiver vazio**, o wrapper roda só as regras locais e **avisa em
-`stderr`** que o verde ali ainda não vale como verde no CI. O aviso é intencional: silenciá-lo
-reconstruiria exatamente o falso verde que motivou tudo isto.
+**Se `.semgrep/vendor/` estiver vazio ou incompleto**, o modo padrão sai 2 sem escanear e
+informa os arquivos faltantes. Reponha a cópia completa; cobertura reduzida exige `--so-locais`.
 
 ### Duas exigências do wrapper, e por que existem
 
@@ -82,8 +81,8 @@ Ambas nasceram da revisão do PR #123 — as duas são o mesmo defeito de origem
 outra porta, e por isso viraram guarda em vez de nota.
 
 - **O conjunto tem de estar COMPLETO.** Um `.yml` solto não autoriza o modo offline: se um dos
-  quatro se perder (merge malfeito, remoção acidental), o wrapper **cai para só as regras
-  locais** e diz o que falta, em vez de escanear um subconjunto. Rodar parcial devolveria verde
+  quatro se perder (merge malfeito, remoção acidental), o wrapper **sai 2 sem escanear**
+  e diz o que falta. Somente `--so-locais` aceita cobertura reduzida. Rodar parcial devolveria verde
   — e num repo limpo o parcial e o completo acham zero do mesmo jeito, então o verde parcial é
   indistinguível do verdadeiro.
 - **A versão do binário é conferida contra a do CI.** O CI fixa `semgrep==1.171.0`, mas a
@@ -160,8 +159,8 @@ node tests/check.js && ./scripts/semgrep.sh
 - `vendor/` — supabase-js minificado (uma linha de ~200 KB) e fontes `.woff2`. A garantia
   desses arquivos é a **integridade** conferida contra o registro do npm ao trocar de versão,
   não o lint.
-- `tests/*.harness.js` — cópias verbatim de funções do `app.js`. Achado ali seria duplicata
-  do achado no original, e "consertar" a cópia quebraria o anti-drift do `check.js`.
+- `tests/*.harness.js` — pontes CommonJS para os módulos reais de produção. A análise da
+  implementação ocorre em `src/`; esse padrão de exclusão não representa mais cópias verbatim.
 - `.semgrep/tests/` — contém violações **de propósito** (é o que prova que a regra pega).
 - `.claude/skills/` — as skills do Superpowers, vendorizadas sem modificação, e a `db-change`.
   Nada ali é publicado (o `.vercelignore` é allowlist e não inclui `.claude/`): são instruções
@@ -218,7 +217,7 @@ o próprio Semgrep as leria como anotação e o teste quebraria.
 
 ## CI
 
-`.github/workflows/semgrep.yml`, em todo push e PR: regras locais → rulesets vendorizados →
+`.github/workflows/semgrep.yml`, em push na `main`, PR e execução manual: regras locais → rulesets vendorizados →
 rulesets do registry ao vivo → teste das regras.
 
 O passo dos **vendorizados** roda exatamente o que `./scripts/semgrep.sh` roda na sua máquina, e
@@ -233,12 +232,10 @@ versão nova traz regra nova e deixaria vermelho um PR que não mexeu em nada di
 subir: troque o número no workflow, rode `./scripts/semgrep.sh --full` local e resolva os
 achados **no mesmo commit**.
 
-Não há upload SARIF / Code Scanning. Até 31/07/2026 a razão registrada aqui era "exige GitHub
-Advanced Security, que este repo privado no plano free não tem" — a premissa caiu com a decisão de
-manter o repositório **público** (`docs/adr/0003-repositorio-publico.md`): em repo público o Code
-Scanning é gratuito. Segue de fora **por escolha**, não por impedimento — o ganho seria ergonomia
-(o achado vira anotação na linha do diff, em vez de linha de log), não cobertura nova; o gate já
-falha o job quando encontra algo. O resultado vive no log do job.
+Não há upload SARIF / Code Scanning; os resultados ficam no log e os achados reprovam o job.
+A justificativa histórica de disponibilidade gratuita em repo público não descreve o estado
+atual: o GitHub informou repo privado em 08/11/2026. Recursos/custos de Code Scanning dependem
+do plano vigente e não foram confirmados nesta revisão. Ver [ADR-0003](adr/0003-repositorio-publico.md).
 
 ## Actions presas ao SHA
 

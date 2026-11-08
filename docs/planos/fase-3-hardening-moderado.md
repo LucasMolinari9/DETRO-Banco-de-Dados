@@ -23,7 +23,7 @@ reaplicar a Fase 3 ou executar rollback no banco em uso.
   EXECUTE de função pública; a exceção promocional foi fechada pela migration `20260930172521`.
 
 A garantia atual e os riscos residuais pertencem a [seguranca.md](../seguranca.md).
-O histórico de 18 migrations e suas dependências pertencem a [schema.md](../schema.md).
+O histórico de migrations e suas dependências pertencem a [schema.md](../schema.md).
 As migrations iniciais pressupõem schema e dados existentes; não são reconstrução de um
 projeto vazio nem recuperação dos snapshots privados históricos.
 
@@ -49,8 +49,8 @@ somente para marcar a etapa como concluída.
 | Gate | Diagnóstico | Execução |
 |---|---|---|
 | `check_grants.mjs` | `audit.divat_security_shape()` | diária em `DB checks` |
-| `check_data_quality.mjs` | `audit.divat_data_quality()` | semanal e manual em `DB checks` |
-| `check_realtime.mjs` | `audit.realtime_tables()` | semanal e manual em `DB checks` |
+| `check_data_quality.mjs` | `audit.divat_data_quality()` | diária e manual em `DB checks` |
+| `check_realtime.mjs` | `audit.realtime_tables()` | diária e manual em `DB checks` |
 | `check_deriva.mjs` | `audit.divat_api_shape()` | semanal e push/PR em `Deriva` |
 | `check_phase3_audit.mjs` | combinação dos diagnósticos e login | push relevante na `main` e manual em `Phase 3 database security` |
 

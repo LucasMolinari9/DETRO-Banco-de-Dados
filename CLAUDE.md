@@ -34,8 +34,8 @@ exibe e **atualiza ao vivo** (Realtime).
 
 ## Arquitetura (importante)
 - **Frontend = `index.html` (HTML) + `styles.css` (todo o CSS) + `app.js` (shell principal, ~1,7k
-  linhas, num IIFE)** — zero-build: sem framework, sem `package.json`, `<script src>` clássico no
-  fim do `<body>`. Todo JS novo vai no `app.js` (o `tests/check.js` **falha** se aparecer
+  linhas, num IIFE)** — zero-build: sem framework, sem `package.json`, ES module nativo no
+  fim do `<body>` (`type="module"`). JS vai na camada responsável em `src/` ou no shell `app.js` (o gate **falha** se aparecer
   `<script>` inline no `index.html` — a CSP publica `script-src 'self'` e bloquearia) e todo CSS
   novo vai em **classe no `styles.css`** (não em `style=""` no template). Há **rotas por hash**
   (`#/linha/<cod>`, `#/consulta/<view>`) — deep link e Voltar do navegador fecham o modal.
@@ -225,7 +225,7 @@ As **15** tabelas de `RT_TABLES`, sem exceção — a lista abaixo é conferida 
   próxima busca.
 
 ## Mapa do código (`app.js`)
-O JS é um arquivo só, dividido em seções com marcas `/* ===== TÍTULO ===== */`. **Para achar
+O shell `app.js` é dividido em seções com marcas `/* ===== TÍTULO ===== */`. **Para achar
 algo, dê grep na marca da seção** (ela não muda de lugar como número de linha muda). Há um
 **índice no topo do arquivo** e o bloco `MODAL / SISTEMA DE VIEWS` (o maior) tem **sub-índice +
 sub-marcas `/* --- … --- */`** por documento. Guia completo de navegação e as **regras de
@@ -265,12 +265,9 @@ em **`docs/estrutura-frontend.md`**. Visão geral:
 | `AUTO-ATUALIZAÇÃO` | `checarNovaVersao` | Detector de novo deploy (`HEAD /version.json`, compara o ETag) que recarrega sozinho. |
 | `ROTAS (hash)` | `syncHash`, `applyRoute` | Deep link (`#/linha/…`, `#/consulta/…`) e Voltar do navegador fechando o modal. |
 
-A lógica **pura** dessas seções tem testes em `tests/`: o que já saiu para `src/domain/` é
-testado direto pelo módulo real; o que ainda mora no `app.js` roda sobre cópia verbatim guardada
-pelo `check.js` — são as **10** do `tests/harness.js`, todas do bloco `SUPABASE CONFIG` (o
-  `preencherLookup` e o `bannerTrunc`, que eram as duas de fora, saíram na Fase B2). Render/DOM e
-PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro é exercitado em
-`tests/ui-data-module.test.mjs`, e o resto fica com os gates de navegador.
+A lógica pura e o markup testável são exercitados pelos módulos reais em `tests/`; os harnesses
+CommonJS são pontes para `.mjs`, sem cópias de produção ou mecanismo `canon`. DOM e montagem de
+PDF ficam com os gates de navegador. Requisitos e comandos: [`tests/README.md`](tests/README.md).
 
 ## Publicação (Vercel) e atualização automática
 - **Host: Vercel** (único host em uso). A ligação com o Supabase é toda **client-side**; o host
@@ -305,7 +302,7 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
 0. **Mudança estrutural no banco** (tabela/coluna nova, RLS/GRANT, Realtime, índice, staging do
    ETL)? Use a skill `db-change` (`.claude/skills/db-change/`) — ela cobre o checklist de
    armadilhas antes de escrever SQL/JS. Ajuste isolado de CSS/texto/UI pula direto pro passo 1.
-1. Edite `app.js` (JS) e/ou `index.html` (HTML/CSS). **Trabalhe numa branch**, não direto na
+1. Edite o módulo responsável em `src/`, `app.js` (shell), `index.html` (HTML) ou `styles.css`. **Trabalhe numa branch**, não direto na
    `main`: push na branch → o Vercel gera **preview deploy** → confira no preview → merge na
    `main` (que é a publicada). Existem **12 workflows**, separados por preocupação: `ci.yml`,
    `views.yml`, `semgrep.yml`, `deriva.yml`, `db-checks.yml`, `phase3-security.yml`,
@@ -314,11 +311,10 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    atualização do baseline e atualização dos rulesets do Semgrep pela aba Actions).
    `check`, `views`,
    `semgrep`, `deriva`, `realtime`, `qualidade`, `seguranca` e `migration-contract` (o contrato
-   offline da Fase 3) são **checks obrigatórios** de um ruleset da `main`: rodam em **toda PR**,
-   sem filtro de caminho — desde 22/08/2026, quando o filtro saiu de `db-checks.yml`,
-   `deriva.yml` e `phase3-security.yml` porque um required check fora do filtro trava o merge em
-   "Waiting for status to be reported". O smoke acompanha deploys; o backup é cron/manual. Um
-   vermelho não esconde o outro.
+   offline da Fase 3) são os checks a conferir antes de merge. Os workflows têm gatilho de PR
+   sem filtro de caminho, mas isso não comprova obrigatoriedade de merge: em 08/11/2026 a API
+   retornou `main.protected=false` e o repo privado. Conferência de ruleset/plano pendente no
+   painel; ver `docs/seguranca.md` §5. O smoke acompanha deploys; backup é cron/manual.
    Se previews estiverem protegidos pela Vercel, configure um **Protection Bypass for
    Automation** e grave o mesmo valor no secret GitHub `VERCEL_AUTOMATION_BYPASS_SECRET`;
    sem isso o smoke recebe a tela de login em vez do portal e falha de propósito.
@@ -327,12 +323,10 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    local, ou dispare pela aba Actions → Run workflow (`workflow_dispatch`, que os que não exigem
    segredo têm).
 2. **Antes de publicar, rode `node tests/check.js`** — valida a sintaxe do `app.js`, garante que
-   não voltou `<script>` inline no `index.html`, confere as cópias de teste (anti-drift), cobra a
+   não voltou `<script>` inline no `index.html`, confere assets publicados, cobra a
    **deriva docs×código** (seção `[2b]`, ver abaixo) e roda todos os testes. Só publique tudo
-   verde. (Ao alterar função com cópia em `tests/*.harness.js`, atualize a cópia — e se criar
-   cópia nova, **adicione a guarda no `canon`**: o `check.js` agora falha se um símbolo exportado
-   pelo harness não tiver guarda, porque foi assim que `ilikeTerm` e `MAX_TABS` ficaram
-   descobertos.) **Ao mexer nas abas do modal / no seletor de documentos**, rode também
+   verde. Os testes importam os módulos reais; acrescente casos ao mudar um contrato.
+   **Ao mexer nas abas do modal / no seletor de documentos**, rode também
    `node scripts/check_abas.mjs` — checagem de regressão em navegador headless (Playwright, com
    o PostgREST stubado); fica fora do `check.js` porque este é offline e sem dependências, mas
    **roda no CI** junto com o `check_views.mjs` (workflow `views.yml`).
@@ -380,7 +374,7 @@ PDF não têm teste em Node; o que os módulos de `src/ui/` têm de markup puro 
    `conjuntos:` da saída diz o que rodou — relate-a junto do "verde".
    Runbook e como escrever regra nova: **`docs/semgrep.md`**.
 2c. **Deriva docs×banco — `node scripts/check_deriva.mjs`** (precisa de rede). Confere que toda
-   tabela/coluna/RPC que o repo afirma existe mesmo — pelo auditor PostgreSQL mínimo
+   tabela citada, coluna do diagrama e RPC literal de `app.js`/`src/` — pelo auditor PostgreSQL mínimo
    (`divat_auditor_ci`), contra o **banco em uso**, sem diagnósticos pela API de `anon`
    (migração registrada em `docs/seguranca.md` §10).
    **O que quebra se esquecer:** nada imediato — por isso o workflow `deriva.yml` roda **semanal**

@@ -1,9 +1,9 @@
-# Testes — lógica pura do `app.js` (sem navegador, sem rede)
+# Testes — módulos reais e contratos do portal
 
-Testes unitários isolados (Node, **sem dependências**) da lógica do `app.js`.
-Não precisam de navegador nem de rede: o `fetch` é mockado, o `AbortController` é o
-nativo do Node, e as funções puras (formatação, busca, filtros) são copiadas
-**verbatim** dos respectivos blocos do `app.js`.
+O gate usa Node, Git e shell POSIX, sem pacotes npm adicionais. Use Node.js 22.12+ ou 20.19+:
+os harnesses CommonJS carregam os módulos `.mjs` reais com `require()`. O CI seleciona Node 20.
+Não há cópias de funções de produção: o `fetch` é mockado e os testes que invocam PostgreSQL
+usam `psql` falso. Alguns testes criam processos ou servidores locais; o ambiente deve permiti-los.
 
 ## Como rodar
 
@@ -11,9 +11,9 @@ nativo do Node, e as funções puras (formatação, busca, filtros) são copiada
 ```bash
 node tests/check.js
 ```
-Esse comando: (1) valida a **sintaxe** do `app.js` sem
-executá-lo; (2) confere que as cópias verbatim ainda batem com o `app.js`
-(**guarda anti-drift**); (3) roda todos os `*.test.js`. Sai com código ≠ 0 se algo
+Esse comando: (1) valida a **sintaxe** do `app.js` sem executar a página;
+(2) confere assets publicados, CSP e deriva docs × código;
+(3) roda todos os `*.test.js` e `*.test.mjs`. Sai com código ≠ 0 se algo
 falhar — **rode-o antes de cada publicação**.
 
 As bancadas com servidor/processo filho ficam separadas e também rodam no workflow `ci.yml`:
@@ -30,9 +30,8 @@ node sbFetch.test.js    # casos de sbFetch / marcarTrunc / bannerTrunc
 node pure.test.js       # lógica pura (formatação, busca, filtros de negócio)
 node realtime.test.js   # VIEW_TABLES ⊆ RT_TABLES + mapa canônico
 ```
-Cada arquivo imprime seu próprio `==== PLACAR: N/N ====`; o total **autoritativo** sai do
-`node tests/check.js` (não fixamos o número aqui de propósito — pinar contagem em prosa drifta a
-cada teste novo).
+O runner informa sucesso ou falha por arquivo. Parte da suíte imprime `==== PLACAR: N/N ====`,
+e parte usa o relatório nativo de `node:test`; o `check.js` não soma um total global de casos.
 
 ## O que é coberto
 - **`sbFetch`** — sucesso; retry em 5xx e 429; 4xx que **não** repete (lança a
@@ -66,8 +65,37 @@ cada teste novo).
   de lookup e o que a família de listas tem de markup puro. Inclui as guardas de configuração de `configurarRest`, `configurarDoc` e `configurarListas`. O que escreve no DOM não cabe
   aqui — Node não tem `document` e o repo é zero-dependência — e fica com os gates de navegador.
 - `realtime.test.js` — guarda a sincronização `VIEW_TABLES`/`RT_TABLES` (extrai os literais do `app.js`).
+- `check_deriva.test.mjs` — executa o gate com `psql` falso; cobre RPCs do shell e de módulos
+  aninhados, incluindo reprovação quando a API simulada deixa de expor uma chamada.
 - `backup_rest.rig.mjs` — paginação keyset, contagem, SHA-256 e headers das chaves opacas.
 - `restore_rest.rig.mjs` — corrupção, confirmação do ref, destino vazio, ordem da FK e contagem final.
 
-> `scripts/check_views.mjs` e `check_abas.mjs` também usam fixtures locais por desenho. Eles
-> validam renderização determinística, não substituem um preview ligado a um banco restaurado.
+## Gates de navegador
+
+Requerem o pacote Node Playwright e Chromium, além das bibliotecas de sistema do navegador.
+O workflow `views.yml` usa Playwright 1.56.1. Em ambiente local preparado para essa versão:
+
+```bash
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g playwright@1.56.1
+playwright install chromium
+node scripts/check_views.mjs
+node scripts/check_abas.mjs
+node scripts/check_selecao_linha.mjs
+node scripts/check_corrida_abas.mjs
+node scripts/check_resultados.mjs
+```
+
+Em Linux sem as bibliotecas necessárias, siga o passo `playwright install --with-deps chromium`
+do CI com a permissão administrativa correspondente. `DIVAT_CHROMIUM_EXECUTABLE` permite usar
+um Chromium já instalado. O servidor e as fixtures vêm de `scripts/lib/rig.mjs`; os gates cobrem
+renderização, abas, seleção, concorrência e completude/PDF. Não comprovam o banco real nem DR.
+
+## Outras verificações
+
+- `python3 -m unittest discover -s tests -p 'backup_private_test.py'`: guardas offline do backup
+  integral; requer Python 3 e não realiza dump ou restauração real.
+- `node scripts/check_migrations.mjs`: contrato estático das migrations, sem aplicá-las.
+- `node tests/check_grants.rig.mjs`: cenários de permissões com auditor simulado.
+- Os gates vivos de banco exigem `psql`, conectividade e `SUPABASE_TEST_AUDIT_DATABASE_URL`.
+  Preparação em [hardening moderado](../docs/planos/fase-3-hardening-moderado.md). O alvo é o
+  banco oficial; não executar esses comandos como se fossem simulações locais.

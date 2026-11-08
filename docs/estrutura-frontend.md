@@ -140,7 +140,8 @@ O limite de parada foi atingido, não ultrapassado, então a família pôde sair
 
 Desde a C4, `LOADERS.municipioRegiao`, `LOADERS.ligacoesPorTerminal`,
 `LOADERS.ligacoesPorLogradouro` e `LOADERS.localidades` são registros finos junto da marca C4;
-`secoesPorLigacao` e `frotaPorEmpresa` continuam no `app.js` por pertencerem a outras entregas.
+`secoesPorLigacao` mora no módulo de Municípios/Localidades e `frotaPorEmpresa`, em
+`src/documentos/quadro-empresas.mjs`; o `app.js` importa e registra os dois.
 
 ## 3. Regras de segurança ao reorganizar o JS (leia antes de mover código)
 
@@ -159,25 +160,23 @@ resolve nomes no load:
 4. `runView` faz `LOADERS[view]()` e os loaders chamam os `render*` em runtime → ordem textual não
    importa para eles.
 
-**Referência "para frente" esperada e correta:** `renderEmpresaQuadros` (bloco Quadro) chama
-`secoesTarifasHTML` (bloco Tarifas, definido depois). É seguro porque `secoesTarifasHTML` é
-`function` (hoisted). **Não "corrija" isso.**
+O markup compartilhado `secoesTarifasHTML` é importado de `src/ui/blocos.mjs` pelos documentos
+que o consomem. Não depende mais da posição relativa dos antigos blocos do `app.js`.
 
 ### Como verificar uma reorganização (o `check.js` sozinho **não basta**)
 
 `node tests/check.js` só **compila** o `<script>` — não executa a página, então **não pega** erro de
 ordem/TDZ em runtime. Ao mover código, use as 3 camadas:
 
-1. **`node tests/check.js`** — sintaxe + guarda anti-drift + testes unitários.
+1. **`node tests/check.js`** — sintaxe, assets, deriva docs × código e testes dos módulos reais.
 2. **Invariante de permutação pura** — se a mudança é só reordenação, o **conjunto de linhas de
    código** (ignorando comentários e linhas em branco) tem de ser **byte-idêntico** antes e depois.
    Extraia, ordene e faça `diff`. Prova que nada foi adicionado/removido/alterado.
-3. **Smoke test no Chromium** (binário pré-instalado em `/opt/pw-browsers/chromium`) — carregue
-   `file://…/index.html` com `--headless=new --enable-logging=stderr --v=1` e compare os erros de
-   `CONSOLE` do arquivo **antes** e **depois**. Erros ambientais (CDN/Supabase bloqueados na rede do
-   agente) aparecem iguais nos dois; um bug de ordem/TDZ introduz um `ReferenceError` /
-   `before initialization` **novo**. Se o navegador não subir, apoie-se nas camadas 1–2 e diga que a
-   camada 3 não rodou — não afirme verificação de runtime que não aconteceu.
+3. **Smoke em HTTP com Playwright + Chromium:** rode `node scripts/check_views.mjs` antes e
+   depois da mudança, além dos gates específicos de abas/seleção/concorrência/resultados quando
+   afetados. Eles iniciam o servidor local, servem os módulos com MIME correto e simulam REST.
+   Preparação em [`../tests/README.md`](../tests/README.md). Não use `file://` para carregar a
+   aplicação ESM. Se o navegador não subir, registre a falha e não afirme validação de runtime.
 
 ## 4. Paginação (só de tela) e completude do PDF
 

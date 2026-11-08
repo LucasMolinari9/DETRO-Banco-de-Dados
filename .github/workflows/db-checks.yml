@@ -59,10 +59,10 @@ on:
       - docs/backup_schema.sql
       - docs/schema.md
       - .github/workflows/db-checks.yml
-  # Sem filtro de paths: `realtime`, `qualidade` e `seguranca` são checks obrigatórios da
-  # `main`. Se o workflow não nascer numa PR, o GitHub deixa o merge preso para sempre em
-  # "Waiting for status to be reported". O filtro de push acima pode continuar econômico;
-  # required check é contrato de PR.
+  # Sem filtro de paths para permitir exigir `realtime`, `qualidade` e `seguranca` por ruleset.
+  # Com esse controle ativo, PR sem run ficaria presa aguardando status. O gatilho não comprova
+  # a proteção atual da main: conferir o painel, conforme docs/seguranca.md §5.
+  # O filtro de push acima pode continuar econômico.
   pull_request:
 
 # GITHUB_TOKEN no mínimo: nenhum destes workflows faz push, abre PR ou comenta.

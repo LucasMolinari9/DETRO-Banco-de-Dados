@@ -51,7 +51,8 @@ fora do Git e dos artifacts de Actions.
 
 As contas Supabase, GitHub e Vercel controlam o serviço. Proteja cada uma com senha única e MFA;
 revise membros, tokens, integrações e acesso de pessoas que não precisam mais operar o projeto.
-O repositório permanece público conforme [ADR-0003](adr/0003-repositorio-publico.md).
+O repositório foi observado como privado em 08/11/2026; a decisão histórica de visibilidade
+pública foi reaberta em [ADR-0003](adr/0003-repositorio-publico.md).
 
 ## 4. Evidências históricas
 
@@ -71,12 +72,16 @@ eram defeitos de consistência entre tela, PDF e dados, todos corrigidos com tes
 
 ## 5. Conferências necessárias nos painéis
 
-Em 30/09/2026, a API confirmou a `main` protegida pelo ruleset ativo
-[Proteção da main](https://github.com/LucasMolinari9/DETRO-Banco-de-Dados/rules/21211640): exige PR,
-bloqueia exclusão e force-push, exige resolução de discussões e oito checks obrigatórios
-com branch atualizada (`check`, `views`, `semgrep`, `migration-contract`, `seguranca`,
-`qualidade`, `realtime`, `deriva`). Não há atores com bypass; a conexão atual não pode ignorar
-as regras. O ruleset não exige aprovação humana. Secret scanning/push protection não foram conferidos.
+Em 30/09/2026 foi registrada proteção da `main` por ruleset. Essa evidência é histórica.
+Na consulta de 08/11/2026, a API retornou repositório privado e `main.protected=false`; a
+listagem de rulesets respondeu HTTP 403 solicitando upgrade do plano ou visibilidade pública.
+Não foi testado um merge nem comprovada a vigência de todas as restrições pelo painel.
+
+Os workflows existem, mas sua execução não prova que impeçam merge. Conferir no plano atual
+PR obrigatório, bloqueio de exclusão/force-push, resolução de discussões, branch atualizada,
+bypass e os checks `check`, `views`, `semgrep`, `migration-contract`, `seguranca`, `qualidade`,
+`realtime` e `deriva`. Até confirmar, a barreira automática de merge é pendência operacional.
+Visibilidade ou plano não devem ser alterados como efeito de uma correção documental.
 
 Estas verificações dependem de acesso ao painel; ainda não estão comprovadas nesta auditoria:
 
@@ -85,7 +90,8 @@ Estas verificações dependem de acesso ao painel; ainda não estão comprovadas
    desativados enquanto o produto não usa Auth. Zero registros em `auth.users` não prova isso.
 3. Rever os avisos de Auth e recursos disponíveis no plano. Não mudar de plano nem introduzir
    login somente para eliminar um aviso de Leaked Password Protection.
-4. GitHub: disponibilidade e ativação de secret scanning/push protection; preservar o ruleset acima.
+4. GitHub: confirmar proteções de branch/ruleset e disponibilidade de secret scanning/push
+   protection no plano e visibilidade atuais; registrar o que está efetivamente habilitado.
 5. A preservação integral foi adiada pelo dono; sua cobertura permanece explícita em [backup.md](backup.md).
 
 ## 6. Rotina de verificação
@@ -153,7 +159,7 @@ revokes na migration. `anon`/`authenticated` não devem poder executar essa fun�
 **9.5 — TLS do auditor sem verificação do servidor (AUD-02, revisão Codex de 11/10/2026).**
 `scripts/lib/audit-database.mjs` aceita `sslmode=require`, que cifra sem conferir o certificado.
 Pendente por decisão do dono. Não basta exigir `verify-full` no validador: sem trocar o secret
-junto, os checks obrigatórios `realtime`, `seguranca`, `deriva` e `qualidade` ficam vermelhos.
+junto, os checks de banco `realtime`, `seguranca`, `deriva` e `qualidade` ficam vermelhos.
 A documentação da Supabase usa o certificado baixado do painel, e não há confirmação de que
 `sslrootcert=system` funcione. Caminho: versionar o certificado público,
 apontar `PGSSLROOTCERT` para ele, validar num run manual e só então trocar o secret e recusar
@@ -168,7 +174,7 @@ sem trocar o secret, mas também precisa de um run manual antes, porque o pooler
 contra o ambiente real; as checagens abaixo são leituras do dono, sem mudar nada.
 - **Validade do `divat_auditor_ci`: 30/11/2026 23:59:59 UTC** (medido em 25/10/2026; o exemplo
   do `scripts/bootstrap_phase3_auditor.sql` diz 31/10, mas não foi o valor aplicado). Sem
-  renovar, os quatro checks obrigatórios de banco falham fechados a partir de 01/12. Conferir:
+  renovar, os quatro checks de banco falham fechados a partir de 01/12. Conferir:
   `select rolvaliduntil from pg_roles where rolname = 'divat_auditor_ci';`
 - **NV-1, deploy smoke.** O `deploy-smoke.yml` roda o código do commit implantado com
   `VERCEL_AUTOMATION_BYPASS_SECRET` a cada `deployment_status`. Depende de a Vercel implantar

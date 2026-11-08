@@ -69,8 +69,8 @@ else
   exit 127
 fi
 
-# --metrics=off: a razão NÃO é a visibilidade do repo (ele é público desde 31/07/2026, ver
-# docs/adr/0003) — é não mandar dado do projeto para terceiro sem necessidade.
+# --metrics=off evita telemetria de código, independentemente da visibilidade do repo.
+# O estado observado e a decisão histórica estão em docs/adr/0003.
 COMMON="--metrics=off --error"
 LOCAL_RULES="--config=$ROOT/.semgrep/rules"
 
