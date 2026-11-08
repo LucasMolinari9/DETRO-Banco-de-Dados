@@ -25,7 +25,8 @@ Repo single-context (a maioria dos repos — inclui este):
 ├── CONTEXT.md
 ├── docs/adr/
 │   └── 0001-....md
-└── (app.js / index.html / styles.css — sem src/)
+├── src/                    ← domain/, ui/, data/ e documentos/
+└── app.js / index.html / styles.css
 ```
 
 Repo multi-context (presença de `CONTEXT-MAP.md` na raiz) — não se aplica a este repo hoje:

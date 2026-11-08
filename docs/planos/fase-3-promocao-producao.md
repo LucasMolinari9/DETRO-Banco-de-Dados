@@ -11,7 +11,8 @@ e a falta de recuperação comprovada continuam descritas em [backup.md](../back
 ## Etapa 1 — Conciliação do histórico
 
 Recuperar as 11 migrations ausentes, alinhar os dois identificadores divergentes e versionar
-a nova correção de acesso `20260930172521`. O histórico aplicado tem 18 entradas; mapa e
+a nova correção de acesso `20260930172521`. Essa conciliação tinha 18 entradas; o histórico
+posterior está documentado com 21 migrations, conferidas em 03/10/2026. Mapa e
 pré-requisitos em [schema.md](../schema.md). Copiar arquivos não executa novamente SQL nem
 recupera snapshots históricos de dados.
 
@@ -45,8 +46,9 @@ nem presumem isolamento de previews ou rebuild automático de ETL.
 
 ## Etapa 4 — Conferências de contas e manutenção do banco único
 
-A proteção da `main` foi comprovada pela API em 30/09/2026, com PR e checks obrigatórios,
-sem exclusão, force-push ou bypass; detalhes em [seguranca.md](../seguranca.md).
+A proteção da `main` registrada em 30/09/2026 é histórica. A API retornou repo privado e
+`main.protected=false` em 08/11/2026; confirmar as regras no plano atual antes de tratá-las
+como barreira de merge. Evidências e limites em [seguranca.md](../seguranca.md).
 Conferir MFA, membros, integrações, signup/anonymous sign-ins e secret scanning nos painéis.
 Esses controles não foram comprovados pelo catálogo SQL; zero usuários não comprova signup fechado.
 

@@ -16,7 +16,7 @@ do `app.js`, sem constraint no banco). Complementa a tabela *"Tabelas → onde a
 > `codlinha` órfãs** (filhos em `itinerario_teste`, `qh_teste`, `qh_predeterminado_teste` e
 > `evento_teste` apontando para linha que não existe no hub) + **4 linhas** com `cod_origem`
 > inexistente. Quando isso acontece o portal **não avisa: a tela sai vazia, sem erro.** O alarme
-> é `scripts/check_data_quality.mjs` (semanal, workflow `db-checks.yml`) e a dívida atual está
+> é `scripts/check_data_quality.mjs` (diário, workflow `db-checks.yml`) e a dívida atual está
 > registrada em `scripts/data_quality_baseline.json`. Ver `CLAUDE.md` §2e.
 
 O alvo vigente é `gontnlfmothfglssbyyk`, banco oficial em uso; a antiga produção

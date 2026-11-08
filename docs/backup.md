@@ -70,8 +70,11 @@ do GitHub (o app não mostra estas telas):
   fica exclusivamente com o dono, fora do GitHub. Sem ela o backup não abre. É pública, mas
   fica no mesmo Environment para os dois secrets do job andarem juntos.
 
-Com o revisor configurado, toda execução para em **Waiting for review** até o dono tocar em
-**Review deployments → Approve** na página do run.
+A disponibilidade de reviewers e restrições depende do plano e da visibilidade do repo,
+observado como privado em 08/11/2026. Confirme os controles no painel antes de cadastrar a senha;
+`environment:` no YAML sozinho não os comprova. Ver [segurança](seguranca.md) §5 e §9.6.
+Com a proteção disponível e configurada, confira a parada em **Waiting for review** e a liberação
+por **Review deployments → Approve**. Sem proteção confirmada, a preparação do backup fica pendente.
 
 O agente dispara o workflow na `main`, o dono aprova e o agente acompanha. Ele instala o
 cliente PostgreSQL 17, faz `pg_dump
@@ -144,11 +147,23 @@ originais nem os dados privados que alimentaram CTAS/importações.
 node scripts/restore_rest.mjs /PASTA/DO/NDJSON
 ```
 
-O modo padrão é dry-run: valida formato, SHA-256 e contagens sem escrita. Aplicação exige o
-endpoint/chave administrativa do destino nas variáveis privadas aceitas pelo script e
-`--apply --confirm-ref=<ref>`. O importador recusa o projeto de origem e destino ocupado.
-O destino precisa ter estrutura compatível previamente revisada; a baseline histórica não
-inclui automaticamente todos os objetos atuais. Não chamar esse caminho de recuperação completa.
+O modo padrão é dry-run: valida formato, SHA-256 e contagens sem escrita, rede ou credencial.
+A aplicação é um cliente HTTP de **PostgREST**, não um importador conectado diretamente por
+`psql`. PostgreSQL local sozinho não basta: antes de aplicar, prepare uma API local compatível,
+com as tabelas revisadas em `/rest/v1/`, autenticação administrativa e permissão de leitura/escrita.
+O repo não provisiona essa API. Sem ela, limite este caminho ao dry-run; o ensaio real permanece
+pendente. Não criar outro projeto Supabase para contornar esse pré-requisito.
+
+O contrato de aplicação, somente após preparar e revisar o destino local isolado, é:
+
+- `SUPABASE_RESTORE_URL`: origem HTTP local, por exemplo `http://127.0.0.1:3000`.
+- `SUPABASE_RESTORE_SECRET_KEY`: chave administrativa aceita por essa API; a variável legada
+  `SUPABASE_RESTORE_SERVICE_KEY` também é aceita. Fornecer por ambiente privado, sem valor em arquivo/chat.
+- `--apply --confirm-ref=127.0.0.1` para esse exemplo; `localhost` exige `--confirm-ref=localhost`.
+
+O importador recusa a origem do backup, chave pública e qualquer tabela-alvo ocupada antes de
+inserir. A baseline histórica não fornece automaticamente a estrutura atual. As bancadas testam
+essas travas com API simulada; não comprovam restauração real. Este caminho é recuperação parcial.
 
 Após inserir IDs explícitos, execute o **Passo comum 2** no destino isolado.
 

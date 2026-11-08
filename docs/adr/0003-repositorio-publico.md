@@ -1,4 +1,18 @@
-# O repositório fica público
+# Visibilidade do repositório
+
+## Estado observado e decisão pendente
+
+Em 08/11/2026, a API do GitHub informou `visibility: private`. A decisão de manter o
+repositório público, registrada abaixo em 31/07/2026, não descreve a configuração atual.
+Não foi determinada nesta revisão a data nem a motivação da mudança para privado.
+
+Esta ADR fica **reaberta para conciliação com o dono**. Preserve a visibilidade existente;
+corrigir a documentação não autoriza tornar o repo público ou alterar o plano da conta.
+As proteções de merge e recursos disponíveis devem ser conferidos no plano atual, conforme
+[seguranca.md](../seguranca.md) §5. A listagem de rulesets respondeu 403 solicitando upgrade
+ou visibilidade pública; não presumir que os controles históricos continuam ativos.
+
+## Decisão histórica de 31/07/2026
 
 O repositório — na época `LucasMolinari9/LucasCTEC`, hoje `LucasMolinari9/DETRO-Banco-de-Dados`
 — já foi privado. O `docs/seguranca.md` chegou a listar "tornar o
@@ -8,8 +22,8 @@ instrução ficou; o manual de segurança passou a mandar fazer o oposto da deci
 ADR existe para que a decisão tenha um lugar próprio, em vez de sobreviver como ausência de
 instrução contrária.
 
-**Decisão:** o repositório é **público** e permanece público. Nenhum documento do repo deve
-instruir a torná-lo privado; quem quiser reverter a decisão reabre esta ADR.
+**Decisão então registrada:** manter o repositório **público**. Essa diretriz histórica está
+em revisão diante da visibilidade privada observada; não é uma instrução para mudá-la.
 
 **Por quê:** a segurança do portal nunca dependeu do sigilo do código. Ela está no banco — RLS
 ligado em todas as tabelas, `anon` com SELECT e nada além, objeto novo nascendo fechado — e isso
@@ -18,8 +32,8 @@ projeto, e o `app.js` é servido a todo visitante: o código já era legível po
 da mudança de visibilidade. O que um repo privado escondia era a **prosa**, não a superfície de
 ataque.
 
-O ganho concreto de ser público é operacional: minutos de Actions ilimitados (os sete workflows,
-incluindo os dois crons diários, deixam de consumir cota) e Code Scanning / SARIF sem custo.
+O ganho operacional considerado era a disponibilidade de Actions e Code Scanning em repositório
+público. Custos e recursos da configuração privada atual precisam ser conferidos no plano.
 
 **O que a decisão custa, e é aceito:** documentação de arquitetura, runbooks e a lista de riscos
 residuais passam a ser legíveis por qualquer pessoa.
@@ -39,16 +53,15 @@ SELECT. Regra sem lastro é regra que a próxima faxina apaga por parecer redund
 a versão anterior daquele parágrafo pôde afirmar o oposto do medido por dois dias. Sigilo não é o
 que protege o banco aqui; o gate diário é.
 
-## Consequências verificáveis
+## Regras que permanecem
 
-- `docs/seguranca.md` § 5 não pede mais visibilidade privada.
-- Comentário que justifique uma escolha técnica "porque o repo é privado" está com a premissa
-  errada — `--metrics=off` do Semgrep, por exemplo, continua certo, mas pelo motivo de não mandar
-  telemetria de código para terceiro, não pela visibilidade.
-- `LICENSE` segue **proprietária** (todos os direitos reservados). Público não é open source:
-  qualquer pessoa pode ler, ninguém recebe licença de uso, cópia ou obra derivada.
+- `docs/seguranca.md` §5 distingue evidência histórica de proteção atualmente comprovada.
+- `--metrics=off` do Semgrep continua evitando telemetria de código, independentemente da
+  visibilidade. O backup REST também continua sem credencial administrativa.
+- `LICENSE` segue **proprietária** (todos os direitos reservados). Uma eventual visibilidade
+  pública permite leitura do repo, mas não concede licença de uso, cópia ou obra derivada.
 
 ## Status
 
-Accepted em 31/07/2026. Substitui a recomendação de repositório privado que constava do
-`docs/seguranca.md` § 5 item 4 desde 27/07/2026.
+Accepted em 31/07/2026; reaberta em 08/11/2026 por divergência com a configuração observada.
+A decisão histórica substituía a recomendação de repo privado do manual de 27/07/2026.

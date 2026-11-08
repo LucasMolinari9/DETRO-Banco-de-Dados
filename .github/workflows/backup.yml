@@ -2,8 +2,8 @@
 #
 # Usa a ANON KEY (a mesma pública que o site serve a todo visitante): baixa só as 15
 # tabelas que a API pública já expõe. Nada de service key aqui — e a razão NÃO é a visibilidade
-# do repositório (ele é público desde 31/07/2026; ver docs/adr/0003-repositorio-publico.md, e
-# este comentário já trocou de premissa duas vezes por causa disso). A razão é que service key
+# do repositório (estado atual e histórico em docs/adr/0003-repositorio-publico.md).
+# A razão é que service key
 # em variável de workflow amplia a superfície sem necessidade: quem obtiver acesso ao Actions
 # passaria a ler as tabelas de staging. Vale igual em repo público e em repo privado — por isso
 # a conclusão sobreviveu às duas trocas. O dump do banco INTEIRO usa backup-private.yml,

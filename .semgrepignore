@@ -26,10 +26,9 @@ vendor/
 # deixava os 3 achados de `style=` voltarem pela outra porta. Ao mexer numa, mexa na outra.
 .agents/skills/
 
-# --- Cópias verbatim para teste ---
-# Os *.harness.js são cópias literais de funções do app.js, guardadas pelo anti-drift do
-# tests/check.js. Achado aqui seria duplicata do achado no app.js (e "consertar" a cópia
-# quebraria o anti-drift).
+# --- Pontes de teste ---
+# Os *.harness.js carregam módulos reais de src/ por require(); não contêm cópias de produção.
+# A implementação continua coberta pela análise dos módulos originais.
 tests/*.harness.js
 
 # --- Casos de teste das próprias regras ---
