@@ -204,6 +204,25 @@ O compartilhamento entre previews e o banco oficial é uma decisão registrada n
 [ADR-0002](adr/0002-ambiente-de-teste-isolado.md), sem criação de outro banco nesta entrega.
 Previews não são ambientes isolados para experimentar com dados ou ACLs.
 
+**9.7 — Migrações aplicadas fora do repositório (conferido em 30/10/2026).** O banco registra
+sete migrações que não estão em `supabase/migrations/`: cinco de 21/10
+(`20261021041230_access_campos_complementares_20261021` e as quatro `limpeza_residuo_diario_oficial_*`)
+e duas de 28/10 (`20261028192652_backup_antes_sync_access_20261028` e
+`20261028194532_tarifa_historico_dias_semana_itinerario_alteracao`). O DDL de cada uma fica em
+`supabase_migrations.schema_migrations`. Não foram copiadas para o repositório porque nunca
+passaram pelo `check_migrations.mjs`: a de 28/10, por exemplo, liga RLS e faz os revokes por
+`format()`, que o gate não consegue ler, e cria as policies de bloqueio sem `AS RESTRICTIVE`.
+
+A de 28/10 criou três tabelas em `public`: `tarifa_historico_teste` (uma fotografia do quadro
+tarifário por reajuste, desde dez/2000), `dias_semana_teste` (os dias cobertos por cada rótulo
+de dia da semana do quadro de horários) e `itinerario_alteracao_teste` (data e motivo da última
+alteração de itinerário de cada linha). Elas têm RLS e só `SELECT` para `anon`, mas o portal
+ainda não as lê: manter essa leitura ou fechá-la até haver um card é decisão pendente do dono.
+As policies de bloqueio vieram PERMISSIVE, o que deixou vermelho o gate de grants a partir de
+29/10; `20261030150000_bloqueios_restrictive_tabelas_sync_20261028` as troca por RESTRICTIVE.
+O backup REST (`scripts/backup_rest.mjs`) ainda não cobre as três, nem o schema
+`backup_20261028`, que só `postgres` acessa.
+
 ## 10. Auditor mínimo
 
 O owner das funções diagnósticas, `divat_audit_owner`, é `NOLOGIN`, sem poderes administrativos,

@@ -4,6 +4,23 @@ Cronologia dos endurecimentos e mudanças estruturais. O `CLAUDE.md` descreve s�
 atual + regras**; o histórico de *como se chegou nele* vive aqui (com links para os relatórios
 de auditoria em `docs/`).
 
+## 30/10/2026 — bloqueios RESTRICTIVE nas três tabelas do sync de 28/10
+
+O check obrigatório `seguranca` ficou vermelho a partir de 29/10. A causa estava no banco: a
+migração `20261028194532`, aplicada direto no Supabase e não versionada, criou
+`tarifa_historico_teste`, `dias_semana_teste` e `itinerario_alteracao_teste` com as policies
+`divat_block_client_*` PERMISSIVE. Não houve exposição: `anon` só tem `SELECT`, e policy
+permissiva com `false` não concede nada. Mas o bloqueio dependia só da falta de GRANT.
+- `20261030150000_bloqueios_restrictive_tabelas_sync_20261028` troca as 9 por RESTRICTIVE, no
+  formato do hardening de 30/09, com pré e pós-condição. Ensaiada num Postgres local descartável
+  com o estado de 28/10; no banco oficial, aplicar só com aprovação do dono.
+- O `check_migrations.mjs` passa a aceitar um `DROP POLICY divat_block_client_*` quando o mesmo
+  arquivo recria a mesma policy, na mesma tabela, AS RESTRICTIVE e com o bloqueio literal. Os
+  casos estão em `tests/migrations-contract.test.mjs`.
+- O default de sequências do `supabase_admin` que aparece no log do gate não é regressão: está no
+  baseline desde 22/08. O log intercala stdout (exceções conhecidas) com stderr (regressões).
+- Sete migrações aplicadas fora do repositório ficam registradas em `docs/seguranca.md` §9.7.
+
 ## 25/10/2026 — revisão estática de segurança: Semgrep falha fechado, backup ganha Environment
 
 Uma revisão estática sobre um ZIP da `main` (sem rodar nada, sem banco) não achou vulnerabilidade

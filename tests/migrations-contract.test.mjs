@@ -157,6 +157,49 @@ test('apagar ou alterar as policies de bloqueio do hardening é recusado', () =>
   recusa(`alter policy divat_block_client_update on public.qh_teste using (true);`, /divat_block_client_update/);
 });
 
+// As três tabelas do sync de 28/10/2026 ganharam divat_block_client_* PERMISSIVE, fora do repo.
+// A única troca aceita é pela MESMA policy, na MESMA tabela, AS RESTRICTIVE e com o bloqueio
+// literal do hardening — o formato que o check_grants.mjs reconhece.
+const RECRIA = {
+  insert: 'as restrictive for insert to anon, authenticated with check (false)',
+  update: 'as restrictive for update to anon, authenticated using (false) with check (false)',
+  delete: 'as restrictive for delete to anon, authenticated using (false)',
+};
+test('trocar uma policy de bloqueio por ela mesma AS RESTRICTIVE, no mesmo arquivo, é aprovado', () => {
+  for (const [cmd, corpo] of Object.entries(RECRIA)) {
+    aceita(`drop policy divat_block_client_${cmd} on public.dias_semana_teste;
+create policy divat_block_client_${cmd} on public.dias_semana_teste ${corpo};`);
+  }
+  aceita(`drop policy if exists divat_block_client_insert on public.dias_semana_teste;
+create policy divat_block_client_insert on public.dias_semana_teste ${RECRIA.insert};`);
+});
+
+test('a troca só vale para a mesma policy, na mesma tabela, recriada depois AS RESTRICTIVE e bloqueando', () => {
+  const drop = 'drop policy divat_block_client_insert on public.dias_semana_teste;';
+  recusa(drop, /DROP POLICY divat_block_client_insert/);
+  recusa(`${drop}
+create policy divat_block_client_insert on public.dias_semana_teste for insert to anon, authenticated with check (false);`,
+    /DROP POLICY divat_block_client_insert/);
+  recusa(`${drop}
+create policy divat_block_client_insert on public.qh_teste ${RECRIA.insert};`, /DROP POLICY divat_block_client_insert/);
+  recusa(`${drop}
+create policy divat_block_client_insert on public.dias_semana_teste as restrictive for insert to anon, authenticated with check (true);`,
+    /DROP POLICY divat_block_client_insert/);
+  recusa(`${drop}
+create policy divat_block_client_insert on public.dias_semana_teste ${RECRIA.delete};`, /DROP POLICY divat_block_client_insert/);
+  recusa(`${drop}
+create policy divat_block_client_insert on public.dias_semana_teste as restrictive for insert to anon with check (false);`,
+    /DROP POLICY divat_block_client_insert/);
+  // criar ANTES de apagar deixa a tabela sem a policy
+  recusa(`create policy divat_block_client_insert on public.dias_semana_teste ${RECRIA.insert};
+${drop}`, /DROP POLICY divat_block_client_insert/);
+  // alterar continua proibido, e a policy interna do hardening não tem troca
+  recusa(`alter policy divat_block_client_insert on public.dias_semana_teste rename to outra;`, /ALTER POLICY divat_block_client_insert/);
+  recusa(`drop policy divat_internal_no_client_access on divat_integracao.memo_texto_origem;
+create policy divat_internal_no_client_access on divat_integracao.memo_texto_origem as restrictive for all to anon, authenticated using (false) with check (false);`,
+    /divat_internal_no_client_access/);
+});
+
 test('SECURITY DEFINER em função de public é recusado; em audit continua aprovado', () => {
   recusa(`alter function public.divat_linhas_regiao(text) security definer;`, /SECURITY DEFINER[^\n]*public/i);
   recusa(`create function public.caso() returns int language plpgsql security definer as $$ begin return 1; end $$;
