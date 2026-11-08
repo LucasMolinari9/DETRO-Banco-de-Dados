@@ -15,16 +15,16 @@
 //
 // Desde esta migração, a consulta a divat_api_shape() não passa mais pela anon key/PostgREST:
 // vai pelo login mínimo `divat_auditor_ci` via scripts/lib/audit-database.mjs, contra a função
-// audit.divat_api_shape() do projeto de TESTE (gontnlfmothfglssbyyk) — não mais produção. Ver
-// docs/seguranca.md § 10. A leitura de app.js para achar os `rpc/...` que o FRONT chama (item 3
-// abaixo) continua igual: não é credencial, é conteúdo do repo.
+// audit.divat_api_shape() do banco oficial em uso (gontnlfmothfglssbyyk). O nome TESTE do
+// secret é histórico; não significa isolamento. Ver docs/seguranca.md § 10. As chamadas
+// literais `rpc/...` são lidas de app.js e dos módulos JavaScript em src/.
 //
 // Checagens:
 //   1. Toda tabela citada em CLAUDE.md / docs/schema.md existe no banco (teria pego os
 //      nomes fantasmas do ticket 01 da auditoria).
 //   2. Toda coluna do diagrama mermaid (erDiagram) do docs/schema.md existe na tabela real
 //      (pegaria um rename de coluna no dia em que acontecer).
-//   3. Toda RPC que o app.js chama (rpc/...) existe no banco e responde a anon.
+//   3. Toda RPC literal em app.js ou src/**/*.js / src/**/*.mjs existe e responde a anon.
 //   4. Toda RPC exposta a anon está documentada no docs/schema.md (seção "Funções e
 //      trigger").
 //
@@ -35,7 +35,7 @@
 // Requer Node 18+ e o binário `psql` no PATH.
 // Sai com código 0 se tudo confere, 1 se há deriva, erro ou credencial/conexão recusada.
 
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { carregarConfiguracaoAuditora, executarFuncaoJson, AuditDatabaseError } from './lib/audit-database.mjs';
@@ -47,8 +47,6 @@ const NAO_TABELA = new Set(['bd_teste']); // bd_teste = nome do projeto Supabase
 // Staging do ETL: existem no banco mas são invisíveis para anon DE PROPÓSITO (RLS sem
 // policy, sem grant) — o OpenAPI de anon não as lista, então não dá para conferi-las daqui.
 const STAGING = new Set(['evento_dados', 'evento_textos', 'portaria_data', 'portaria_texto_teste']);
-
-const appjs = await readFile(join(ROOT, 'app.js'), 'utf8');
 
 // ---------- lado do REPO (parse antes da rede, para falhar cedo no que for local) ----------
 
@@ -82,13 +80,32 @@ const colunas = []; // { tabela, coluna, linha }
   });
 }
 
-// RPCs que o app.js chama
-const rpcsDoFront = [...new Set([...appjs.matchAll(/['"`]rpc\/(\w+)/g)].map(m => m[1]))];
+// As famílias de documentos saíram do app.js. Varrer src/ recursivamente mantém as chamadas
+// dos módulos no contrato, inclusive quando uma família passa a morar num subdiretório.
+async function arquivosJavaScript(dir) {
+  const encontrados = [];
+  const entradas = await readdir(join(ROOT, dir), { withFileTypes: true });
+  for (const entrada of entradas.sort((a, b) => a.name.localeCompare(b.name))) {
+    const relativo = `${dir}/${entrada.name}`;
+    if (entrada.isDirectory()) encontrados.push(...await arquivosJavaScript(relativo));
+    else if (entrada.isFile() && /\.(?:js|mjs)$/.test(entrada.name)) encontrados.push(relativo);
+  }
+  return encontrados;
+}
+
+const rpcsDoFront = new Map(); // nome da RPC → arquivos que a referenciam
+for (const arquivo of ['app.js', ...await arquivosJavaScript('src')]) {
+  const fonte = await readFile(join(ROOT, arquivo), 'utf8');
+  for (const [, rpc] of fonte.matchAll(/['"`]rpc\/(\w+)/g)) {
+    if (!rpcsDoFront.has(rpc)) rpcsDoFront.set(rpc, new Set());
+    rpcsDoFront.get(rpc).add(arquivo);
+  }
+}
 
 console.log(`Repo lido: ${citacoes.length} citações de tabela nos docs, ` +
-  `${colunas.length} colunas no diagrama, ${rpcsDoFront.length} RPCs no app.js.`);
+  `${colunas.length} colunas no diagrama, ${rpcsDoFront.size} RPCs em app.js e src/.`);
 
-// ---------- lado do BANCO (OpenAPI do PostgREST, como anon) ----------
+// ---------- lado do BANCO (visão pública medida pelo auditor PostgreSQL) ----------
 
 let api;
 try {
@@ -97,7 +114,7 @@ try {
 } catch (e) {
   if (!(e instanceof AuditDatabaseError)) throw e;
   console.error(e.message);
-  console.error('A função audit.divat_api_shape() existe e divat_auditor_ci pode executá-la? (DDL na baseline docs/backup_schema.sql.)');
+  console.error('A função audit.divat_api_shape() existe e divat_auditor_ci pode executá-la? (Ver docs/planos/fase-3-hardening-moderado.md.)');
   process.exit(1);
 }
 
@@ -126,9 +143,9 @@ for (const c of colunas) {
 }
 
 // 3. RPC chamada pelo front existe e responde a anon
-for (const r of rpcsDoFront) {
+for (const [r, arquivos] of rpcsDoFront) {
   if (!rpcsDoBanco.has(r)) {
-    erros.push(`app.js chama rpc/${r}, que não existe no banco (ou não responde a anon).`);
+    erros.push(`${[...arquivos].join(', ')} chama rpc/${r}, que não existe no banco (ou não responde a anon).`);
   }
 }
 
