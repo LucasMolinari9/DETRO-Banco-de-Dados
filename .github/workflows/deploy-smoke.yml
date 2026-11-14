@@ -35,10 +35,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      # Para previews com Deployment Protection, crie um Protection Bypass for Automation na
-      # Vercel e salve o MESMO valor como secret do repositório com este nome. Sem ele, o script
-      # falha com diagnóstico explícito em vez de testar por engano a tela de login da Vercel.
-      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       # O deployment_status entrega a URL POR-DEPLOY (divatdetro-<hash>-….vercel.app), que não
       # está em HOSTS_PROD — e não deve estar: a allowlist existe justamente porque esses
       # hostnames são gerados a cada deploy e não dá para enumerá-los. Verificar produção por ela
@@ -60,6 +56,10 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Checker, app.js e módulos locais precisam vir juntos da branch protegida.
+          # Isso limita o checkout; não comprova a origem do YAML nem protege repository secrets
+          # de um workflow hostil. A configuração externa continua em docs/seguranca.md §9.6.
+          ref: main
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -96,5 +96,8 @@ jobs:
       # `steps.*.outputs.*` — daí não ter aparecido no `./scripts/semgrep.sh`.
       - name: Headers, allowlist e configuração do Supabase
         env:
+          # Somente o processo que consulta o deploy recebe o bypass. Para fechar NV-1,
+          # conferir Fork Protection e o escopo do secret; não presumir proteção pelo checkout.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           DEPLOY_URL_RESOLVIDA: ${{ steps.alvo.outputs.url }}
         run: node scripts/check_deploy.mjs "$DEPLOY_URL_RESOLVIDA" "$DEPLOY_ENVIRONMENT"

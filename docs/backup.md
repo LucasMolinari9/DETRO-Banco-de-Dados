@@ -71,7 +71,7 @@ do GitHub (o app não mostra estas telas):
   fica no mesmo Environment para os dois secrets do job andarem juntos.
 
 A disponibilidade de reviewers e restrições depende do plano e da visibilidade do repo,
-observado como privado em 08/11/2026. Confirme os controles no painel antes de cadastrar a senha;
+observado como público em 14/11/2026. Confirme os controles no painel antes de cadastrar a senha;
 `environment:` no YAML sozinho não os comprova. Ver [segurança](seguranca.md) §5 e §9.6.
 Com a proteção disponível e configurada, confira a parada em **Waiting for review** e a liberação
 por **Review deployments → Approve**. Sem proteção confirmada, a preparação do backup fica pendente.

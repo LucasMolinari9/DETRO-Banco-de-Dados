@@ -40,8 +40,12 @@ for (const [scenario, message] of [
   ['admin-key', /produção: JWT aponta para role=service_role/],
   ['missing-csp', /CSP sem https:\/\/gontnlfmothfglssbyyk/],
   ['retired-csp', /CSP permite o projeto Supabase apagado/],
+  ['missing-upgrade', /CSP sem upgrade-insecure-requests/],
+  ['missing-coop', /cross-origin-opener-policy/],
+  ['missing-corp', /cross-origin-resource-policy/],
   ['missing-guard', /não contém o throw fail-closed/],
   ['exposed-file', /\.mcp\.json: esperado HTTP 404, recebido 200/],
+  ['preview-module', /\/src\/preview-dependency\.mjs: esperado HTTP 200, recebido 404/],
 ]) {
   const result = run(scenario);
   assert.strictEqual(result.status, 1, `${scenario}: ${result.output}`);
@@ -77,5 +81,9 @@ const SEGREDO = 'segredo-ficticio-de-teste';
   const sso = run('sso-redirect', 'https://divatdetro-abc123xyz-lucas-molinari-s-projects.vercel.app', 'preview', SEGREDO);
   assert.strictEqual(sso.status, 3, sso.output);
   assert.match(sso.output, /preview protegido pela Vercel/, sso.output);
+
+  const importExterno = run('external-import', 'https://divatdetro.vercel.app', 'production', SEGREDO);
+  assert.strictEqual(importExterno.status, 1, importExterno.output);
+  assert.doesNotMatch(importExterno.output, /bypass → coletor\.invalid/, importExterno.output);
 }
-console.log('==== PLACAR: 20/20 ====');
+console.log('==== PLACAR: 25/25 ====');

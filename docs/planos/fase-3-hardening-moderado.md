@@ -44,6 +44,13 @@ de `psql`, preservando atributos mínimos do papel. Registre a nova validade e v
 vivos após atualizar o secret. Não redefinir a senha enquanto o acesso existente funciona
 somente para marcar a etapa como concluída.
 
+Para renovar somente a validade, preservar senha e atributos e executar apenas
+`ALTER ROLE divat_auditor_ci VALID UNTIL '<data UTC>';` no projeto confirmado; conferir
+`rolvaliduntil` e memberships antes/depois. Não executar o bootstrap para essa operação.
+O gate `seguranca` consulta `pg_roles`, compara com o horário do servidor e emite aviso de
+Actions com até 30 dias restantes. Catálogo ausente/inválido ou validade vencida abortam o
+check antes do baseline. A validade efetivamente aplicada está em [seguranca.md](../seguranca.md) §9.6.
+
 ## Verificações permanentes
 
 | Gate | Diagnóstico | Execução |

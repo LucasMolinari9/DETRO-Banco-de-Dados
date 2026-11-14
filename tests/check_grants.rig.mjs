@@ -58,6 +58,10 @@ await chmod(`${RAIZ}/bin/psql`, 0o755);
 
 // Estado SÃO: espelha o banco de verdade depois das correções do Bloco 1.
 const sao = () => ({
+  internal_functions: [{ schema: 'private', signature: 'private.f_unaccent(text)',
+    security_definer: false, anon_execute: true, authenticated_execute: false }],
+  auditor: { login: 'divat_auditor_ci', can_login: true,
+    valid_until: '2027-02-12T23:59:59Z', checked_at: '2026-11-14T12:00:00Z' },
   gerado_em: '2026-07-27',
   tabelas: [
     { nome: 'tabela_vista_teste', rls: true, force_rls: false,
@@ -125,6 +129,25 @@ function adicionarPolicy(f, cmd, extra = {}) {
 }
 
 caso('estado são (só a exceção conhecida)', f => f, 0);
+caso('validade próxima produz aviso sem esconder a auditoria', f => {
+  f.auditor.valid_until = '2026-11-30T23:59:59Z'; return f;
+}, 0, '::warning title=Renovar credencial auditora');
+caso('validade vencida não pode ser absorvida pelo baseline', f => {
+  f.auditor.valid_until = '2026-11-13T23:59:59Z'; return f;
+}, 1, 'expirou');
+caso('catálogo de validade ausente aborta', f => { delete f.auditor; return f; }, 1, 'validade');
+caso('helper privado elevado é recusado pelo catálogo vivo', f => {
+  f.internal_functions[0].security_definer = true; return f;
+}, 1, 'função interna');
+caso('função DEFINER movida para private é recusada', f => {
+  f.internal_functions.push({ schema: 'private', signature: 'private.funcao_movida()',
+    security_definer: true, anon_execute: false, authenticated_execute: false }); return f;
+}, 1, 'função interna');
+caso('diagnóstico privado sem exposição pública continua permitido', f => {
+  f.internal_functions.push({ schema: 'audit', signature: 'audit.divat_security_shape()',
+    security_definer: true, anon_execute: false, authenticated_execute: false }); return f;
+}, 0);
+caso('catálogo interno ausente aborta', f => { delete f.internal_functions; return f; }, 1, 'funções internas');
 caso('RLS desligada', f => { f.tabelas[0].rls = false; return f; }, 1);
 caso('grant de INSERT para anon', f => { f.tabelas[0].anon.insert = true; return f; }, 1);
 caso('grant de DELETE para authenticated', f => { f.tabelas[0].authenticated.delete = true; return f; }, 1);

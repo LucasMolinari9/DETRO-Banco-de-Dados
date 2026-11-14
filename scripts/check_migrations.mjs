@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = join(ROOT, 'supabase', 'migrations');
 const ALLOWED_ANON_EXECUTE = new Set([
-  'public.divat_busca_logradouro',
-  'public.divat_linhas_regiao',
+  'public.divat_busca_logradouro(text,integer)',
+  'public.divat_linhas_regiao(text,text)',
   // Helper necessário à função INVOKER, mas invisível na Data API porque private não é exposto.
-  'private.f_unaccent',
+  'private.f_unaccent(text)',
 ]);
 
 // PUBLIC alcança anon e authenticated; os três recebem no máximo leitura. EXECUTE tem regra
@@ -21,7 +21,10 @@ const failures = [];
 const fail = (file, message) => failures.push(`${file}: ${message}`);
 // Aspas em identificador simples saem: `"public"."caso"` é a mesma tabela que public.caso, e sem
 // isso nenhuma regra abaixo a reconhecia.
-const compact = sql => sql.replace(/--.*$/gm, '').replace(/"([a-z0-9_]+)"/gi, '$1').replace(/\s+/g, ' ').trim();
+const compact = sql => sql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/"([a-z0-9_]+)"/gi, '$1')
+  .replace(/\b([a-z_][a-z0-9_]*)\s*\.\s*([a-z_][a-z0-9_]*)\b/gi, '$1.$2')
+  .replace(/\s+/g, ' ').trim();
 
 // O gate avalia o que cada GRANT/REVOKE/POLICY concede, não a presença de palavras: até a revisão
 // AUD-03 (11/10/2026), `revoke select … ; grant insert … to anon` e uma policy PERMISSIVE FOR ALL
@@ -43,6 +46,32 @@ const publicos = lista => lista.filter(p => PAPEIS_PUBLICOS.has(p));
 const dinamico = lista => lista.some(p => p.includes('%'));
 const comandos = (sql, re) => [...sql.matchAll(re)].map(m => m.slice(1));
 
+// Compara identidades, não só nomes: revogar outra função/sobrecarga não fecha a criada.
+// Não é um parser SQL completo. Tipos/argumentos complexos não interpretáveis precisam do
+// REVOKE em lote do schema; nunca são tratados como se correspondessem a uma assinatura.
+function assinaturaRotina(nome, argumentos) {
+  const tipos = [];
+  for (const argumento of argumentos.trim() ? argumentos.split(',') : []) {
+    let arg = argumento.trim().toLowerCase().replace(/\s+(?:default\b|=)[\s\S]*$/, '');
+    if (/^out\s/.test(arg)) continue;
+    arg = arg.replace(/^(?:inout|in|variadic)\s+/, '');
+    const tipo = '(?:[a-z_][a-z0-9_]*\\.)?[a-z_][a-z0-9_]*(?:\\[\\])*';
+    const multi = '(?:double precision|character varying|(?:timestamp|time)(?: with(?:out)? time zone)?)';
+    const formatoTipo = new RegExp(`^(${multi}|${tipo})$`);
+    const match = formatoTipo.exec(arg) || formatoTipo.exec(arg.replace(/^[a-z_][a-z0-9_]*\s+/, ''));
+    if (!match) return null;
+    const canonico = match[1].replace(/^pg_catalog\./, '')
+      .replace(/^(?:int|int4)$/, 'integer').replace(/^int8$/, 'bigint')
+      .replace(/^int2$/, 'smallint').replace(/^bool$/, 'boolean');
+    tipos.push(canonico);
+  }
+  return `${nome.toLowerCase()}(${tipos.join(',')})`;
+}
+
+const referenciasRotinas = objeto => comandos(objeto,
+  /\b((?:public|private|audit)\.[a-z0-9_]+)\s*\(([^()]*)\)/gi)
+  .map(([nome, args]) => assinaturaRotina(nome, args));
+
 let files;
 try {
   files = (await readdir(DIR)).filter(name => name.endsWith('.sql')).sort();
@@ -58,6 +87,14 @@ if (!files.length) {
 
 for (const file of files) {
   const sql = compact(await readFile(join(DIR, file), 'utf8'));
+  const branco = trecho => ' '.repeat(trecho.length);
+  // Retira corpos de função AS (dólar ou string), preservando DO para detectar DDL proibido.
+  // O comprimento é preservado para comparar a ordem CREATE → REVOKE.
+  const semCorpos = sql.replace(/\bas\s+(?:\$([a-z_][a-z0-9_]*|)\$[\s\S]*?\$\1\$|e?'(?:''|\\.|[^'])*')/gi, branco);
+  // Texto de corpo/literal não é um REVOKE executável. Fechamento de DDL dinâmico deve ser
+  // explícito fora do DO: não tentar provar que um ramo/EXECUTE format() será executado.
+  const provas = semCorpos.replace(/\$([a-z_][a-z0-9_]*|)\$[\s\S]*?\$\1\$/gi, branco)
+    .replace(/e?'(?:''|\\.|[^'])*'/gi, branco);
 
   if (/\bcreate\s+role\b[\s\S]*?\bpassword\b/i.test(sql) || /\balter\s+role\b[\s\S]*?\bpassword\b/i.test(sql)) {
     fail(file, 'credenciais/senhas não podem ser versionadas em migrações');
@@ -65,8 +102,9 @@ for (const file of files) {
 
   const grants = comandos(sql, /\bgrant\s+([^;]+?)\s+on\s+([^;]+?)\s+to\s+([^;]+)/gi)
     .map(([privs, objeto, para]) => ({ privs: privilegios(privs), objeto: objeto.trim(), para: papeis(para) }));
-  const revokes = comandos(sql, /\brevoke\s+([^;]+?)\s+on\s+([^;]+?)\s+from\s+([^;]+)/gi)
-    .map(([privs, objeto, de]) => ({ privs: privilegios(privs), objeto: objeto.trim().toLowerCase(), de: papeis(de) }));
+  const revokes = [...provas.matchAll(/\brevoke\s+([^;]+?)\s+on\s+([^;]+?)\s+from\s+([^;]+)/gi)]
+    .map(match => ({ privs: privilegios(match[1]), objeto: match[2].trim().toLowerCase(),
+      de: papeis(match[3]), indice: match.index }));
 
   // Sem schema, a tabela cai no primeiro do search_path — public — e escapa da regra abaixo.
   // TEMP não casa aqui: mora em pg_temp e some no fim da sessão.
@@ -132,12 +170,13 @@ for (const file of files) {
     fail(file, `${acao.toUpperCase()} POLICY ${nome} — policy de bloqueio do hardening não se remove nem se altera`);
   }
 
-  // public é exposto pela Data API: função DEFINER ali roda com o dono para quem a chamar. As de
-  // produto são INVOKER; diagnóstico DEFINER mora em audit. O corpo $tag$…$tag$ sai antes, porque
-  // tem `;` próprio e o SECURITY DEFINER pode vir depois dele.
-  const semCorpos = sql.replace(/\$([a-z_]*)\$[\s\S]*?\$\1\$/gi, '$$$$');
-  for (const [funcao] of comandos(semCorpos, /\b(?:create\s+(?:or\s+replace\s+)?|alter\s+)(?:function|procedure)\s+(public\.[a-z0-9_]+)[^;]*?\bsecurity\s+definer\b/gi)) {
-    fail(file, `SECURITY DEFINER em ${funcao.toLowerCase()} — função de public é INVOKER (DEFINER só em audit)`);
+  // O helper private.f_unaccent é chamado pela RPC INVOKER: DEFINER nele atravessaria a mesma
+  // fronteira que DEFINER em public. Diagnósticos de audit continuam permitidos e fechados.
+  for (const [nome] of comandos(semCorpos, /\b(?:create\s+(?:or\s+replace\s+)?|alter\s+)(?:function|procedure|routine)\s+([a-z0-9_.]+)\s*\(/gi)) {
+    if (!nome.includes('.')) fail(file, `rotina ${nome} sem schema explícito — o search_path não define a fronteira de segurança`);
+  }
+  for (const [funcao] of comandos(semCorpos, /\b(?:create\s+(?:or\s+replace\s+)?|alter\s+)(?:function|procedure|routine)\s+((?:public|private)\.[a-z0-9_]+)(?:[^;']|'(?:''|[^'])*')*?\bsecurity\s+definer\b/gi)) {
+    fail(file, `SECURITY DEFINER em ${funcao.toLowerCase()} — produto e helpers são INVOKER (DEFINER só em audit)`);
   }
 
   // Default privileges valem para o objeto que AINDA vai nascer: até um SELECT abriria a próxima
@@ -172,10 +211,20 @@ for (const file of files) {
     }
   }
 
-  const createsPublicFunction = /\bcreate\s+(?:or\s+replace\s+)?function\s+public\./i.test(sql);
-  const closesFunctionDefaults = /revoke\s+execute\s+on\s+(?:all\s+functions\s+in\s+schema\s+public|function\s+[^;]+)\s+from\s+public/i.test(sql);
-  if (createsPublicFunction && !closesFunctionDefaults) {
-    fail(file, 'função public é criada sem REVOKE EXECUTE de PUBLIC na mesma migração');
+  const criadas = [...semCorpos.matchAll(/\bcreate\s+(?:or\s+replace\s+)?(function|procedure)\s+((?:public|private|audit)\.[a-z0-9_]+)\s*\(([^)]*)\)/gi)];
+  for (const criada of criadas) {
+    const [, tipo, nome, args] = criada;
+    const schema = nome.split('.')[0].toLowerCase();
+    const assinatura = assinaturaRotina(nome, args);
+    const fecha = revokes.some(({ privs, objeto, de, indice }) => {
+      if (indice <= criada.index || !de.includes('public') || !privs.some(p => p === 'all' || p === 'execute')) return false;
+      const lote = objeto.match(/^all\s+(functions|procedures|routines)\s+in\s+schema\s+([a-z0-9_, ]+)$/i);
+      if (lote) return (lote[1] === 'routines' || lote[1] === `${tipo.toLowerCase()}s`)
+        && lote[2].split(/\s*,\s*/).includes(schema);
+      return /^(?:function|procedure|routine)\s/i.test(objeto)
+        && assinatura !== null && referenciasRotinas(objeto).includes(assinatura);
+    });
+    if (!fecha) fail(file, `${nome} é criada sem REVOKE EXECUTE/ALL de PUBLIC para sua assinatura na mesma migração`);
   }
 
   for (const { privs, objeto, para } of grants) {
@@ -190,9 +239,8 @@ for (const file of files) {
       fail(file, 'GRANT EXECUTE ON ALL FUNCTIONS para anon — conceda função a função, pela allowlist');
       continue;
     }
-    const targets = [...objeto.matchAll(/((?:public|audit|private)\.[a-z0-9_]+)\s*\(/gi)]
-      .map(target => target[1].toLowerCase());
-    if (!/^function\s/i.test(objeto) || !targets.length) {
+    const targets = referenciasRotinas(objeto);
+    if (!/^function\s/i.test(objeto) || !targets.length || targets.includes(null)) {
       fail(file, 'GRANT EXECUTE TO anon não pôde ser interpretado de forma segura');
     }
     for (const target of targets) {

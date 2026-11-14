@@ -17,12 +17,17 @@ if (scenario === 'retired-config') {
 if (scenario === 'missing-preview') app = app.replace(/const SB_TESTE_URL\s*=\s*'[^']*'/, "const SB_TESTE_URL = ''");
 if (scenario === 'wrong-ref-key') app = app.replace(/const SB_TESTE_KEY\s*=\s*'[^']*'/, `const SB_TESTE_KEY = '${jwt('outro-projeto')}'`);
 if (scenario === 'admin-key') app = app.replace(/const SB_KEY\s*=\s*'[^']*'/, `const SB_KEY = '${jwt('gontnlfmothfglssbyyk', 'service_role')}'`);
+if (scenario === 'preview-module') app += "\nimport './src/preview-only.mjs';\n";
+if (scenario === 'external-import') app += "\nimport './\\coletor.invalid/payload.mjs';\n";
 if (scenario === 'missing-csp') csp = csp.replace(official, '');
 if (scenario === 'retired-csp') csp += `; connect-src ${retired}`;
+if (scenario === 'missing-upgrade') csp = csp.replace('upgrade-insecure-requests', '');
 
 const headers = Object.fromEntries(JSON.parse(readFileSync(new URL('vercel.json', root), 'utf8'))
   .headers[0].headers.map(header => [header.key, header.value]));
 headers['Content-Security-Policy'] = csp;
+if (scenario === 'missing-coop') delete headers['Cross-Origin-Opener-Policy'];
+if (scenario === 'missing-corp') delete headers['Cross-Origin-Resource-Policy'];
 
 // Registra para onde o segredo de bypass foi enviado (AUD-01). No cenário `redirect-externo` a
 // home responde 302 para outra origem; com redirect 'follow' a fixture faz o que o undici do Node
@@ -45,8 +50,11 @@ globalThis.fetch = async (input, init = {}) => {
   }
   if (pathname === '/') return new Response('<!doctype html><title>Portal DIVAT</title>', { headers });
   if (pathname === '/app.js') return new Response(app);
+  if (pathname === '/src/preview-only.mjs') return new Response("import './preview-dependency.mjs';");
+  if (pathname === '/src/preview-dependency.mjs') return new Response('', { status: 404 });
   if (pathname === '/src/data/rest.mjs') return new Response(scenario === 'missing-guard' ? '' : readFileSync(new URL('src/data/rest.mjs', root), 'utf8'));
   if (pathname === '/.mcp.json' && scenario === 'exposed-file') return new Response('{}');
   if (/^\/(?:CLAUDE\.md|CONTEXT\.md|\.git\/|\.mcp\.json|\.codex\/|\.github\/|docs\/|scripts\/|tests\/)/.test(pathname)) return new Response('', { status: 404 });
+  if (/^\/src\/.*\.mjs$/.test(pathname)) return new Response(readFileSync(new URL(pathname.slice(1), root), 'utf8'));
   return new Response('asset local');
 };

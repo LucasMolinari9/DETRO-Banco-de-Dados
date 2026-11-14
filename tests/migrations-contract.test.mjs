@@ -166,6 +166,62 @@ revoke execute on function public.caso() from public;`, /SECURITY DEFINER[^\n]*p
   aceita(`alter function audit.divat_api_shape() security definer;`);
 });
 
+test('helper privado usado pela RPC não pode virar SECURITY DEFINER', () => {
+  for (const tipo of ['function', 'routine']) {
+    recusa(`alter ${tipo} "private"."f_unaccent"(text) security definer;`, /SECURITY DEFINER[^\n]*private\.f_unaccent/i);
+  }
+  recusa(`create or replace function private.f_unaccent(text) returns text
+language sql as $f1$ select $1; $f1$ security definer;
+revoke all on function private.f_unaccent(text) from public;`, /SECURITY DEFINER[^\n]*private\.f_unaccent/i);
+  recusa(`create procedure private.caso() language sql security definer as $$ select 1 $$;
+revoke all on procedure private.caso() from public;`, /SECURITY DEFINER[^\n]*private\.caso/i);
+  recusa(`alter function private . f_unaccent(text) security definer;`, /SECURITY DEFINER[^\n]*private\.f_unaccent/i);
+  recusa(`create or replace function private.f_unaccent(text) returns text
+language sql as 'select $1;' security definer;
+revoke execute on function private.f_unaccent(text) from public;`, /SECURITY DEFINER[^\n]*private\.f_unaccent/i);
+  recusa(`create or replace function private.f_unaccent(valor text default ';') returns text
+language sql security definer as $$ select valor $$;
+revoke execute on function private.f_unaccent(text) from public;`, /SECURITY DEFINER[^\n]*private\.f_unaccent/i);
+});
+
+test('rotina sem schema explícito não escapa do contrato', () => {
+  recusa(`create function caso() returns int language sql as $$ select 1 $$;`, /schema explícito/i);
+  recusa(`create procedure caso() language sql as $$ select 1 $$;`, /schema explícito/i);
+  recusa(`alter function f_unaccent(text) security definer;`, /schema explícito/i);
+});
+
+test('cada rotina de public, private e audit precisa fechar seu próprio EXECUTE', () => {
+  for (const schema of ['public', 'private', 'audit']) {
+    const create = `create function ${schema}.caso(valor text) returns text language sql as $$ select valor $$;`;
+    recusa(create, /REVOKE.*PUBLIC/i);
+    recusa(`${create}\nrevoke execute on function ${schema}.outra(text) from public;`, /REVOKE.*PUBLIC/i);
+    recusa(`${create}\nrevoke execute on function ${schema}.caso(integer) from public;`, /REVOKE.*PUBLIC/i);
+    aceita(`${create}\nrevoke all privileges on function ${schema}.caso(text) from anon, public, authenticated;`);
+    aceita(`${create}\nrevoke execute on all functions in schema ${schema} from public;`);
+  }
+  aceita(`create function audit.caso() returns int language sql security definer as $$ select 1 $$;
+revoke execute on function audit.caso() from public;`);
+  aceita(`create procedure private.caso() language sql as $$ select 1 $$;
+revoke execute on all procedures in schema private from public;`);
+  aceita(`create function public.caso(valor int default null) returns int language sql as $$ select valor $$;
+revoke all on function public.caso(integer) from public;`);
+  recusa(`create function public . caso() returns int language sql as $$ select 1 $$;`, /REVOKE.*PUBLIC/i);
+});
+
+test('texto ou revogação anterior à criação não prova fechamento da função', () => {
+  recusa(`create function public.caso() returns text language sql
+as $$ select 'revoke execute on function public.caso() from public;' $$;`, /REVOKE.*PUBLIC/i);
+  recusa(`create function public.caso() returns int language sql as $$ select 1 $$;
+select 'revoke execute on function public.caso() from public;';`, /REVOKE.*PUBLIC/i);
+  recusa(`revoke execute on all functions in schema public from public;
+create function public.caso() returns int language sql as $$ select 1 $$;`, /REVOKE.*PUBLIC/i);
+});
+
+test('sobrecarga não autorizada não herda a allowlist pelo nome', () => {
+  recusa(`grant execute on function private.f_unaccent(integer) to anon;`, /allowlist/i);
+  recusa(`grant execute on function public.divat_linhas_regiao(text) to anon;`, /allowlist/i);
+});
+
 test('default privileges que concedem a papel público são recusados, mesmo só leitura', () => {
   recusa(`alter default privileges in schema public grant select on tables to anon;`, /DEFAULT PRIVILEGES[^\n]*anon/i);
   recusa(`alter default privileges for role postgres in schema private grant usage on sequences to authenticated;`, /DEFAULT PRIVILEGES[^\n]*authenticated/i);

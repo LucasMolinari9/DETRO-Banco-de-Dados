@@ -1,6 +1,50 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { indexarPolicies, detalhePolicy, bloqueiaEscrita } from '../scripts/lib/security-policies.mjs';
+import { indexarPolicies, detalhePolicy, bloqueiaEscrita, validarValidadeAuditora, validarFuncoesInternas } from '../scripts/lib/security-policies.mjs';
+
+const helper = () => ({ schema: 'private', signature: 'private.f_unaccent(text)',
+  security_definer: false, anon_execute: true, authenticated_execute: false });
+const diagnostico = () => ({ schema: 'audit', signature: 'audit.divat_security_shape()',
+  security_definer: true, anon_execute: false, authenticated_execute: false });
+
+test('catálogo vivo preserva helper INVOKER e diagnóstico DEFINER privado', () => {
+  assert.doesNotThrow(() => validarFuncoesInternas([helper(), diagnostico()]));
+});
+
+test('estado vivo recusa helper elevado, função privada movida e diagnóstico exposto', () => {
+  for (const f of [{ ...helper(), security_definer: true },
+    { ...helper(), signature: 'private.funcao_movida(text)', security_definer: true },
+    { ...diagnostico(), anon_execute: true }, { ...diagnostico(), authenticated_execute: true }]) {
+    assert.throws(() => validarFuncoesInternas([helper(), f]));
+  }
+  for (const funcoes of [undefined, [], [diagnostico()], [{ ...helper(), anon_execute: undefined }]]) {
+    assert.throws(() => validarFuncoesInternas(funcoes));
+  }
+});
+
+const auditor = (valid_until = '2027-02-12T23:59:59+00:00') => ({
+  login: 'divat_auditor_ci', can_login: true,
+  checked_at: '2026-11-14T12:00:00+00:00', valid_until,
+});
+
+test('validade auditora usa o relógio do banco e avisa com 30 dias de antecedência', () => {
+  assert.equal(validarValidadeAuditora(auditor()).avisar, false);
+  const proxima = validarValidadeAuditora(auditor('2026-11-30T23:59:59Z'));
+  assert.equal(proxima.avisar, true);
+  assert.equal(proxima.diasRestantes, 17);
+  assert.equal(validarValidadeAuditora(auditor('2026-12-14T12:00:00Z')).avisar, true);
+  assert.equal(validarValidadeAuditora(auditor('2026-12-14T12:00:01Z')).avisar, false);
+});
+
+test('validade vencida, indefinida ou catálogo inválido não passam silenciosamente', () => {
+  for (const valid_until of ['2026-11-14T12:00:00Z', '2026-11-13T23:59:59Z', 'infinity', null, undefined, 'inválido']) {
+    assert.throws(() => validarValidadeAuditora({ ...auditor(), valid_until }), /validade|expir/i);
+  }
+  for (const alterado of [null, {}, { ...auditor(), login: 'postgres' },
+    { ...auditor(), can_login: false }, { ...auditor(), checked_at: 'inválido' }]) {
+    assert.throws(() => validarValidadeAuditora(alterado));
+  }
+});
 
 const bloqueio = (cmd = 'w') => ({
   tabela: 'tabela_vista_teste', nome: 'divat_block_client_update', cmd,

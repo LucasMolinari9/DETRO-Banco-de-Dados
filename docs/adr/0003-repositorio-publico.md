@@ -2,15 +2,15 @@
 
 ## Estado observado e decisão pendente
 
-Em 08/11/2026, a API do GitHub informou `visibility: private`. A decisão de manter o
-repositório público, registrada abaixo em 31/07/2026, não descreve a configuração atual.
-Não foi determinada nesta revisão a data nem a motivação da mudança para privado.
+Em 14/11/2026, a API do GitHub informou `visibility: public`, `main.protected=true` e o
+ruleset `21211640` ativo. Em 08/11/2026 a resposta era `private`; não foram determinadas
+as datas ou motivações das mudanças de visibilidade. Nenhuma delas foi realizada nesta correção.
 
 Esta ADR fica **reaberta para conciliação com o dono**. Preserve a visibilidade existente;
 corrigir a documentação não autoriza tornar o repo público ou alterar o plano da conta.
-As proteções de merge e recursos disponíveis devem ser conferidos no plano atual, conforme
-[seguranca.md](../seguranca.md) §5. A listagem de rulesets respondeu 403 solicitando upgrade
-ou visibilidade pública; não presumir que os controles históricos continuam ativos.
+As proteções de merge comprovadas pela consulta atual e as pendências de revisão humana e
+secret scanning estão em [seguranca.md](../seguranca.md) §5; não inferir recursos adicionais
+somente da visibilidade pública.
 
 ## Decisão histórica de 31/07/2026
 
@@ -23,7 +23,7 @@ ADR existe para que a decisão tenha um lugar próprio, em vez de sobreviver com
 instrução contrária.
 
 **Decisão então registrada:** manter o repositório **público**. Essa diretriz histórica está
-em revisão diante da visibilidade privada observada; não é uma instrução para mudá-la.
+em revisão após as mudanças de visibilidade observadas; não é uma instrução para mudá-la.
 
 **Por quê:** a segurança do portal nunca dependeu do sigilo do código. Ela está no banco — RLS
 ligado em todas as tabelas, `anon` com SELECT e nada além, objeto novo nascendo fechado — e isso
@@ -33,7 +33,7 @@ da mudança de visibilidade. O que um repo privado escondia era a **prosa**, nã
 ataque.
 
 O ganho operacional considerado era a disponibilidade de Actions e Code Scanning em repositório
-público. Custos e recursos da configuração privada atual precisam ser conferidos no plano.
+público. Custos e recursos efetivamente habilitados precisam ser conferidos no plano.
 
 **O que a decisão custa, e é aceito:** documentação de arquitetura, runbooks e a lista de riscos
 residuais passam a ser legíveis por qualquer pessoa.

@@ -41,7 +41,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { carregarConfiguracaoAuditora, auditarJson, AuditDatabaseError } from './lib/audit-database.mjs';
-import { SECURITY_SHAPE_SQL, indexarPolicies, detalhePolicy, bloqueiaEscrita } from './lib/security-policies.mjs';
+import { SECURITY_SHAPE_SQL, indexarPolicies, detalhePolicy, bloqueiaEscrita, validarValidadeAuditora, validarFuncoesInternas } from './lib/security-policies.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = join(ROOT, 'scripts', 'security_baseline.json');
@@ -97,6 +97,11 @@ for (const [campo, oQue] of Object.entries(MINIMO)) {
 // ---------------------------------------------------------------------------------------------
 let policies;
 try {
+  const validade = validarValidadeAuditora(forma.auditor);
+  if (validade.avisar) {
+    console.warn(`::warning title=Renovar credencial auditora::divat_auditor_ci expira em ${validade.expiraEm} (${validade.diasRestantes} dia(s)). Ver docs/planos/fase-3-hardening-moderado.md.`);
+  }
+  validarFuncoesInternas(forma.internal_functions);
   policies = indexarPolicies(forma);
 } catch (e) {
   console.error(`${e.message} Abortando em vez de assumir segurança.`);

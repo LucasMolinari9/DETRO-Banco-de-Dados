@@ -309,12 +309,12 @@ PDF ficam com os gates de navegador. Requisitos e comandos: [`tests/README.md`](
    `deploy-smoke.yml`, `backup.yml`, `backup-private.yml`, `graft.yml`, `atualizar-baseline.yml` e `atualizar-semgrep-rulesets.yml`
    (`backup-private.yml` e os dois últimos são **só** `workflow_dispatch`: backup integral,
    atualização do baseline e atualização dos rulesets do Semgrep pela aba Actions).
-   `check`, `views`,
-   `semgrep`, `deriva`, `realtime`, `qualidade`, `seguranca` e `migration-contract` (o contrato
-   offline da Fase 3) são os checks a conferir antes de merge. Os workflows têm gatilho de PR
-   sem filtro de caminho, mas isso não comprova obrigatoriedade de merge: em 08/11/2026 a API
-   retornou `main.protected=false` e o repo privado. Conferência de ruleset/plano pendente no
-   painel; ver `docs/seguranca.md` §5. O smoke acompanha deploys; backup é cron/manual.
+   `check`, `views`, `semgrep`, `deriva`, `realtime`, `qualidade`, `seguranca` e
+   `migration-contract` são exigidos pelo ruleset ativo da `main` (API de 14/11/2026: repo
+   público, `main.protected=true`, PR obrigatório, sem bypass; zero aprovações humanas).
+   CODEOWNERS identifica os arquivos sensíveis; não cria aprovação obrigatória. Rever hooks
+   antes de abrir checkout de terceiros em agente privilegiado; ver `docs/seguranca.md` §5.
+   O smoke acompanha deploys; backup é cron/manual.
    Se previews estiverem protegidos pela Vercel, configure um **Protection Bypass for
    Automation** e grave o mesmo valor no secret GitHub `VERCEL_AUTOMATION_BYPASS_SECRET`;
    sem isso o smoke recebe a tela de login em vez do portal e falha de propósito.

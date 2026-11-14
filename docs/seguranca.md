@@ -51,8 +51,8 @@ fora do Git e dos artifacts de Actions.
 
 As contas Supabase, GitHub e Vercel controlam o serviço. Proteja cada uma com senha única e MFA;
 revise membros, tokens, integrações e acesso de pessoas que não precisam mais operar o projeto.
-O repositório foi observado como privado em 08/11/2026; a decisão histórica de visibilidade
-pública foi reaberta em [ADR-0003](adr/0003-repositorio-publico.md).
+A visibilidade retornada pela API em 14/11/2026 é pública; a configuração não foi alterada
+nesta correção. Estado e histórico da decisão em [ADR-0003](adr/0003-repositorio-publico.md).
 
 ## 4. Evidências históricas
 
@@ -70,18 +70,36 @@ eram defeitos de consistência entre tela, PDF e dados, todos corrigidos com tes
 `docs/CHANGELOG.md`). Ela também não comprova o estado do banco vivo — isso continua com os gates
 `seguranca`/`deriva` e com as conferências do §5.
 
+Em 14/11/2026, Gitleaks **8.30.1** percorreu o histórico Git disponível com
+`gitleaks git --log-opts=--all --redact=100`
+e saída redigida: 607 commits com alterações examinadas, aproximadamente 8,54 MB e 23
+ocorrências. A triagem identificou chaves públicas `anon`/publishable, valores fictícios de
+testes, nomes de armazenamento local e exemplos das regras vendorizadas; nenhum segredo
+administrativo foi identificado nessas ocorrências. Isso não prova a ausência de todos os
+segredos, nem cobre commits inacessíveis à cópia do Git. Não rotacionar chaves públicas só
+por terem sido sinalizadas pelo scanner.
+
 ## 5. Conferências necessárias nos painéis
 
-Em 30/09/2026 foi registrada proteção da `main` por ruleset. Essa evidência é histórica.
-Na consulta de 08/11/2026, a API retornou repositório privado e `main.protected=false`; a
-listagem de rulesets respondeu HTTP 403 solicitando upgrade do plano ou visibilidade pública.
-Não foi testado um merge nem comprovada a vigência de todas as restrições pelo painel.
+Na consulta de 14/11/2026, o GitHub retornou repositório público, `main.protected=true` e o
+ruleset **Proteção da main** (`21211640`) ativo na branch padrão. As regras exigem PR,
+resolução de discussões, branch atualizada e os checks `check`, `views`, `semgrep`,
+`migration-contract`, `seguranca`, `qualidade`, `realtime` e `deriva`; bloqueiam exclusão e
+force-push. A lista de atores com bypass estava vazia. Isso substitui a observação de
+08/11/2026, quando a API retornava repositório privado e `main.protected=false`.
 
-Os workflows existem, mas sua execução não prova que impeçam merge. Conferir no plano atual
-PR obrigatório, bloqueio de exclusão/force-push, resolução de discussões, branch atualizada,
-bypass e os checks `check`, `views`, `semgrep`, `migration-contract`, `seguranca`, `qualidade`,
-`realtime` e `deriva`. Até confirmar, a barreira automática de merge é pendência operacional.
-Visibilidade ou plano não devem ser alterados como efeito de uma correção documental.
+O ruleset exige **zero aprovações humanas** e não exige revisão por code owner. O
+`.github/CODEOWNERS` identifica o responsável por automação, instruções de agentes e SQL,
+mas não cria essa obrigação. Exigir aprovação do próprio dono bloquearia seus PRs; uma
+segunda pessoa confiável deve estar definida antes de tornar a revisão humana obrigatória.
+Não foi tentado um merge para testar as restrições. Não alterar visibilidade ou plano para
+fazer uma correção documental.
+
+Hooks de `.claude/settings.json` executam código do checkout quando aceitos pelo runtime.
+Revisar `.claude/`, `.agents/`, `.codex/`, `.mcp.json`, `CLAUDE.md`, `AGENTS.md`, `.github/`
+e `scripts/` antes de iniciar um agente em código de terceiros. Para examinar um PR externo,
+usar cópia sem credenciais administrativas e com hooks/MCP desabilitados pelas configurações
+confiáveis do cliente; não trocar uma sessão privilegiada para o checkout desse PR.
 
 Estas verificações dependem de acesso ao painel; ainda não estão comprovadas nesta auditoria:
 
@@ -90,8 +108,8 @@ Estas verificações dependem de acesso ao painel; ainda não estão comprovadas
    desativados enquanto o produto não usa Auth. Zero registros em `auth.users` não prova isso.
 3. Rever os avisos de Auth e recursos disponíveis no plano. Não mudar de plano nem introduzir
    login somente para eliminar um aviso de Leaked Password Protection.
-4. GitHub: confirmar proteções de branch/ruleset e disponibilidade de secret scanning/push
-   protection no plano e visibilidade atuais; registrar o que está efetivamente habilitado.
+4. GitHub: acompanhar mudanças no ruleset e conferir secret scanning/push protection;
+   a leitura do ruleset não comprova que essas duas proteções estejam habilitadas.
 5. A preservação integral foi adiada pelo dono; sua cobertura permanece explícita em [backup.md](backup.md).
 
 ## 6. Rotina de verificação
@@ -143,9 +161,24 @@ nas migrations e o gate diário de grants no banco em uso. As três exceções d
 função de event trigger constam da baseline revisada; não aumentar a baseline para ocultar drift.
 
 **9.2 — Abuso da API pública (SEC-02).** O navegador acessa Supabase diretamente, portanto a
-Vercel não intercepta essas consultas. Timeouts, teto de linhas e limites do plano reduzem a
-carga; memoização do frontend não é rate limiting. Quotas mais fortes exigem projeto próprio
-de gateway/Edge Function, sem prometer proteção já implantada.
+Vercel não intercepta essas consultas. Em 14/11/2026, o catálogo confirmou `statement_timeout`
+de **3s** para `anon`, **8s** para `authenticated`/`authenticator` e
+`authenticator.pgrst.db_max_rows = 30000`. O teto não limita todo o trabalho de uma agregação
+nem impede paginação ou requisições repetidas. Memoização do frontend não é rate limiting.
+Quotas mais fortes exigem projeto próprio de gateway/Edge Function **e controle na origem**:
+se a API direta continuar aceitando a chave pública, um proxy pode ser contornado. Medir custo
+e planos das RPCs antes de alterar índices, limites ou o comportamento da busca.
+
+Na mesma conferência, somente `private.f_unaccent(text)` era executável por `anon` em
+`private`, como INVOKER; as cinco funções diagnósticas de `audit` não permitiam EXECUTE a
+`anon`/`authenticated`. O default global de funções de `postgres` não concedia EXECUTE a
+PUBLIC. Não repetir `ALTER DEFAULT PRIVILEGES IN SCHEMA private REVOKE ...` como se removesse
+um grant global: defaults por schema só acrescentam ao global. O gate exige fechamento por
+assinatura das rotinas novas de `public`/`private`/`audit` e recusa DEFINER em `public`/`private`;
+diagnósticos fechados de `audit` continuam permitidos. O gate é análise estática, não um
+interpretador completo de SQL dinâmico. O gate vivo de grants também confere `private`/`audit`
+pelo catálogo: helper elevado, diagnóstico exposto e função DEFINER movida para `private`
+abortam a auditoria, sem novas credenciais, grants ou exceções no baseline.
 
 **9.3 — Recuperação ainda pendente (SEC-06).** A exportação REST semanal é parcial, sem snapshot
 consistente, e o último run examinado falhou sem artifact. Ela não cobre os schemas privados.
@@ -169,21 +202,28 @@ o psql: posto só no `env:` do workflow, não chega ao processo filho (revisão 
 passo intermediário: `PGREQUIREAUTH=scram-sha-256` impede a entrega da senha em texto claro
 sem trocar o secret, mas também precisa de um run manual antes, porque o pooler pode não aceitar.
 
-**9.6 — Pendências da auditoria de 13/10/2026 que só o painel responde.** O relatório
-(metodologia `cloudflare/security-audit-skill`, commit auditado `539abe2`) não testou nada
-contra o ambiente real; as checagens abaixo são leituras do dono, sem mudar nada.
-- **Validade do `divat_auditor_ci`: 30/11/2026 23:59:59 UTC** (medido em 25/10/2026; o exemplo
-  do `scripts/bootstrap_phase3_auditor.sql` diz 31/10, mas não foi o valor aplicado). Sem
-  renovar, os quatro checks de banco falham fechados a partir de 01/12. Conferir:
+**9.6 — Credencial auditora e fronteiras externas do CI.** Parte das pendências da auditoria
+de 13/10/2026 foi reconferida pelas integrações em 14/11/2026; escopo de secrets, regras de
+Environment e Git Fork Protection continuam sem comprovação.
+- **Validade do `divat_auditor_ci`: 12/02/2027 23:59:59 UTC.** Em 14/11/2026 foi alterado
+  somente `VALID UNTIL`; senha não foi redefinida. Atributos mínimos e a associação exclusiva
+  a `divat_auditor` foram conferidos antes/depois. O gate diário `seguranca` consulta a validade
+  usando o relógio do banco, avisa quando faltam até 30 dias e recusa catálogo inválido ou
+  validade vencida, fora do mecanismo de baseline. Renovação é manutenção da credencial,
+  separada de migrations e sem executar o bootstrap inteiro. Conferir:
   `select rolvaliduntil from pg_roles where rolname = 'divat_auditor_ci';`
-- **NV-1, deploy smoke.** O `deploy-smoke.yml` roda o código do commit implantado com
-  `VERCEL_AUTOMATION_BYPASS_SECRET` a cada `deployment_status`. Depende de a Vercel implantar
-  PR de fork (*Git Fork Protection*, em Settings → Security) e da visibilidade do repositório.
-  **Fixar o `actions/checkout` na `main` não fecha isto**, e por isso não foi feito (proposta
-  da revisão de 25/10/2026, A02): no `deployment_status` o `GITHUB_SHA` é o commit implantado, e
-  o próprio YAML do workflow vem desse commit, então um commit hostil reescreve o checkout, o
-  `if:` ou o passo inteiro. A barreira está fora do repo: o que a Vercel aceita implantar. Quem
-  tem escrita já alcança os secrets do repositório por qualquer workflow de branch.
+- **NV-1, deploy smoke (parcial).** O checkout do `deploy-smoke.yml` está fixado na `main`
+  para buscar checker e allowlist local confiáveis; o bypass só entra no passo que consulta
+  a URL. O grafo de imports é lido do deploy como texto, sem executá-lo, para conferir também
+  módulos exclusivos do preview; requisições não saem da origem e há teto de 256 módulos.
+  Não executar scripts servidos pelo deploy. Esse reforço não
+  comprova a origem do próprio YAML: `GITHUB_SHA` identifica o commit implantado, mas a revisão
+  do workflow deve ser conferida por `GITHUB_WORKFLOW_SHA`/`GITHUB_WORKFLOW_REF`, não inferida.
+  **Checkout e `if:` não protegem um segredo que um YAML hostil possa solicitar.** Conferir
+  *Git Fork Protection* na Vercel e escopo do bypass no GitHub; antes de levar o secret a um
+  Environment, definir o fluxo confiável que testa previews, a branch permitida e os revisores.
+  Remover qualquer cópia de Repository secrets ao concluir essa migração. Não considerar NV-1
+  encerrado apenas por fixar o checkout. Quem tem escrita pode criar outros workflows de branch.
 - **NV-2, segredo do backup integral.** Se `SUPABASE_BACKUP_DATABASE_URL` estiver em
   *Repository secrets*, qualquer branch enviada por quem tem escrita, agentes inclusive, alcança
   a senha `postgres`. Correção: mover para um Environment restrito à `main`, com o dono como

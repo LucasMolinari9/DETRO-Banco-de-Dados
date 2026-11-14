@@ -54,6 +54,8 @@ const fail = message => {
 };
 
 async function request(pathname) {
+  const target = new URL(pathname, base);
+  if (target.origin !== base.origin) throw new Error('Recurso do deploy tenta sair da origem verificada.');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
   const headers = { 'user-agent': 'divat-deploy-smoke/1.0' };
@@ -73,7 +75,7 @@ async function request(pathname) {
     // Não é preciso cookie nenhum: o header de bypass vai em TODA requisição deste script.
   }
   try {
-    return await fetch(new URL(pathname, base), {
+    return await fetch(target, {
       // Com o segredo, nada de seguir redirecionamento: o undici do Node remove authorization/
       // cookie/host ao trocar de origem, mas PRESERVA header personalizado como o de bypass.
       redirect: vercelBypassSecret ? 'manual' : 'follow',
@@ -148,6 +150,8 @@ if (home) {
 
   expectHeader(home.headers, 'x-frame-options', value => value.toUpperCase() === 'DENY', 'DENY');
   expectHeader(home.headers, 'x-content-type-options', value => value.toLowerCase() === 'nosniff', 'nosniff');
+  expectHeader(home.headers, 'cross-origin-opener-policy', value => value.toLowerCase() === 'same-origin', 'same-origin');
+  expectHeader(home.headers, 'cross-origin-resource-policy', value => value.toLowerCase() === 'same-origin', 'same-origin');
   expectHeader(
     home.headers,
     'referrer-policy',
@@ -180,6 +184,7 @@ if (home) {
     ["script-src 'self'", 'script-src sem inline/eval'],
     ["style-src-attr 'none'", 'style-src-attr'],
     ["frame-ancestors 'none'", 'frame-ancestors'],
+    ['upgrade-insecure-requests', 'upgrade-insecure-requests'],
     [officialUrl, 'Supabase oficial HTTPS'],
     [`wss://${officialRef}.supabase.co`, 'Supabase oficial WSS'],
   ];
@@ -229,11 +234,13 @@ console.log('\n[allowlist] arquivos públicos necessários');
 const semComentarios = txt => txt
   .replace(/\/\*[\s\S]*?\*\//g, ' ')
   .replace(/(^|\s)\/\/[^\n]*/g, '$1');
+const publicResponses = new Map();
+async function publicResponse(pathname) {
+  if (!publicResponses.has(pathname)) publicResponses.set(pathname, await expectStatus(pathname, 200));
+  return publicResponses.get(pathname);
+}
 const modulosImportados = async () => {
-  const { readFile } = await import('node:fs/promises');
-  const { fileURLToPath } = await import('node:url');
   const path = await import('node:path');
-  const raiz = fileURLToPath(new URL('..', import.meta.url));
   const RES = [/\bfrom\s*['"](\.[^'"]+)['"]/g, /\bimport\s+['"](\.[^'"]+)['"]/g,
                /\bimport\s*\(\s*['"`](\.[^'"`]+)['"`]/g];
   const achados = new Set();
@@ -242,15 +249,21 @@ const modulosImportados = async () => {
   while (fila.length) {
     const rel = fila.shift();
     if (vistos.has(rel)) continue;              // ciclo de imports não trava a fila
+    if (vistos.size >= 256) throw new Error('Deploy excedeu o limite de módulos do smoke.');
     vistos.add(rel);
-    let src;
-    try { src = semComentarios(await readFile(path.join(raiz, rel), 'utf8')); }
-    catch { continue; }                          // arquivo ausente: quem acusa é o 404 do fetch
+    // O checker vem da main; o grafo é dado do deploy testado, nunca código executado localmente.
+    // Assim um módulo novo/retirado no preview não depende do inventário da main.
+    const response = await publicResponse('/' + rel);
+    if (!response?.ok) continue;
+    const src = semComentarios(await response.clone().text());
     const dir = path.posix.dirname(rel);
     for (const re of RES) {
       for (const m of src.matchAll(re)) {
         // especificador é relativo a QUEM IMPORTA, não à raiz
         const alvo = path.posix.normalize(path.posix.join(dir === '.' ? '' : dir, m[1]));
+        if (alvo.startsWith('../') || alvo.startsWith('/') || alvo.includes('\\')) {
+          throw new Error('Import do deploy fora da raiz ou com caminho ambíguo.');
+        }
         achados.add('/' + alvo);
         fila.push(alvo);
       }
@@ -272,9 +285,8 @@ const publicAssets = [
   '/vendor/icon.svg',
   '/vendor/fonts/archivo-latin-600-normal.woff2',
 ];
-const publicResponses = new Map();
 for (const pathname of publicAssets) {
-  publicResponses.set(pathname, await expectStatus(pathname, 200));
+  await publicResponse(pathname);
 }
 
 console.log('\n[allowlist] arquivos internos obrigatoriamente fechados');

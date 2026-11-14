@@ -2,6 +2,23 @@
 // O auditor já pode ler estes metadados; não recebe SELECT de dados nem grants novos.
 export const SECURITY_SHAPE_SQL = `
 select audit.divat_security_shape() || pg_catalog.jsonb_build_object(
+  'auditor', (
+    select pg_catalog.jsonb_build_object(
+      'login', r.rolname, 'can_login', r.rolcanlogin,
+      'valid_until', r.rolvaliduntil, 'checked_at', current_timestamp
+    ) from pg_catalog.pg_roles r where r.rolname = 'divat_auditor_ci'
+  ),
+  'internal_functions', coalesce((
+    select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+      'schema', n.nspname,
+      'signature', n.nspname || '.' || p.proname || '(' || pg_catalog.oidvectortypes(p.proargtypes) || ')',
+      'security_definer', p.prosecdef,
+      'anon_execute', pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE'),
+      'authenticated_execute', pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    ) order by n.nspname, p.proname, p.oid)
+    from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('private', 'audit')
+  ), '[]'::jsonb),
   'policy_details', coalesce((
     select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
       'tabela', c.relname, 'nome', p.polname, 'cmd', p.polcmd::text,
@@ -15,6 +32,43 @@ select audit.divat_security_shape() || pg_catalog.jsonb_build_object(
     where n.nspname = 'public'
   ), '[]'::jsonb)
 );`;
+
+// Fora do baseline: perder a validade do login não é uma exceção de ACL aceitável.
+export function validarValidadeAuditora(auditor) {
+  if (!auditor || auditor.login !== 'divat_auditor_ci' || auditor.can_login !== true
+      || typeof auditor.valid_until !== 'string' || typeof auditor.checked_at !== 'string') {
+    throw new Error('Catálogo de validade do auditor ausente ou inválido.');
+  }
+  const fim = Date.parse(auditor.valid_until);
+  const agora = Date.parse(auditor.checked_at);
+  if (!Number.isFinite(fim) || !Number.isFinite(agora)) {
+    throw new Error('Datas de validade do auditor inválidas; não assumir credencial sem expiração.');
+  }
+  const restante = fim - agora;
+  if (restante <= 0) throw new Error('A validade de divat_auditor_ci expirou; renovar sem ampliar privilégios.');
+  return { expiraEm: new Date(fim).toISOString(), diasRestantes: Math.ceil(restante / 86_400_000),
+    avisar: restante <= 30 * 86_400_000 };
+}
+
+// Confere o estado efetivo, inclusive funções movidas/renomeadas ou alteradas pelo painel.
+// Os diagnósticos DEFINER de audit permanecem privados; só o helper INVOKER é público.
+export function validarFuncoesInternas(funcoes) {
+  if (!Array.isArray(funcoes) || !funcoes.length) throw new Error('Catálogo de funções internas ausente ou vazio.');
+  const vistas = new Set();
+  for (const f of funcoes) {
+    if (!f || !['private', 'audit'].includes(f.schema) || typeof f.signature !== 'string'
+        || !f.signature.startsWith(f.schema + '.') || vistas.has(f.signature)
+        || ['security_definer', 'anon_execute', 'authenticated_execute'].some(k => typeof f[k] !== 'boolean')) {
+      throw new Error('Metadados de funções internas incompletos ou contraditórios.');
+    }
+    vistas.add(f.signature);
+    if ((f.schema === 'private' && f.security_definer) || f.authenticated_execute
+        || (f.anon_execute && f.signature !== 'private.f_unaccent(text)')) {
+      throw new Error('Privilégios ou SECURITY DEFINER de função interna divergiram; revisar private/audit.');
+    }
+  }
+  if (!vistas.has('private.f_unaccent(text)')) throw new Error('Helper privado da busca ausente do catálogo.');
+}
 
 const chave = (tabela, nome) => JSON.stringify([tabela, nome]);
 const textoOuNull = valor => valor === null || typeof valor === 'string';

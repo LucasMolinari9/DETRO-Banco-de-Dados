@@ -1,0 +1,12 @@
+# Responsáveis pelos arquivos que executam código, orientam agentes ou controlam permissões.
+# CODEOWNERS identifica o dono; a exigência de aprovação depende do ruleset do GitHub.
+# Não exigir autoaprovação do dono único em PRs abertos por ele.
+/.github/ @LucasMolinari9
+/.claude/ @LucasMolinari9
+/.agents/ @LucasMolinari9
+/.codex/ @LucasMolinari9
+/.mcp.json @LucasMolinari9
+/AGENTS.md @LucasMolinari9
+/CLAUDE.md @LucasMolinari9
+/scripts/ @LucasMolinari9
+/supabase/migrations/ @LucasMolinari9
