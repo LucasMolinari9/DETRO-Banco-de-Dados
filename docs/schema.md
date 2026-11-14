@@ -158,6 +158,20 @@ e sem grant para `anon`/`authenticated` → invisíveis pela API pública, de pr
 | `evento_dados` | `evento_textos` | `id` | → `evento_teste` |
 | `portaria_data` | `portaria_texto_teste` | `id` | → `portaria_teste` |
 
+## Três tabelas privadas adicionais
+
+Em 14/11/2026 o dono confirmou que `dias_semana_teste`, `itinerario_alteracao_teste`
+e `tarifa_historico_teste` devem ser privadas. Não há consumidores no frontend, referências
+em views/RPCs/funções, FKs externas, sequências owned ou participação no Realtime.
+Contagens conferidas: 68, 1.622 e 85.687 registros, respectivamente.
+
+A migration `20261114110844_close_private_reference_tables.sql` está **preparada, não aplicada**:
+revoga ACLs de tabela/coluna de `PUBLIC`, `anon` e `authenticated`, remove as três policies
+de leitura e recria os nove bloqueios de escrita como RESTRICTIVE/FALSE. Preserva dados,
+chaves, owners e as 15 tabelas de produto. Aplicar somente após o backup integral recuperável
+do [runbook](backup.md); ensaio sintético não substitui esse dump. O gate de deriva exige
+que essas tabelas permaneçam invisíveis a `anon`, assim como as quatro stagings.
+
 ## Funções e trigger (schemas `public`, `private` e `audit`)
 
 A migração `20260729034018_phase3_moderate_hardening.sql`, aplicada primeiro no projeto de teste,
