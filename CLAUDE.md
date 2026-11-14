@@ -151,8 +151,8 @@ exibe e **atualiza ao vivo** (Realtime).
   Preserve os literais `SB_URL`/`SB_KEY` usados pelos testes. Migrar para `sb_publishable_...`
   exige atualizar REST, Realtime e testes em conjunto; segredo administrativo nunca vai no front.
 - **RLS / segurança:**
-  - As 19 tabelas de `public` têm RLS. `anon` lê 15; as quatro stagings ficam fechadas.
-    Não há grants de escrita para `anon`/`authenticated`. `authenticated` não tem SELECT de
+  - Catálogo de 14/11/2026: 22 tabelas de `public` com RLS; `anon` lê 18, das quais o portal usa 15.
+    Não há grants de escrita; a pendência das policies de três tabelas está em `docs/seguranca.md` §9.2. `authenticated` não tem SELECT de
     tabela pública nem EXECUTE de função pública; o portal continua sem login.
   - As duas RPCs de produto são `SECURITY INVOKER`, com `search_path` fixo. Diagnósticos ficam em
     `audit`, executáveis só pelo auditor mínimo. Não devolver diagnósticos à Data API.

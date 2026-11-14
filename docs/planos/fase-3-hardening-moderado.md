@@ -51,6 +51,19 @@ O gate `seguranca` consulta `pg_roles`, compara com o horário do servidor e emi
 Actions com até 30 dias restantes. Catálogo ausente/inválido ou validade vencida abortam o
 check antes do baseline. A validade efetivamente aplicada está em [seguranca.md](../seguranca.md) §9.6.
 
+### Regularização de policies ainda pendente
+
+O CI de 14/11/2026 reconfirmou uma falha preexistente: as três policies de bloqueio de cada
+uma das tabelas `dias_semana_teste`, `itinerario_alteracao_teste` e `tarifa_historico_teste`
+estão como PERMISSIVE. A regularização deve preservar SELECT e os grants mínimos, substituir
+os nove bloqueios por AS RESTRICTIVE com FALSE explícito nas condições de cada comando e
+tratar a substituição em transação. Antes de aplicar, preservar backup integral recuperável,
+versionar e revisar a migration e ensaiar em ambiente isolado, conforme `db-change`.
+O gate de migrations protege os nomes desses bloqueios: a entrega de regularização deve
+provar uma substituição segura, sem liberar remoção arbitrária. Os defaults herdados também
+reportados pelo CI continuam sujeitos à análise individual; não ampliar a baseline para
+conseguir um check verde. Evidência e estado observado em [seguranca.md](../seguranca.md) §9.2.
+
 ## Verificações permanentes
 
 | Gate | Diagnóstico | Execução |

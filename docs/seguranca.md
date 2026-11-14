@@ -180,6 +180,17 @@ interpretador completo de SQL dinâmico. O gate vivo de grants também confere `
 pelo catálogo: helper elevado, diagnóstico exposto e função DEFINER movida para `private`
 abortam a auditoria, sem novas credenciais, grants ou exceções no baseline.
 
+O catálogo atual tem **22 tabelas públicas com RLS**, 18 legíveis por `anon` (15 consumidas
+pelo portal), sem grants de escrita para `anon`/`authenticated` e sem SELECT para
+`authenticated`. O check vivo da PR encontrou nove policies `divat_block_client_*` marcadas
+como **PERMISSIVE** em `dias_semana_teste`, `itinerario_alteracao_teste` e
+`tarifa_historico_teste`; os predicados FALSE dessas policies não são o bloqueio RESTRICTIVE
+exigido pelo contrato. A mesma falha já ocorria na main, antes desta correção
+([run de 14/11/2026](https://github.com/LucasMolinari9/DETRO-Banco-de-Dados/actions/runs/43605699935)).
+O CI permanece vermelho por essa pendência e pelos defaults herdados também listados naquele
+run; esta entrega não altera o baseline para absorvê-los. A regularização das policies exige
+migration, backup fresco recuperável e ensaio isolado, conforme a skill `db-change`.
+
 **9.3 — Recuperação ainda pendente (SEC-06).** A exportação REST semanal é parcial, sem snapshot
 consistente, e o último run examinado falhou sem artifact. Ela não cobre os schemas privados.
 Não houve dump completo nem ensaio isolado. Essa pendência foi adiada pelo dono e não bloqueou
