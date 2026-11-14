@@ -157,6 +157,26 @@ test('apagar ou alterar as policies de bloqueio do hardening é recusado', () =>
   recusa(`alter policy divat_block_client_update on public.qh_teste using (true);`, /divat_block_client_update/);
 });
 
+test('reparo de PERMISSIVE exige recriação imediata RESTRICTIVE/FALSE na mesma tabela privada', () => {
+  for (const tabela of ['dias_semana_teste', 'itinerario_alteracao_teste', 'tarifa_historico_teste']) {
+    for (const comando of ['insert', 'update', 'delete']) {
+      const drop = `drop policy divat_block_client_${comando} on public.${tabela};`;
+      const condicao = comando === 'insert' ? 'with check (false)' : comando === 'delete'
+        ? 'using (false)' : 'using (false) with check (false)';
+      const create = `create policy divat_block_client_${comando} on public.${tabela} as restrictive for ${comando} to anon, authenticated ${condicao};`;
+      aceita(`${drop}\n${create}`);
+      recusa(drop, /policy de bloqueio/);
+      recusa(`${drop}\n${create.replace('as restrictive', 'as permissive')}`, /policy de bloqueio/);
+      recusa(`${drop}\n${create.replaceAll('(false)', '(true)')}`, /policy de bloqueio/);
+      recusa(`${drop}\n${create.replace(`on public.${tabela}`, 'on public.outra')}`, /policy de bloqueio/);
+      recusa(`${drop}\nselect 1;\n${create}`, /policy de bloqueio/);
+      recusa(`${drop}\n${create}`.replaceAll(tabela, 'tabela_vista_teste'), /policy de bloqueio/);
+    }
+  }
+  recusa(`drop policy divat_block_client_update on public.dias_semana_teste;
+create policy divat_block_client_update on public.dias_semana_teste as restrictive for update to anon, authenticated using (false);`, /policy de bloqueio/);
+});
+
 test('SECURITY DEFINER em função de public é recusado; em audit continua aprovado', () => {
   recusa(`alter function public.divat_linhas_regiao(text) security definer;`, /SECURITY DEFINER[^\n]*public/i);
   recusa(`create function public.caso() returns int language plpgsql security definer as $$ begin return 1; end $$;
