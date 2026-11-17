@@ -57,6 +57,28 @@ O portal usa metadados de procedência e conferência; em uma reconstrução man
 essas colunas junto dos dados finais. A tabela privada de conciliação de observações de QH
 mantém o retrato anterior à atualização; a auditoria registra quais lacunas já foram preenchidas.
 
+### Correções de 21/10/2026
+
+O ACCDB de 28/09 foi conferido campo a campo contra as tabelas finais, e os erros da carga
+foram corrigidos com `stage_access_20260928` como fonte, depois de conferir que a cópia bate
+com o arquivo nos campos usados. O que mudou está no [CHANGELOG](CHANGELOG.md). Para repetir
+o procedimento:
+
+- **Casamento do itinerário:** `itinerario_teste` não guarda a chave do Access. O que liga as
+  duas é a ordem: dentro de cada `codlinha` (campo `linha` do Access), a sequência por
+  `(source_page, source_slot)` na staging é a mesma da sequência por `row_id` na final. Antes de
+  gravar, confira que sentido, tipo, município, empresa e logradouro batem em todos os pares.
+  Linha com sequência editada depois da carga (hoje, a 108026001) sai do casamento posicional e
+  casa por sentido + logradouro.
+- **Auditoria:** antes/depois de cada registro em `divat_integracao.atualizacao_auditoria_20260929`,
+  com chave `<item>:<id>@<data>`. A chave da tabela é `(tabela, chave)`; o sufixo de data evita
+  colidir com registros de cargas anteriores (o evento 19953 já tinha linha de 29/09).
+- **Em lotes:** o bloco único com todas as correções foi cancelado pela ferramenta antes de
+  chegar ao banco. Aplicado por item e, no itinerário, por faixa de `codlinha`, cada lote em
+  transação própria e com contagens esperadas que abortam o lote se divergirem. Um lote abortou
+  assim porque o item anterior já tinha corrigido dois logradouros; a conferência foi ajustada
+  para aceitar o nome corrigido e o lote rodou de novo.
+
 ---
 
 ## 2. UTF-8 é obrigatório — não é preferência
@@ -200,5 +222,19 @@ em `supabase/migrations/`.
   + GIN para `ilike`). Sem ele a consulta degrada silenciosamente conforme a tabela cresce.
 - **`limit` maior que 30000** exige subir o teto do PostgREST **e** a constante `SB_MAX_ROWS` de
   `src/data/rest.mjs` na mesma tarefa — ver a seção Supabase do [`../CLAUDE.md`](../CLAUDE.md).
+- **Importador que mexe em pontuação.** A carga de 29/09 trocou vírgula por ponto em nomes
+  ("Km 2,5" → "Km 2.5") e ponto e vírgula por vírgula em observações — sintoma de gerar CSV
+  trocando o separador em vez de pôr o campo entre aspas. Depois de importar, confira um texto
+  que tenha vírgula e outro que tenha ponto e vírgula.
+- **O `id` do itinerário tem mais de 2 casas.** O Access insere pontos entre outros com 7.001,
+  11.002…; arredondar a 2 casas cria empates, e o portal ordena por `id`. A coluna é `numeric`
+  sem escala; a carga não pode arredondar.
+- **`piso_i` é quilometragem calculada, com muitas casas.** Não truncar nem arredondar na carga:
+  o portal já formata com 2 casas.
+- **Booleano "Não" do Access vira `null` na staging.** Em `stage_access_20260928`, quase todo
+  campo Sim/Não falso aparece como `null` (e não `false`). Ao copiar um booleano da staging para
+  uma coluna de verdade, trate `null` como `false` quando o campo do Access é obrigatório. Em
+  `Vista.Metropolitana` a staging ainda diverge do arquivo em 2 linhas; ver o
+  [CHANGELOG](CHANGELOG.md) de 21/10/2026.
 - **Nada de dado no git.** CSVs e dumps ficam **fora** do repositório; o `.gitignore` barra `*.csv`
   como rede de segurança. O git versiona só código.

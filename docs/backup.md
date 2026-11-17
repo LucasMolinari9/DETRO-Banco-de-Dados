@@ -133,8 +133,9 @@ o banco PostgreSQL, não arquivos externos de Storage, Edge Functions ou configu
 ## Recuperação parcial e baseline histórica
 
 `docs/backup_schema.sql` é anterior à Fase 3 e às cargas privadas recentes. Não reconstrói o
-estado atual nem recupera snapshots históricos de dados. O histórico de 21 migrations está
-em [schema.md](schema.md); não reaplicá-las sobre o banco em uso.
+estado atual nem recupera snapshots históricos de dados. A conciliação entre as migrations
+no Git e as aplicadas no Supabase está em [schema.md](schema.md). A restauração do banco em
+uso parte do dump integral.
 
 Qualquer exercício de reconstrução será feito em PostgreSQL local/descartável, sem sobrepor o banco
 oficial nem criar outro projeto Supabase. O dump completo traz sua própria estrutura e não deve ser combinado com
