@@ -38,16 +38,16 @@ ataques de escrita nem mudou ACLs. O estado observado foi:
 Essa evidência demonstra as permissões observadas; não comprova MFA, configuração de signup
 ou ausência de toda vulnerabilidade no código/histórico. A proteção do Git foi conferida separadamente.
 
-### Conferência de 14/11/2026 e fechamento preparado
+### Fechamento das três tabelas privadas em 17/11/2026
 
 O catálogo contém 22 tabelas públicas, todas com RLS. Três tabelas adicionais,
 `dias_semana_teste`, `itinerario_alteracao_teste` e `tarifa_historico_teste`, tinham SELECT
 para `anon` e nove policies FALSE criadas como PERMISSIVE. O dono confirmou que os dados são
 privados. Elas não são consumidas pelo portal nem por RPCs/views/funções, FKs externas ou
-Realtime. A migration `20261114110844` revoga acesso público de tabela/coluna, remove as
-policies de leitura e recria os nove bloqueios como RESTRICTIVE/FALSE, sem alterar dados.
-Está **preparada, não aplicada**, aguardando backup integral recuperável. A baseline de
-segurança permanece intacta; as nove policies explicam a falha do gate vivo examinada.
+Realtime. A migration `20261117232911` revogou o acesso público de tabela e coluna, removeu as
+policies de leitura e recriou os nove bloqueios como RESTRICTIVE/FALSE. A conferência posterior
+confirmou os bloqueios e a preservação das contagens de registros, das permissões das 15 tabelas
+do portal e da lista da publicação Realtime.
 
 `GET /auth/v1/settings` respondeu `disable_signup=false`, email habilitado e login anônimo
 desabilitado. Não houve tentativa de cadastro nem envio de email. Fechar signup continua

@@ -154,8 +154,8 @@ exibe e **atualiza ao vivo** (Realtime).
   - Há 22 tabelas de `public`, todas com RLS (14/11/2026). As 15 de produto continuam
     públicas; quatro stagings ficam fechadas. `dias_semana_teste`,
     `itinerario_alteracao_teste` e `tarifa_historico_teste` são privadas por decisão do dono.
-    A migration `20261114110844` prepara o fechamento das três e o reparo de nove policies;
-    ainda não aplicada: depende do backup integral recuperável de `docs/backup.md`.
+    Em 17/11/2026, a migration `20261117232911` fechou o acesso público às três tabelas e
+    tornou restritivos os nove bloqueios de escrita.
     Não há grants de escrita para `anon`/`authenticated`. `authenticated` não tem SELECT de
     tabela pública nem EXECUTE de função pública; o portal continua sem login.
   - As duas RPCs de produto são `SECURITY INVOKER`, com `search_path` fixo. Diagnósticos ficam em
