@@ -16,7 +16,9 @@
 //    de A para B é a 202ª candidata.
 // §3 PDF EM ESTADO VAZIO. Lista vazia, filtro sem correspondência e filtro textual sem
 //    correspondência deixavam o `pdfHTML` da consulta ANTERIOR no lugar: a tela dizia "nenhuma",
-//    o PDF saía com as linhas de antes.
+//    o PDF saía com as linhas de antes. Em 30/10 a mesma classe apareceu no Município e Região
+//    (§3e) e na busca de Município A → B (§3f): saídas que só pintavam o host e retornavam.
+//    Em Localidades (§3g), também as validações antes da busca e a troca de filtro.
 //
 // Uso:
 //   node scripts/check_resultados.mjs
@@ -157,6 +159,82 @@ async function buscar(termo){
   const pdfD = await pdfDaAbaAtiva(page);
   check(/Nenhuma empresa com esse filtro/.test(telaD) && !/VIACAO ALFA/.test(pdfD),
     '§3d · filtro "Cassadas" sem resultado: o PDF não traz as empresas de antes');
+
+  // (e) Município e Região: as saídas que só pintam o host — "nenhum município", a lista de
+  // municípios e a orientação — vêm cada uma depois de uma região com resultado
+  await abrir('municipioRegiao');
+  const porRegiao = async valor => {
+    await page.selectOption('.modal-body.active #spSel', valor);   // o change do seletor já busca
+    await page.waitForTimeout(500);
+    await esperarPintura();
+  };
+  await porRegiao('METROPOLITANA');
+  check(LINHA_549.test(await pdfDaAbaAtiva(page)), '§3e · a região exporta a linha encontrada');
+  await buscar('xyzinexistente');                                   // a região segue escolhida
+  const telaE1 = await textoDoPane();
+  const pdfE1 = await pdfDaAbaAtiva(page);
+  check(/Nenhum município/.test(telaE1) && !LINHA_549.test(pdfE1),
+    '§3e · município inexistente: a tela diz "nenhum" e o PDF não traz a linha da região');
+
+  await buscar('');
+  check(LINHA_549.test(await pdfDaAbaAtiva(page)), '§3e · a região volta a exportar a linha');
+  await buscar('i');                                  // RIO DE JANEIRO e NITEROI, na METROPOLITANA
+  const telaE2 = await textoDoPane();
+  const pdfE2 = await pdfDaAbaAtiva(page);
+  check(/2 município\(s\)/.test(telaE2) && /2 município\(s\)/.test(pdfE2) && !LINHA_549.test(pdfE2),
+    '§3e · vários municípios: o PDF traz a lista da tela, não a linha da região');
+
+  await buscar('');
+  check(LINHA_549.test(await pdfDaAbaAtiva(page)), '§3e · a região exporta a linha de novo');
+  await porRegiao('');
+  const telaE3 = await textoDoPane();
+  const pdfE3 = await pdfDaAbaAtiva(page);
+  check(/Escolha uma região/.test(telaE3) && !LINHA_549.test(pdfE3),
+    '§3e · seletor limpo, sem termo: a tela orienta e o PDF não traz a linha da região');
+
+  // (f) Município A → B: as saídas antecipadas da busca entre municípios, cada uma depois da
+  // busca da §2, que acha a linha ALVO
+  await abrir('localidades');
+  await page.click('.modal-body.active .loc-filter-btn[data-idx="3"]');
+  const entreMunicipios = async (a, b) => {
+    await page.fill('.modal-body.active #locA', a);
+    await page.fill('.modal-body.active #locB', b);
+    await page.click('.modal-body.active #locGo');
+    await page.waitForTimeout(500);
+    await esperarPintura();
+  };
+  const PDF_ALVO = new RegExp(ALVO.nome);
+  for (const [a, b, tela, caso] of [
+    ['Rio de Janeiro', 'xyzinexistente', /Nenhum município com o nome "xyzinexistente"/, 'município B inexistente'],
+    ['xyzinexistente', 'Niteroi', /Nenhum município com o nome "xyzinexistente"/, 'município A inexistente'],
+    ['i', '', /3 município\(s\)/, 'só A, com vários municípios'],
+  ]) {
+    await entreMunicipios('Rio de Janeiro', 'Niteroi');
+    check(PDF_ALVO.test(await pdfDaAbaAtiva(page)), `§3f · antes de "${caso}", o PDF traz a linha de A para B`);
+    await entreMunicipios(a, b);
+    const telaF = await textoDoPane();
+    const pdfF = await pdfDaAbaAtiva(page);
+    check(tela.test(telaF) && !PDF_ALVO.test(pdfF), `§3f · ${caso}: o PDF não traz a linha da busca anterior`,
+      !tela.test(telaF) ? 'a tela não mostrou o estado esperado' : PDF_ALVO.test(pdfF) ? 'o PDF saiu com a linha ALVO' : '');
+  }
+
+  // (g) Localidades, ANTES de chegar à busca: campo A vazio, A igual a B e a troca de filtro
+  // também só pintavam o host — cada caso vem depois de uma busca do mesmo filtro que acha ALVO
+  for (const [filtro, [a0, b0], acao, tela, caso] of [
+    [3, ['Rio de Janeiro', 'Niteroi'], () => entreMunicipios('', 'Niteroi'), /Informe o município/, 'campo A vazio'],
+    [3, ['Rio de Janeiro', 'Niteroi'], () => entreMunicipios('Niteroi', 'niteroi'), /Use municípios diferentes/, 'municípios A e B iguais'],
+    [1, ['Niteroi', 'Rio de Janeiro'], () => entreMunicipios('Niteroi', 'niteroi'), /Use localidades diferentes/, 'localidades A e B iguais'],
+    [3, ['Rio de Janeiro', 'Niteroi'], () => page.click('.modal-body.active .loc-filter-btn[data-idx="4"]'), /Preencha os campos/, 'troca de filtro'],
+  ]) {
+    await page.click(`.modal-body.active .loc-filter-btn[data-idx="${filtro}"]`);
+    await entreMunicipios(a0, b0);
+    check(PDF_ALVO.test(await pdfDaAbaAtiva(page)), `§3g · antes de "${caso}", o PDF traz a linha ALVO`);
+    await acao();
+    const telaG = await textoDoPane();
+    const pdfG = await pdfDaAbaAtiva(page);
+    check(tela.test(telaG) && !PDF_ALVO.test(pdfG), `§3g · ${caso}: o PDF não traz a linha da busca anterior`,
+      !tela.test(telaG) ? 'a tela não mostrou o estado esperado' : PDF_ALVO.test(pdfG) ? 'o PDF saiu com a linha ALVO' : '');
+  }
 }
 
 check(!erros.length, 'nenhum erro de página', erros.join(' | '));
