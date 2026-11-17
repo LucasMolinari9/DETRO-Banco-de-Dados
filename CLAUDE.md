@@ -151,7 +151,11 @@ exibe e **atualiza ao vivo** (Realtime).
   Preserve os literais `SB_URL`/`SB_KEY` usados pelos testes. Migrar para `sb_publishable_...`
   exige atualizar REST, Realtime e testes em conjunto; segredo administrativo nunca vai no front.
 - **RLS / segurança:**
-  - As 19 tabelas de `public` têm RLS. `anon` lê 15; as quatro stagings ficam fechadas.
+  - Há 22 tabelas de `public`, todas com RLS (14/11/2026). As 15 de produto continuam
+    públicas; quatro stagings ficam fechadas. `dias_semana_teste`,
+    `itinerario_alteracao_teste` e `tarifa_historico_teste` são privadas por decisão do dono.
+    Em 17/11/2026, a migration `20261117232911` fechou o acesso público às três tabelas e
+    tornou restritivos os nove bloqueios de escrita.
     Não há grants de escrita para `anon`/`authenticated`. `authenticated` não tem SELECT de
     tabela pública nem EXECUTE de função pública; o portal continua sem login.
   - As duas RPCs de produto são `SECURITY INVOKER`, com `search_path` fixo. Diagnósticos ficam em

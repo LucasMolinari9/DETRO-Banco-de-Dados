@@ -12,7 +12,7 @@ const real = fileURLToPath(new URL('../', import.meta.url));
 const temporario = mkdtempSync(join(tmpdir(), 'divat-deriva-'));
 after(() => rmSync(temporario, { recursive: true, force: true }));
 
-function executar(rpcs) {
+function executar(rpcs, tabelasExtras = {}) {
   const raiz = mkdtempSync(join(temporario, 'caso-'));
   for (const dir of ['scripts/lib', 'docs', 'src/documentos/aninhado', 'bin']) {
     mkdirSync(join(raiz, dir), { recursive: true });
@@ -25,13 +25,13 @@ function executar(rpcs) {
   writeFileSync(join(raiz, 'src/documentos/aninhado/localidade.js'),
     'sbFetch("rpc/consulta_aninhada"); sbFetch(`rpc/consulta_documento`);\n');
   writeFileSync(join(raiz, 'src/documentos/nota.md'), "'rpc/nao_e_javascript'\n");
-  writeFileSync(join(raiz, 'CLAUDE.md'), 'Tabela tabela_demo_teste.\n');
+  writeFileSync(join(raiz, 'CLAUDE.md'), 'Tabela tabela_demo_teste. Privadas: dias_semana_teste, itinerario_alteracao_teste, tarifa_historico_teste.\n');
   writeFileSync(join(raiz, 'docs/schema.md'), [
     '```mermaid', 'erDiagram', '  tabela_demo_teste {', '    varchar codlinha', '  }', '```',
     'consulta_shell consulta_documento consulta_aninhada',
   ].join('\n'));
 
-  const shape = { tables: { tabela_demo_teste: ['codlinha'] }, rpcs };
+  const shape = { tables: { tabela_demo_teste: ['codlinha'], ...tabelasExtras }, rpcs };
   writeFileSync(join(raiz, 'bin/psql'),
     `#!${process.execPath}\nprocess.stdout.write(${JSON.stringify(JSON.stringify(shape))});\n`,
     { mode: 0o755 });
@@ -49,6 +49,14 @@ function executar(rpcs) {
 }
 
 const todas = ['consulta_shell', 'consulta_documento', 'consulta_aninhada'];
+
+for (const tabela of ['dias_semana_teste', 'itinerario_alteracao_teste', 'tarifa_historico_teste', 'evento_dados']) {
+  test(`reexposição de tabela privada reprova: ${tabela}`, () => {
+    const r = executar(todas, { [tabela]: ['id'] });
+    assert.equal(r.status, 1, r.output);
+    assert(r.output.includes(`privada "${tabela}"`), r.output);
+  });
+}
 
 test('confere RPCs do shell, módulos mjs e js aninhados sem contar duplicatas ou Markdown', () => {
   const r = executar(todas);

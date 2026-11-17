@@ -44,9 +44,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Nomes que casam o padrão de tabela mas NÃO são tabelas do schema public:
 const NAO_TABELA = new Set(['bd_teste']); // bd_teste = nome do projeto Supabase
-// Staging do ETL: existem no banco mas são invisíveis para anon DE PROPÓSITO (RLS sem
-// policy, sem grant) — o OpenAPI de anon não as lista, então não dá para conferi-las daqui.
-const STAGING = new Set(['evento_dados', 'evento_textos', 'portaria_data', 'portaria_texto_teste']);
+// Staging e dados administrativos privados: a visão anônima deve omiti-los.
+// A ausência não comprova existência; a presença reprova o contrato de privacidade.
+const PRIVADAS = new Set(['evento_dados', 'evento_textos', 'portaria_data', 'portaria_texto_teste',
+  'dias_semana_teste', 'itinerario_alteracao_teste', 'tarifa_historico_teste']);
 
 // ---------- lado do REPO (parse antes da rede, para falhar cedo no que for local) ----------
 
@@ -125,9 +126,14 @@ const rpcsDoBanco = new Set(api.rpcs || []);
 
 const erros = [];
 
+// A lista é um contrato de privacidade, não uma dispensa para esconder reexposição.
+for (const tabela of PRIVADAS) {
+  if (tabelasDoBanco.has(tabela)) erros.push(`A tabela privada "${tabela}" está visível para anon.`);
+}
+
 // 1. tabela citada existe no banco (staging fica de fora: invisível para anon por design)
 for (const c of citacoes) {
-  if (STAGING.has(c.tabela)) continue;
+  if (PRIVADAS.has(c.tabela)) continue;
   if (!tabelasDoBanco.has(c.tabela)) {
     erros.push(`${c.doc}:${c.linha} cita a tabela "${c.tabela}", que não existe no banco (ou não está visível para anon).`);
   }

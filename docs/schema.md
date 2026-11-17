@@ -158,6 +158,20 @@ e sem grant para `anon`/`authenticated` → invisíveis pela API pública, de pr
 | `evento_dados` | `evento_textos` | `id` | → `evento_teste` |
 | `portaria_data` | `portaria_texto_teste` | `id` | → `portaria_teste` |
 
+## Três tabelas privadas adicionais
+
+Em 14/11/2026 o dono confirmou que `dias_semana_teste`, `itinerario_alteracao_teste`
+e `tarifa_historico_teste` devem ser privadas. Não há consumidores no frontend, referências
+em views/RPCs/funções, FKs externas, sequências owned ou participação no Realtime.
+Contagens conferidas: 68, 1.622 e 85.687 registros, respectivamente.
+
+Em 17/11/2026, a migration `20261117232911_close_private_reference_tables.sql` revogou
+as permissões de tabela e coluna de `PUBLIC`, `anon` e `authenticated`, removeu as três policies
+de leitura e recriou os nove bloqueios de escrita como RESTRICTIVE/FALSE. O catálogo confirmou
+as mesmas contagens de registros, permissões das 15 tabelas de produto e publicação Realtime.
+O gate de deriva exige que essas tabelas permaneçam invisíveis a `anon`, assim como as quatro
+stagings.
+
 ## Funções e trigger (schemas `public`, `private` e `audit`)
 
 A migração `20260729034018_phase3_moderate_hardening.sql`, aplicada primeiro no projeto de teste,
@@ -309,7 +323,7 @@ inclusões promove automaticamente status, tarifa ou itinerário.
 
 ## Histórico aplicado no projeto em uso
 
-O projeto `gontnlfmothfglssbyyk` tem 21 migrations registradas, conferidas em 03/10/2026.
+Em 03/10/2026, o projeto `gontnlfmothfglssbyyk` tinha 21 migrations registradas.
 Seus identificadores foram
 conciliados com `supabase/migrations/` a partir do histórico aplicado, sem reexecutar SQL nem
 alterar `supabase_migrations`. Os reparos de funções usam as versões aplicadas

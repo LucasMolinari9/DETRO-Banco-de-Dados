@@ -128,7 +128,16 @@ for (const file of files) {
 
   // As RESTRICTIVE de 20260930213009 seguram a escrita mesmo se um GRANT voltar; sem elas, sobra
   // só o GRANT. Os nomes são os que aquela migração cria.
-  for (const [acao, nome] of comandos(sql, /\b(drop|alter)\s+policy\s+(?:if\s+exists\s+)?(divat_block_client_[a-z0-9_]+|divat_internal_no_client_access)\b/gi)) {
+  // Reparo das três tabelas privadas: o painel criou estes nomes como PERMISSIVE.
+  // Só admite DROP imediatamente seguido da recriação literal RESTRICTIVE/FALSE do
+  // mesmo comando, nome e tabela. ALTER, remoção isolada e tabelas de produto seguem proibidos.
+  const reparoPrivado = /\bdrop policy (divat_block_client_(insert|update|delete)) on public\.(dias_semana_teste|itinerario_alteracao_teste|tarifa_historico_teste); create policy \1 on public\.\3 as restrictive for \2 to anon, authenticated (using \(false\)(?: with check \(false\))?|with check \(false\));/gi;
+  const semReparos = sql.replace(reparoPrivado, (trecho, nome, comando) => {
+    const condicao = comando.toLowerCase() === 'insert' ? 'with check (false)'
+      : comando.toLowerCase() === 'delete' ? 'using (false)' : 'using (false) with check (false)';
+    return trecho.toLowerCase().endsWith(`${condicao};`) ? '' : trecho;
+  });
+  for (const [acao, nome] of comandos(semReparos, /\b(drop|alter)\s+policy\s+(?:if\s+exists\s+)?(divat_block_client_[a-z0-9_]+|divat_internal_no_client_access)\b/gi)) {
     fail(file, `${acao.toUpperCase()} POLICY ${nome} — policy de bloqueio do hardening não se remove nem se altera`);
   }
 
