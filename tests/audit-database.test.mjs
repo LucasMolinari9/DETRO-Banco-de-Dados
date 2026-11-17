@@ -13,9 +13,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, chmod, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, chmod, rm, rename, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 import {
   ENV_VAR,
@@ -275,7 +277,6 @@ test('psql falso: caminho feliz não põe URL/senha em argv, só em env PG*', as
     const resultado = executarFuncaoJson(cfg, 'divat_security_shape', { psqlBin: bin });
     assert.deepEqual(resultado, forma);
 
-    const { readFile } = await import('node:fs/promises');
     const dump = JSON.parse(await readFile(debug, 'utf8'));
     assert.equal(dump.env.PGPASSWORD, SENHA_SECRETA);
     assert.equal(dump.env.PGHOST, `db.${REF_TESTE}.supabase.co`);
@@ -362,6 +363,27 @@ test('executarFuncaoComoArray recusa resposta que não é lista', async () => {
   }
 });
 
+test('gate de qualidade consulta a função em audit e reprova uma resposta que não é lista', async () => {
+  const { dir, bin, debug } = await criarPsqlFalso('ok', { stdout: 'null' });
+  try {
+    await rename(bin, join(dir, 'psql'));
+    const script = fileURLToPath(new URL('../scripts/check_data_quality.mjs', import.meta.url));
+    const resultado = spawnSync(process.execPath, [script], {
+      env: { ...process.env, PATH: `${dir}${delimiter}${process.env.PATH}`, [ENV_VAR]: url() },
+      encoding: 'utf8', timeout: 10000,
+    });
+    assert.ifError(resultado.error);
+    assert.equal(resultado.status, 1, resultado.stdout + resultado.stderr);
+    assert.match(resultado.stderr, /não devolveu uma lista — abortando em vez de assumir vazio/);
+    const { argv } = JSON.parse(await readFile(debug, 'utf8'));
+    const indiceSql = argv.indexOf('-c');
+    assert.notEqual(indiceSql, -1);
+    assert.match(argv[indiceSql + 1], /\bfrom audit\.divat_data_quality\(\)/i);
+  } finally {
+    await limpar(dir);
+  }
+});
+
 test('nome de função inválido é recusado ANTES de tentar rodar psql', () => {
   const cfg = validarConexaoAuditora(url());
   const err = capturarErro(() => executarFuncaoJson(cfg, 'nome; drop table x', { psqlBin: '/caminho/que/nao/existe/psql' }));
@@ -372,18 +394,16 @@ test('nome de função inválido é recusado ANTES de tentar rodar psql', () => 
 test('psql resolvido por PATH (comportamento padrão dos gates, sem psqlBin explícito)', async () => {
   const forma = { ok: true };
   const { dir, debug } = await criarPsqlFalso('ok', { stdout: JSON.stringify(forma) });
-  const { rename } = await import('node:fs/promises');
   const psqlNoPath = join(dir, 'psql');
   await rename(join(dir, 'fake-psql.mjs'), psqlNoPath);
   await chmod(psqlNoPath, 0o755);
 
   const pathOriginal = process.env.PATH;
-  process.env.PATH = `${dir}${process.platform === 'win32' ? ';' : ':'}${pathOriginal}`;
+  process.env.PATH = `${dir}${delimiter}${pathOriginal}`;
   try {
     const cfg = validarConexaoAuditora(url());
     const resultado = executarFuncaoJson(cfg, 'divat_security_shape'); // sem psqlBin — usa PATH
     assert.deepEqual(resultado, forma);
-    const { readFile } = await import('node:fs/promises');
     const dump = JSON.parse(await readFile(debug, 'utf8'));
     assert.equal(dump.env.PGPASSWORD, SENHA_SECRETA);
   } finally {
