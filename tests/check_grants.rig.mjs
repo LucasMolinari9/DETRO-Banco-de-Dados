@@ -19,7 +19,7 @@
 // extra"), então nenhuma variável própria do rig atravessaria.
 // Unidade equivalente, mais estreita (só a validação de conexão e a invocação do psql, sem
 // process real do gate): tests/audit-database.test.mjs.
-import { mkdir, writeFile, copyFile, chmod, rm } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, copyFile, chmod, rm } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -57,12 +57,17 @@ process.exit(0);
 await chmod(`${RAIZ}/bin/psql`, 0o755);
 
 // Estado SÃO: espelha o banco de verdade depois das correções do Bloco 1.
+const app = await readFile(join(REAL, 'app.js'), 'utf8');
+const catalogo = /const RT_TABLES = \[([^\]]+)\]/.exec(app)[1];
+const tabelasPublicas = [...catalogo.matchAll(/'([^']+)'/g)].map(m => m[1]);
+
 const sao = () => ({
+  leituras: { anon: [...tabelasPublicas], authenticated: [] },
   gerado_em: '2026-07-27',
   tabelas: [
     { nome: 'tabela_vista_teste', rls: true, force_rls: false,
       anon: { select: true, insert: false, update: false, delete: false, truncate: false, maintain: false },
-      authenticated: { select: true, insert: false, update: false, delete: false, truncate: false, maintain: false },
+      authenticated: { select: false, insert: false, update: false, delete: false, truncate: false, maintain: false },
       policies: [{ nome: 'anon_read_tabela_vista', cmd: 'r' }] },
     { nome: 'evento_dados', rls: true, force_rls: false,
       anon: { select: false, insert: false, update: false, delete: false, truncate: false, maintain: false },
@@ -86,13 +91,7 @@ const sao = () => ({
   ],
 });
 
-const baseline = {
-  gerado_em: '2026-07-27',
-  nota: 'teste',
-  achados: [
-    { tipo: 'default_privilege_permissivo', alvo: 'supabase_admin:public:r', detalhe: 'limitação de plataforma' },
-  ],
-};
+const baseline = JSON.parse(await readFile(join(REAL, 'scripts/security_baseline.json'), 'utf8'));
 
 function rodar(extraArgs = []) {
   return new Promise(res => {
@@ -125,6 +124,10 @@ function adicionarPolicy(f, cmd, extra = {}) {
 }
 
 caso('estado são (só a exceção conhecida)', f => f, 0);
+caso('SELECT em uma relação nova', f => { f.leituras.anon.push('arquivo_interno'); return f; }, 1, '[leitura_indevida]');
+caso('SELECT para authenticated', f => { f.leituras.authenticated.push('evento_dados'); return f; }, 1, '[leitura_indevida]');
+caso('tabela de produto ausente', f => { f.leituras.anon.pop(); return f; }, 1, '[leitura_ausente]');
+caso('catálogo de leitura incompleto', f => { delete f.leituras.authenticated; return f; }, 1, 'Catálogo de SELECT inválido');
 caso('RLS desligada', f => { f.tabelas[0].rls = false; return f; }, 1);
 caso('grant de INSERT para anon', f => { f.tabelas[0].anon.insert = true; return f; }, 1);
 caso('grant de DELETE para authenticated', f => { f.tabelas[0].authenticated.delete = true; return f; }, 1);
@@ -169,6 +172,36 @@ for (const c of casos) {
   if (!ok) falhas++;
   console.log(`${ok ? '  ✓' : '  ✗'} ${c.nome} → saiu ${code}, esperado ${c.esperado}`);
   if (!ok) console.log(out.split('\n').map(l => '      ' + l).join('\n'));
+}
+
+// Tanto o gate normal quanto o despacho de atualização recusam risco novo. Uma
+// entrada antiga de tipo proibido também não pode silenciar o alarme.
+const arquivoBase = join(RAIZ, 'scripts/security_baseline.json');
+for (const [nome, alterar, base] of [
+  ['grant ampliado na mesma exceção', f => f.default_privileges[1].public_privs.push('SELECT'), baseline],
+  ['RLS desligada já registrada', f => { f.tabelas[0].rls = false; },
+    { achados: [...baseline.achados, { tipo: 'rls_off', alvo: 'tabela_vista_teste', detalhe: 'RLS desligada em tabela_vista_teste' }] }],
+  ['escrita anônima nova', f => { f.tabelas[0].anon.insert = true; }, baseline],
+]) {
+  const anterior = JSON.stringify(base);
+  await writeFile(arquivoBase, anterior);
+  const forma = sao();
+  alterar(forma);
+  await writeFile(RESPOSTA, JSON.stringify(forma));
+  for (const args of [[], ['--atualizar-baseline']]) {
+    const { code } = await rodar(args);
+    const ok = code === 1 && await readFile(arquivoBase, 'utf8') === anterior;
+    if (!ok) falhas++;
+    console.log(`${ok ? '  ✓' : '  ✗'} ${nome} bloqueado ${args.join(' ')}`);
+  }
+}
+await writeFile(arquivoBase, JSON.stringify(baseline));
+await writeFile(RESPOSTA, JSON.stringify(sao()));
+const atualizado = await rodar(['--atualizar-baseline']);
+const salvo = JSON.parse(await readFile(arquivoBase, 'utf8'));
+if (atualizado.code !== 0 || salvo.achados.length !== 1 || salvo.achados[0].alvo !== 'supabase_admin:public:r') {
+  falhas++;
+  console.log('  ✗ atualização das exceções resolvidas');
 }
 
 // A exceção conhecida DEVE derrubar o gate quando o baseline é ignorado — senão o baseline

@@ -173,18 +173,11 @@ as correções desta entrega. RTO/RPO continuam sem medição; cobertura em [bac
 RLS em tabelas públicas novas, sem conceder acesso público. Não substitui RLS explícito e
 revokes na migration. `anon`/`authenticated` não devem poder executar essa função.
 
-**9.5 — TLS do auditor sem verificação do servidor (AUD-02, revisão Codex de 11/10/2026).**
-`scripts/lib/audit-database.mjs` aceita `sslmode=require`, que cifra sem conferir o certificado.
-Pendente por decisão do dono. Não basta exigir `verify-full` no validador: sem trocar o secret
-junto, os checks de banco `realtime`, `seguranca`, `deriva` e `qualidade` ficam vermelhos.
-A documentação da Supabase usa o certificado baixado do painel, e não há confirmação de que
-`sslrootcert=system` funcione. Caminho: versionar o certificado público,
-apontar `PGSSLROOTCERT` para ele, validar num run manual e só então trocar o secret e recusar
-`require`. O `PGSSLROOTCERT` tem de entrar no `env` que o `executarConsulta` monta do zero para
-o psql: posto só no `env:` do workflow, não chega ao processo filho (revisão estática de
-25/10/2026, A01, que reconfirmou o achado). A auditoria de 13/10/2026 confirmou o achado (C-1, severidade baixa) e sugeriu um
-passo intermediário: `PGREQUIREAUTH=scram-sha-256` impede a entrega da senha em texto claro
-sem trocar o secret, mas também precisa de um run manual antes, porque o pooler pode não aceitar.
+**9.5 — Identidade TLS do auditor (AUD-02).** O transporte PostgreSQL exige
+`verify-full` na conexão, inclusive para URLs antigas que declaram `sslmode=require`
+ou `verify-ca`. Nos runners Ubuntu, usa o pacote de CAs do sistema. Se o endpoint
+usar uma CA própria, obtenha o certificado público pelo painel do Supabase e indique
+o caminho do arquivo com `PGSSLROOTCERT`. Uma falha de validação interrompe o check.
 
 **9.6 — Pendências da auditoria de 13/10/2026 que só o painel responde.** O relatório
 (metodologia `cloudflare/security-audit-skill`, commit auditado `539abe2`) não testou nada
@@ -230,6 +223,10 @@ complementa o diagnóstico com `pg_policy`, `pg_class` e `pg_namespace`, já leg
 na mesma consulta somente leitura. Confere cobertura exata; metadados ausentes ou divergentes
 abortam a auditoria. Só aceita policies de escrita RESTRICTIVE com FALSE explícito nas condições
 exigidas pelo comando. Grants de escrita continuam proibidos, inclusive com essas policies.
+O mesmo gate confere o conjunto exato de relações de `public` com privilégio de leitura,
+inclusive por coluna e por herança: as 15 de produto para `anon` e nenhuma para
+`authenticated`. A atualização automática do baseline só conserva exceções já aprovadas
+com os mesmos privilégios e pode remover as resolvidas.
 
 Os validadores exigem login e projeto exatos, senha não vazia e TLS; não imprimem URL, senha
 ou stderr do cliente. Consulte [hardening moderado](planos/fase-3-hardening-moderado.md) para

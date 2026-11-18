@@ -185,9 +185,9 @@ test('sslmode ausente é recusado', () => {
 });
 
 for (const modo of ['require', 'verify-ca', 'verify-full']) {
-  test(`sslmode=${modo} é aceito`, () => {
+  test(`sslmode=${modo} conecta com verificação completa`, () => {
     const cfg = validarConexaoAuditora(url({ sslmode: modo }));
-    assert.equal(cfg.sslmode, modo);
+    assert.equal(cfg.sslmode, 'verify-full');
   });
 }
 
@@ -203,7 +203,7 @@ test('conexão direta válida é aceita e devolve config correta', () => {
     database: 'postgres',
     user: 'divat_auditor_ci',
     password: SENHA_SECRETA,
-    sslmode: 'require',
+    sslmode: 'verify-full',
   });
 });
 
@@ -219,7 +219,7 @@ test('conexão por pooler válida é aceita e devolve config correta', () => {
     database: 'postgres',
     user: `divat_auditor_ci.${REF_TESTE}`,
     password: SENHA_SECRETA,
-    sslmode: 'require',
+    sslmode: 'verify-full',
   });
 });
 
@@ -248,6 +248,7 @@ writeFileSync(${JSON.stringify(debug)}, JSON.stringify({
     PGHOST: process.env.PGHOST ?? null, PGPORT: process.env.PGPORT ?? null,
     PGDATABASE: process.env.PGDATABASE ?? null, PGUSER: process.env.PGUSER ?? null,
     PGPASSWORD: process.env.PGPASSWORD ?? null, PGSSLMODE: process.env.PGSSLMODE ?? null,
+    PGSSLROOTCERT: process.env.PGSSLROOTCERT ?? null,
   },
 }));
 const modo = ${JSON.stringify(modo)};
@@ -279,10 +280,30 @@ test('psql falso: caminho feliz não põe URL/senha em argv, só em env PG*', as
     const dump = JSON.parse(await readFile(debug, 'utf8'));
     assert.equal(dump.env.PGPASSWORD, SENHA_SECRETA);
     assert.equal(dump.env.PGHOST, `db.${REF_TESTE}.supabase.co`);
-    assert.equal(dump.env.PGSSLMODE, 'require');
+    assert.equal(dump.env.PGSSLMODE, 'verify-full');
     for (const arg of dump.argv) {
       assert.ok(!arg.includes(SENHA_SECRETA), `senha vazou em argv: ${arg}`);
       assert.ok(!arg.includes('://'), `URL de conexão vazou em argv: ${arg}`);
+    }
+  } finally {
+    await limpar(dir);
+  }
+});
+
+test('o psql recebe a CA do operador e exige identidade mesmo com configuração legada', async () => {
+  const { dir, bin, debug } = await criarPsqlFalso('ok', { stdout: '{}' });
+  try {
+    const caAnterior = process.env.PGSSLROOTCERT;
+    process.env.PGSSLROOTCERT = '/certificados/ca-do-projeto.crt';
+    try {
+      executarConsulta({ ...validarConexaoAuditora(url()), sslmode: 'require' }, 'select 1', { psqlBin: bin });
+      const { readFile } = await import('node:fs/promises');
+      const { env } = JSON.parse(await readFile(debug, 'utf8'));
+      assert.equal(env.PGSSLROOTCERT, process.env.PGSSLROOTCERT);
+      assert.equal(env.PGSSLMODE, 'verify-full');
+    } finally {
+      if (caAnterior === undefined) delete process.env.PGSSLROOTCERT;
+      else process.env.PGSSLROOTCERT = caAnterior;
     }
   } finally {
     await limpar(dir);
