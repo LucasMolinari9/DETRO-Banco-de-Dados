@@ -13,8 +13,7 @@
 //     `divat_auditor_ci.gontnlfmothfglssbyyk` (conexão por pooler) — login parecido, com
 //     prefixo/sufixo a mais, é recusado (comparação por igualdade estrita, não startsWith/prefix);
 //   - exige senha não vazia;
-//   - só aceita sslmode require, verify-ca ou verify-full — disable (e qualquer outro valor,
-//     inclusive ausente) é recusado;
+//   - aceita URLs legadas require/verify-ca, mas toda conexão verifica o certificado e hostname;
 //   - a URL e a senha nunca entram em argv do processo filho: viajam só por PGHOST/PGPORT/
 //     PGDATABASE/PGUSER/PGPASSWORD/PGSSLMODE, que não aparecem em `ps`;
 //   - nenhuma mensagem de erro deste módulo ecoa a URL, a senha ou o stderr do psql (que pode
@@ -103,7 +102,7 @@ export function validarConexaoAuditora(rawUrl) {
     database: url.pathname.slice(1) || 'postgres',
     user,
     password,
-    sslmode,
+    sslmode: 'verify-full',
   });
 }
 
@@ -115,6 +114,11 @@ export function carregarConfiguracaoAuditora(env = process.env) {
 // Executa uma consulta SQL de UMA linha de saída via psql, com a credencial só em variável de
 // ambiente (nunca em argv). Devolve o texto cru do stdout; quem chama decide como interpretar.
 export function executarConsulta(config, sql, { psqlBin = 'psql' } = {}) {
+  // No GitHub, os runners deste projeto usam o pacote ca-certificates do Ubuntu.
+  // Localmente, libpq conserva seu root.crt padrão ou usa a CA indicada pelo operador.
+  const caDoRunner = process.env.GITHUB_ACTIONS === 'true' && process.platform === 'linux'
+    ? '/etc/ssl/certs/ca-certificates.crt' : undefined;
+  const ca = process.env.PGSSLROOTCERT || caDoRunner;
   const child = spawnSync(psqlBin, ['-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', sql], {
     encoding: 'utf8',
     timeout: 90000,
@@ -126,7 +130,8 @@ export function executarConsulta(config, sql, { psqlBin = 'psql' } = {}) {
       PGDATABASE: config.database,
       PGUSER: config.user,
       PGPASSWORD: config.password,
-      PGSSLMODE: config.sslmode,
+      PGSSLMODE: 'verify-full',
+      ...(ca && { PGSSLROOTCERT: ca }),
       PGCONNECT_TIMEOUT: '15',
       PGOPTIONS: '-c default_transaction_read_only=on',
     },

@@ -33,9 +33,7 @@
 // responde 42501). Está no baseline porque é limitação de plataforma aceita e documentada em
 // docs/seguranca.md §9.1 — não porque foi perdoado. Por causa dela este gate roda DIARIAMENTE.
 //
-// ATENÇÃO ao mexer: `--atualizar-baseline` é para registrar uma exceção que você DECIDIU aceitar,
-// depois de entender. Rodar por reflexo quando o gate fica vermelho transforma o alarme em
-// carimbo. Se o gate acusar grant de escrita novo, a resposta certa é revogar, não baselinar.
+// A atualização automática só conserva exceções já aprovadas e remove as resolvidas.
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -93,7 +91,7 @@ for (const [campo, oQue] of Object.entries(MINIMO)) {
 
 // ---------------------------------------------------------------------------------------------
 // Regras. Cada uma vira um achado {tipo, alvo, detalhe, severidade}.
-// A chave (tipo + alvo) é o que o baseline indexa.
+// O baseline compara o tipo, o alvo e os privilégios exatos.
 // ---------------------------------------------------------------------------------------------
 let policies;
 try {
@@ -106,6 +104,28 @@ try {
 const ESCRITA = ['insert', 'update', 'delete', 'truncate'];
 const achados = [];
 const add = (tipo, alvo, detalhe, severidade = 'erro') => achados.push({ tipo, alvo, detalhe, severidade });
+
+// Contrato de leitura do produto. Uma tabela nova precisa de revisão explícita,
+// mesmo quando só uma coluna recebe SELECT ou o privilégio vem de outro papel.
+const tabelasAnon = [
+  'codempresa_teste', 'evento_empresa_teste', 'evento_linha_teste', 'evento_teste',
+  'itinerario_teste', 'localidades_teste', 'municipio_teste', 'origem_teste',
+  'portaria_teste', 'qh_intervalo_teste', 'qh_predeterminado_teste', 'qh_teste',
+  'tabela_vista_teste', 'tarifa_atual_teste', 'tarifa_promocional_exibicao_teste',
+];
+for (const [papel, permitidas] of Object.entries({ anon: tabelasAnon, authenticated: [] })) {
+  const tabelas = forma.leituras?.[papel];
+  if (!Array.isArray(tabelas) || !tabelas.every(t => typeof t === 'string')) {
+    console.error(`Catálogo de SELECT inválido para ${papel}.`);
+    process.exit(1);
+  }
+  for (const tabela of tabelas) {
+    if (!permitidas.includes(tabela)) add('leitura_indevida', tabela, `${papel} tem SELECT em ${tabela}`);
+  }
+  for (const tabela of permitidas) {
+    if (!tabelas.includes(tabela)) add('leitura_ausente', tabela, `SELECT ausente para ${papel} em ${tabela}`);
+  }
+}
 
 for (const t of forma.tabelas) {
   if (!t.rls) add('rls_off', t.nome, `RLS desligada em ${t.nome}`);
@@ -153,28 +173,17 @@ for (const d of forma.default_privileges) {
 }
 
 // ---------------------------------------------------------------------------------------------
-const chave = a => `${a.tipo}\0${a.alvo}`;
-
-if (atualizar) {
-  const registro = {
-    gerado_em: new Date().toISOString().slice(0, 10),
-    nota: 'Exceções de segurança CONHECIDAS e aceitas. Cada entrada precisa de justificativa em docs/seguranca.md §9. Isto não é perdão: se um achado NOVO aparecer, revogue — não baseline.',
-    achados: achados
-      .filter(a => a.severidade === 'erro')
-      .map(a => ({ tipo: a.tipo, alvo: a.alvo, detalhe: a.detalhe }))
-      .sort((x, y) => chave(x).localeCompare(chave(y))),
-  };
-  await writeFile(BASELINE, JSON.stringify(registro, null, 2) + '\n', 'utf8');
-  console.log(`✓ Baseline reescrito com ${registro.achados.length} exceção(ões) → scripts/security_baseline.json`);
-  console.log('  · Confira o diff antes de commitar. Toda entrada nova precisa de justificativa em docs/seguranca.md §9.');
-  process.exit(0);
-}
+const chave = a => JSON.stringify([a.tipo, a.alvo, a.detalhe]);
+const aceitaExcecao = a =>
+  (a.tipo === 'funcao_security_definer' && a.alvo === 'rls_auto_enable()') ||
+  (a.tipo === 'default_privilege_permissivo' && ['supabase_admin:public:r',
+    'supabase_admin:public:f', 'supabase_admin:public:S'].includes(a.alvo));
 
 let base = new Set();
 if (!semBaseline) {
   try {
     const b = JSON.parse(await readFile(BASELINE, 'utf8'));
-    base = new Set((b.achados || []).map(chave));
+    base = new Set(b.achados.filter(aceitaExcecao).map(chave));
   } catch (e) {
     if (e.code !== 'ENOENT') { console.error(`Baseline ilegível (${BASELINE}): ${e.message}`); process.exit(1); }
   }
@@ -191,7 +200,21 @@ if (conhecidos.length) {
 }
 if (resolvidos.length) {
   console.log(`\n✓ Resolvido desde o baseline (${resolvidos.length}) — rode --atualizar-baseline para apertar o gate:`);
-  for (const k of resolvidos) console.log(`    ${k.split('\0').join(' → ')}`);
+  for (const k of resolvidos) console.log(`    ${JSON.parse(k).join(' → ')}`);
+}
+
+if (atualizar && !novos.length) {
+  const registro = {
+    gerado_em: new Date().toISOString().slice(0, 10),
+    nota: 'Exceções de segurança CONHECIDAS e aceitas. Cada entrada precisa de justificativa em docs/seguranca.md §9. Isto não é perdão: se um achado NOVO aparecer, revogue — não baseline.',
+    achados: achados
+      .filter(a => a.severidade === 'erro')
+      .map(a => ({ tipo: a.tipo, alvo: a.alvo, detalhe: a.detalhe }))
+      .sort((x, y) => chave(x).localeCompare(chave(y))),
+  };
+  await writeFile(BASELINE, JSON.stringify(registro, null, 2) + '\n', 'utf8');
+  console.log(`✓ Baseline reescrito com ${registro.achados.length} exceção(ões) → scripts/security_baseline.json`);
+  process.exit(0);
 }
 
 if (!novos.length) {
@@ -204,7 +227,5 @@ console.error(semBaseline
   ? '\n✗ ESTADO CRU DO BANCO (baseline ignorado):'
   : '\n✗ POSTURA DE SEGURANÇA REGREDIU — achado(s) fora do baseline:');
 for (const a of novos) console.error(`    [${a.tipo}] ${a.detalhe}`);
-console.error('\nO que fazer: REVOGUE o privilégio. Só use --atualizar-baseline se a exceção for');
-console.error('deliberada e você a documentar em docs/seguranca.md §9.');
-console.error('Para ver o estado cru do banco: node scripts/check_grants.mjs --sem-baseline');
+console.error('Revise os privilégios. A atualização automática só conserva exceções já aprovadas com os mesmos privilégios.');
 process.exit(1);

@@ -2,6 +2,19 @@
 // O auditor já pode ler estes metadados; não recebe SELECT de dados nem grants novos.
 export const SECURITY_SHAPE_SQL = `
 select audit.divat_security_shape() || pg_catalog.jsonb_build_object(
+  'leituras', (
+    select pg_catalog.jsonb_object_agg(papel, tabelas)
+    from (
+      select papel, coalesce((
+        select pg_catalog.jsonb_agg(c.relname order by c.relname)
+        from pg_catalog.pg_class c
+        join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind in ('r','p','v','m','f')
+          and pg_catalog.has_any_column_privilege(papel, c.oid, 'SELECT')
+      ), '[]'::jsonb) as tabelas
+      from (values ('anon'::name), ('authenticated'::name)) as roles(papel)
+    ) as acesso
+  ),
   'policy_details', coalesce((
     select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
       'tabela', c.relname, 'nome', p.polname, 'cmd', p.polcmd::text,
