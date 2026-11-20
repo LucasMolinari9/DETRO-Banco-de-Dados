@@ -8,7 +8,7 @@ const smoke = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'check_deplo
 
 assert.match(
   smoke,
-  /publicResponses\.get\(['"]\/src\/data\/rest\.mjs['"]\)/,
+  /moduleSources\.get\(['"]\/src\/data\/rest\.mjs['"]\)/,
   'o smoke deve ler a guarda fail-closed do módulo REST publicado, não procurá-la no app.js'
 );
 assert.match(smoke, /Configuração Supabase ausente para o ambiente de/);
@@ -41,6 +41,7 @@ for (const [scenario, message] of [
   ['missing-csp', /CSP sem https:\/\/gontnlfmothfglssbyyk/],
   ['retired-csp', /CSP permite o projeto Supabase apagado/],
   ['missing-guard', /não contém o throw fail-closed/],
+  ['missing-preview-import', /\/src\/preview\/dependency\.mjs: esperado HTTP 200, recebido 404/],
   ['exposed-file', /\.mcp\.json: esperado HTTP 404, recebido 200/],
 ]) {
   const result = run(scenario);
@@ -58,6 +59,11 @@ const SEGREDO = 'segredo-ficticio-de-teste';
   const preview = run('current', 'https://divatdetro-abc123xyz-lucas-molinari-s-projects.vercel.app', 'preview', SEGREDO);
   assert.strictEqual(preview.status, 0, preview.output);
   assert.match(preview.output, /bypass → divatdetro-abc123xyz-lucas-molinari-s-projects\.vercel\.app/);
+
+  const importExterno = run('external-import', 'https://divatdetro.vercel.app', 'production', SEGREDO);
+  assert.strictEqual(importExterno.status, 1, importExterno.output);
+  assert.match(importExterno.output, /import inválido ou fora da origem/);
+  assert.doesNotMatch(importExterno.output, /bypass → modulos\.example/);
 
   const producao = run('current', 'https://divatdetro.vercel.app', 'production', SEGREDO);
   assert.strictEqual(producao.status, 0, producao.output);
@@ -78,4 +84,4 @@ const SEGREDO = 'segredo-ficticio-de-teste';
   assert.strictEqual(sso.status, 3, sso.output);
   assert.match(sso.output, /preview protegido pela Vercel/, sso.output);
 }
-console.log('==== PLACAR: 20/20 ====');
+console.log('==== PLACAR: 22/22 ====');

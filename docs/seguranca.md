@@ -89,16 +89,10 @@ eram defeitos de consistência entre tela, PDF e dados, todos corrigidos com tes
 
 ## 5. Conferências necessárias nos painéis
 
-Em 30/09/2026 foi registrada proteção da `main` por ruleset. Essa evidência é histórica.
-Na consulta de 08/11/2026, a API retornou repositório privado e `main.protected=false`; a
-listagem de rulesets respondeu HTTP 403 solicitando upgrade do plano ou visibilidade pública.
-Não foi testado um merge nem comprovada a vigência de todas as restrições pelo painel.
-
-Os workflows existem, mas sua execução não prova que impeçam merge. Conferir no plano atual
-PR obrigatório, bloqueio de exclusão/force-push, resolução de discussões, branch atualizada,
-bypass e os checks `check`, `views`, `semgrep`, `migration-contract`, `seguranca`, `qualidade`,
-`realtime` e `deriva`. Até confirmar, a barreira automática de merge é pendência operacional.
-Visibilidade ou plano não devem ser alterados como efeito de uma correção documental.
+Em 20/11/2026, a API do GitHub retornou para a `main` regras de PR obrigatório, resolução de
+discussões, bloqueio de exclusão e de force-push, além de exigir uma branch atualizada com os
+checks `check`, `views`, `semgrep`, `migration-contract`, `seguranca`, `qualidade`, `realtime`
+e `deriva`. O bypass do ruleset permanece para conferência no painel.
 
 Estas verificações dependem de acesso ao painel; ainda não estão comprovadas nesta auditoria:
 
@@ -118,15 +112,20 @@ configuradas no workflow. `Deriva` compara as RPCs usadas pelo frontend. Todos c
 `gontnlfmothfglssbyyk` pelo login mínimo `divat_auditor_ci`; o nome histórico do secret
 `SUPABASE_TEST_AUDIT_DATABASE_URL` não altera o alvo.
 
+Em PR, os checks obrigatórios `realtime`, `qualidade`, `seguranca` e `deriva` usam testes
+locais, baselines e simulações do auditor. Mantêm os nomes exigidos pelo ruleset, inclusive
+para PRs de fork. A comparação com o banco oficial fica nos jobs `*-vivo` na `main`,
+após pushes relevantes, nos agendamentos e por execução manual. O resultado da PR cobre
+o código e os contratos locais. Divergências com o banco oficial aparecem nas execuções vivas.
+
 Após importar dados ou alterar estrutura, execute esses workflows na aba Actions do site do
 GitHub e confirme jobs executados e verdes. Um job pulado não valida o banco. O workflow
 `Phase 3 database security` em PR verifica migrations sem credencial. A auditoria viva roda
-após push relevante na `main` e por despacho manual, comparando Realtime por nomes. Nunca roda
-em PR, e somente consulta os diagnósticos pelo auditor mínimo.
+após push relevante ou por despacho manual na `main`, comparando Realtime por nomes.
 
-O smoke de deploy verifica cabeçalhos, arquivos públicos/privados e URL/JWT `anon` do banco
-oficial, rejeitando o endpoint apagado na CSP. Sua aprovação não comprova isolamento: previews
-ainda compartilham o banco oficial e o script registra essa limitação.
+O smoke executa o validador da `main`. Ele lê via HTTP os módulos publicados, verifica os
+imports transitivos, cabeçalhos, allowlist e URL/JWT `anon` do banco oficial. Previews ainda
+compartilham esse banco. Consulte o §9.6 para configurar os secrets dos workflows.
 
 Trimestralmente, revise membros, configurações de Auth, advisors, artifacts e o exercício de
 restauração. Não reduza a frequência diária do gate de grants enquanto os defaults herdados
@@ -193,14 +192,18 @@ contra o ambiente real; as checagens abaixo são leituras do dono, sem mudar nad
   do `scripts/bootstrap_phase3_auditor.sql` diz 31/10, mas não foi o valor aplicado). Sem
   renovar, os quatro checks de banco falham fechados a partir de 01/12. Conferir:
   `select rolvaliduntil from pg_roles where rolname = 'divat_auditor_ci';`
-- **NV-1, deploy smoke.** O `deploy-smoke.yml` roda o código do commit implantado com
-  `VERCEL_AUTOMATION_BYPASS_SECRET` a cada `deployment_status`. Depende de a Vercel implantar
-  PR de fork (*Git Fork Protection*, em Settings → Security) e da visibilidade do repositório.
-  **Fixar o `actions/checkout` na `main` não fecha isto**, e por isso não foi feito (proposta
-  da revisão de 25/10/2026, A02): no `deployment_status` o `GITHUB_SHA` é o commit implantado, e
-  o próprio YAML do workflow vem desse commit, então um commit hostil reescreve o checkout, o
-  `if:` ou o passo inteiro. A barreira está fora do repo: o que a Vercel aceita implantar. Quem
-  tem escrita já alcança os secrets do repositório por qualquer workflow de branch.
+- **NV-1, secrets do smoke e da auditoria.** O evento `deployment_status` chega ao YAML do
+  commit implantado. `deploy-smoke-event.yml` sinaliza o deploy sem credenciais de projeto.
+  O `deploy-smoke.yml` roda via `workflow_run` na `main`, consulta o status da Vercel na API
+  do GitHub e usa o checkout da `main` para validar a URL publicada.
+  Em **Settings → Environments**, use **Selected branches and tags** e permita apenas
+  a branch `main` nos Environments `deploy-smoke` e `auditoria-ci`.
+  Guarde `VERCEL_AUTOMATION_BYPASS_SECRET` em `deploy-smoke` e
+  `SUPABASE_TEST_AUDIT_DATABASE_URL` em `auditoria-ci`. Apague as cópias em
+  **Repository secrets** depois de configurar os Environments. Cópias no escopo do
+  repositório continuam acessíveis a quem pode adicionar workflows em branches internas.
+  Após a mudança, rode o smoke pela `main` contra um preview protegido e confira os
+  jobs vivos de banco pela aba Actions.
 - **NV-2, segredo do backup integral.** Se `SUPABASE_BACKUP_DATABASE_URL` estiver em
   *Repository secrets*, qualquer branch enviada por quem tem escrita, agentes inclusive, alcança
   a senha `postgres`. Correção: mover para um Environment restrito à `main`, com o dono como

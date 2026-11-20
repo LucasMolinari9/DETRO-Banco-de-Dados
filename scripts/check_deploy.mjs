@@ -54,6 +54,8 @@ const fail = message => {
 };
 
 async function request(pathname) {
+  const url = new URL(pathname, base);
+  if (url.origin !== base.origin) throw new Error('Requisição fora da origem do deploy');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
   const headers = { 'user-agent': 'divat-deploy-smoke/1.0' };
@@ -73,7 +75,7 @@ async function request(pathname) {
     // Não é preciso cookie nenhum: o header de bypass vai em TODA requisição deste script.
   }
   try {
-    return await fetch(new URL(pathname, base), {
+    return await fetch(url, {
       // Com o segredo, nada de seguir redirecionamento: o undici do Node remove authorization/
       // cookie/host ao trocar de origem, mas PRESERVA header personalizado como o de bypass.
       redirect: vercelBypassSecret ? 'manual' : 'follow',
@@ -110,13 +112,14 @@ function descreveErro(error) {
 }
 
 async function expectStatus(pathname, status) {
+  const label = pathname instanceof URL ? pathname.pathname + pathname.search : pathname;
   try {
     const response = await request(pathname);
-    if (response.status === status) ok(`${pathname} → ${status}`);
-    else fail(`${pathname}: esperado HTTP ${status}, recebido ${response.status}`);
+    if (response.status === status) ok(`${label} → ${status}`);
+    else fail(`${label}: esperado HTTP ${status}, recebido ${response.status}`);
     return response;
   } catch (error) {
-    fail(`${pathname}: ${descreveErro(error)}`);
+    fail(`${label}: ${descreveErro(error)}`);
     return null;
   }
 }
@@ -197,74 +200,45 @@ if (home) {
 }
 
 console.log('\n[allowlist] arquivos públicos necessários');
-// Os módulos ES saem do PRÓPRIO app.js, não de uma lista escrita à mão.
-//
-// Import ES é ATÔMICO: um 404 num módulo não degrada, impede o app.js INTEIRO de executar e a
-// página sai com cabeçalho, rodapé e nenhum card. Foi o defeito de 10/08/2026, e a lista daqui
-// não continha o `core.mjs` — por isso o smoke passou VERDE com o portal quebrado.
-//
-// A lição foi lida pela metade: o item que faltava entrou, mas a lista continuou manual. Medido
-// em 14/08/2026, ao extrair o `agrupamento.mjs`: o `.vercelignore` foi atualizado, esta lista
-// não, e o smoke voltou a passar verde sem nunca pedir o módulo novo — o mesmo ponto cego, com
-// o mesmo sintoma, quatro dias depois. Uma lista que precisa ser lembrada será esquecida; ela
-// só falha quando alguém acerta, que é o oposto do que um gate deve fazer.
-//
-// Derivar do `import` resolve para todo módulo futuro sem ninguém lembrar de nada. Quem não é
-// alcançável por `import` (HTML, CSS, fontes, vendor, o marcador do auto-update) continua
-// explícito abaixo — não há de onde derivá-los.
-//
-// A travessia é TRANSITIVA, e isso não é zelo. A 1ª versão lia só o `app.js`, e um módulo
-// importado apenas por OUTRO módulo ficava invisível: com `app.js → familia.mjs → dep.mjs`, o
-// smoke pedia os dois primeiros com 200, dava o deploy por aprovado, e o navegador tomava 404 no
-// terceiro — matando o grafo ESM inteiro, que é atômico. Reproduzido em 14/08/2026 (achado P1 do
-// Codex): com um `dep.mjs` fora da allowlist, ESTE gate e o `tests/check.js` §[1] ficavam os dois
-// verdes e o portal morria. O `check.js` segue lendo só o `app.js` — a correção dele é o PR #122;
-// enquanto ele não entrar, a travessia daqui é a ÚNICA que enxerga o grafo, e ela roda no preview,
-// antes de produção.
-//
-// Comentário é descartado antes da varredura: um `import` comentado num módulo faria o smoke
-// exigir arquivo que ninguém pede, e o gate reprovaria um deploy correto. O corte do `//` exige
-// início de linha ou espaço antes, senão `'https://x'` viraria `'https:` e mutilaria a string —
-// trocar falso positivo por falso negativo é piorar.
+// O validador vem da main. Os imports vêm dos arquivos publicados, lidos como texto
+// para que a verificação inclua módulos novos em um preview sem executar código dele.
 const semComentarios = txt => txt
   .replace(/\/\*[\s\S]*?\*\//g, ' ')
   .replace(/(^|\s)\/\/[^\n]*/g, '$1');
-const modulosImportados = async () => {
-  const { readFile } = await import('node:fs/promises');
-  const { fileURLToPath } = await import('node:url');
-  const path = await import('node:path');
-  const raiz = fileURLToPath(new URL('..', import.meta.url));
-  const RES = [/\bfrom\s*['"](\.[^'"]+)['"]/g, /\bimport\s+['"](\.[^'"]+)['"]/g,
-               /\bimport\s*\(\s*['"`](\.[^'"`]+)['"`]/g];
-  const achados = new Set();
-  const vistos = new Set();
-  const fila = ['app.js'];
-  while (fila.length) {
-    const rel = fila.shift();
-    if (vistos.has(rel)) continue;              // ciclo de imports não trava a fila
-    vistos.add(rel);
-    let src;
-    try { src = semComentarios(await readFile(path.join(raiz, rel), 'utf8')); }
-    catch { continue; }                          // arquivo ausente: quem acusa é o 404 do fetch
-    const dir = path.posix.dirname(rel);
-    for (const re of RES) {
-      for (const m of src.matchAll(re)) {
-        // especificador é relativo a QUEM IMPORTA, não à raiz
-        const alvo = path.posix.normalize(path.posix.join(dir === '.' ? '' : dir, m[1]));
-        achados.add('/' + alvo);
-        fila.push(alvo);
+const importPatterns = [
+  /\bfrom\s*['"]([./][^'"]+)['"]/g,
+  /\bimport\s+['"]([./][^'"]+)['"]/g,
+  /\bimport\s*\(\s*['"`]([./][^'"`]+)['"`]/g,
+];
+const modulosPublicados = async appSource => {
+  const sources = new Map();
+  const appUrl = new URL('/app.js', base);
+  const fila = [[appUrl, appSource]];
+  for (const [moduleUrl, source] of fila) {
+    const sourceWithoutComments = semComentarios(source);
+    for (const pattern of importPatterns) {
+      for (const [, specifier] of sourceWithoutComments.matchAll(pattern)) {
+        const url = URL.canParse(specifier, moduleUrl) ? new URL(specifier, moduleUrl) : null;
+        if (url?.origin !== base.origin) {
+          fail(`${moduleUrl.pathname}: import inválido ou fora da origem do deploy`);
+          continue;
+        }
+        const path = url.pathname + url.search;
+        if (path === '/app.js' || sources.has(path)) continue;
+        const response = await expectStatus(url, 200);
+        const body = response?.ok ? await response.text() : null;
+        sources.set(path, body);
+        if (body !== null) fila.push([url, body]);
       }
     }
   }
-  if (!achados.size) throw new Error('nenhum import encontrado a partir do app.js — o extrator do smoke quebrou');
-  return [...achados].sort();
+  if (!sources.size) fail('nenhum import encontrado no app.js publicado');
+  return sources;
 };
 const publicAssets = [
   '/index.html',
-  '/app.js',
   '/styles.css',
   '/manifest.webmanifest',
-  ...(await modulosImportados()),
   // Marcador do auto-update (`checarNovaVersao` faz HEAD nele). Em 404 o detector fica mudo:
   // ninguém recebe deploy novo sem recarregar na mão, e o sintoma é invisível.
   '/version.json',
@@ -272,9 +246,11 @@ const publicAssets = [
   '/vendor/icon.svg',
   '/vendor/fonts/archivo-latin-600-normal.woff2',
 ];
-const publicResponses = new Map();
+const appResponse = await expectStatus('/app.js', 200);
+const appSource = appResponse?.ok ? await appResponse.text() : null;
+const moduleSources = appSource === null ? new Map() : await modulosPublicados(appSource);
 for (const pathname of publicAssets) {
-  publicResponses.set(pathname, await expectStatus(pathname, 200));
+  if (!moduleSources.has(pathname)) await expectStatus(pathname, 200);
 }
 
 console.log('\n[allowlist] arquivos internos obrigatoriamente fechados');
@@ -294,9 +270,8 @@ for (const pathname of forbiddenFiles) {
 }
 
 console.log('\n[ambiente] matriz hostname → Supabase');
-const appResponse = publicResponses.get('/app.js');
-if (appResponse?.ok) {
-  const source = await appResponse.text();
+if (appSource !== null) {
+  const source = appSource;
   const literal = name => {
     const match = source.match(new RegExp(`const ${name}\\s*=\\s*'([^']*)'`));
     return match?.[1] || '';
@@ -351,8 +326,7 @@ if (appResponse?.ok) {
 
   // Asserção sobre CÓDIGO, não sobre prosa. A Fase B moveu selecionarSupabase e seu `throw`
   // fail-closed para a fronteira REST. Procurá-lo ainda em app.js reprovaria todo deploy correto.
-  const restResponse = publicResponses.get('/src/data/rest.mjs');
-  const restSource = restResponse?.ok ? await restResponse.text() : '';
+  const restSource = moduleSources.get('/src/data/rest.mjs') ?? '';
   if (/Configuração Supabase ausente para o ambiente de/.test(restSource)) ok('guarda fail-closed publicada');
   else fail('src/data/rest.mjs publicado não contém o throw fail-closed de selecionarSupabase');
 } else {

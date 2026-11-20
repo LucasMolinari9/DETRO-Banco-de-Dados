@@ -22,14 +22,9 @@
 # TRÊS rodam em paralelo e reportam independentemente. O ticket #63 pediu um arquivo só; o
 # arquivo é um, os veredictos são três.
 #
-# SECRET desde a migração para o auditor PostgreSQL (scripts/lib/audit-database.mjs): os três
-# jobs agora exigem SUPABASE_TEST_AUDIT_DATABASE_URL (login mínimo `divat_auditor_ci`, projeto
-# de TESTE) — não mais a anon key pública do app.js. Ver docs/seguranca.md § 10 e
-# docs/planos/fase-3-hardening-moderado.md. Por isso cada job:
-#   - roda SÓ para PR do mesmo repositório (a condição `if:` abaixo): PR de fork nunca recebe
-#     o secret do GitHub Actions, e não deve nem tentar usá-lo;
-#   - falha fechado (sai 1) em cron, workflow_dispatch, push na main e PR interno se o secret
-#     estiver ausente — scripts/lib/audit-database.mjs aborta sozinho, sem vazar segredo.
+# Em PR os checks obrigatórios rodam offline, inclusive em forks.
+# Na main, os jobs vivos usam o auditor mínimo do banco oficial e falham se o secret
+# SUPABASE_TEST_AUDIT_DATABASE_URL estiver ausente. Ver docs/seguranca.md §6.
 #
 # Os `uses:` estão presos ao SHA (o `# v4` ao lado é só legenda) — ver docs/semgrep.md
 # § "Actions presas ao SHA".
@@ -60,8 +55,7 @@ on:
       - docs/schema.md
       - .github/workflows/db-checks.yml
   # Sem filtro de paths para permitir exigir `realtime`, `qualidade` e `seguranca` por ruleset.
-  # Com esse controle ativo, PR sem run ficaria presa aguardando status. O gatilho não comprova
-  # a proteção atual da main: conferir o painel, conforme docs/seguranca.md §5.
+  # O ruleset exige esses checks em toda PR.
   # O filtro de push acima pode continuar econômico.
   pull_request:
 
@@ -71,47 +65,105 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: db-checks-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   realtime:
-    # PR de fork nunca recebe secrets do repositório — nem tenta: o job inteiro é pulado
-    # (não falha) quando o evento é pull_request e a origem não é este repositório. Para
-    # schedule/workflow_dispatch/push/PR interno a condição é sempre verdadeira.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Realtime (offline)
+        run: node tests/realtime.test.js
+
+  qualidade:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Formato da baseline de qualidade (offline)
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const { achados } = require('./scripts/data_quality_baseline.json');
+          assert(Array.isArray(achados), 'achados deve ser um array');
+          for (const { verificacao, detalhe, severidade, qtd } of achados) {
+            assert(verificacao && detalhe && severidade && Number.isFinite(qtd),
+              'Achado sem verificacao, detalhe, severidade ou qtd');
+          }
+          NODE
+
+  seguranca:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Regressão do gate de grants (auditor simulado)
+        run: node tests/check_grants.rig.mjs
+
+  realtime-vivo:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: auditoria-ci
+      deployment: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false   # nenhum job faz push; token fora do .git/config do runner
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Instalar cliente PostgreSQL
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: RT_TABLES (app.js) x publicacao supabase_realtime
+        env:
+          SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
         run: node scripts/check_realtime.mjs
 
-  qualidade:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  qualidade-vivo:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
+    environment:
+      name: auditoria-ci
+      deployment: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false   # nenhum job faz push; token fora do .git/config do runner
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Instalar cliente PostgreSQL
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       # Respeita scripts/data_quality_baseline.json: passa com a divida ja conhecida e falha
       # quando aparece achado NOVO ou um conhecido PIORA. Para ver o estado cru do banco,
       # rode localmente com --sem-baseline.
       - name: Qualidade dos dados pos-ETL (orfaos referenciais, U+FFFD)
+        env:
+          SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
         run: node scripts/check_data_quality.mjs
 
   # Achado SEC-04 da auditoria externa de 27/07/2026: RLS, grants, policies e privilegios de
@@ -123,22 +175,25 @@ jobs:
   # Job separado, nao step dos outros, pela mesma razao do cabecalho: um vermelho nao pode
   # esconder o outro. NUNCA rodar --atualizar-baseline aqui: baseline se atualiza local, com diff
   # revisavel em PR.
-  seguranca:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  seguranca-vivo:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
+    environment:
+      name: auditoria-ci
+      deployment: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false   # nenhum job faz push; token fora do .git/config do runner
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Instalar cliente PostgreSQL
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Regressao do gate (permissoes perigosas e bloqueios RESTRICTIVE)
         run: node tests/check_grants.rig.mjs
       - name: RLS, grants, policies e privilegios de funcao
+        env:
+          SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
         run: node scripts/check_grants.mjs

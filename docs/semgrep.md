@@ -217,14 +217,11 @@ o próprio Semgrep as leria como anotação e o teste quebraria.
 
 ## CI
 
-`.github/workflows/semgrep.yml`, em push na `main`, PR e execução manual: regras locais → rulesets vendorizados →
-rulesets do registry ao vivo → teste das regras.
-
-O passo dos **vendorizados** roda exatamente o que `./scripts/semgrep.sh` roda na sua máquina, e
-está **antes** do registry ao vivo de propósito: quando ele passa e o seguinte reprova, o
-diagnóstico é único — a cópia vendorizada está velha, rode o workflow *Atualizar rulesets do
-Semgrep*. O registry ao vivo continua sendo a **autoridade**, porque é ele que enxerga regra nova
-a montante.
+`.github/workflows/semgrep.yml` roda `./scripts/semgrep.sh` para aplicar as regras locais e
+vendorizadas numa varredura. O wrapper exige os quatro rulesets completos. O workflow também
+roda os testes das regras locais. O registry ao vivo roda em push na `main`, em execução manual
+e semanalmente. Se uma regra nova do registry reprovar depois da varredura offline passar,
+use o workflow *Atualizar rulesets do Semgrep* para atualizar a cópia.
 
 A versão do Semgrep é **fixa** (`semgrep==1.171.0`), mesma disciplina do
 supabase-js vendorado: atualizar é uma decisão, não efeito colateral de um push qualquer —

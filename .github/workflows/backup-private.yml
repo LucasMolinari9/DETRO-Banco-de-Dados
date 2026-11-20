@@ -27,7 +27,7 @@ jobs:
       deployment: false
     services:
       restore:
-        image: postgres:17
+        image: postgres:17@sha256:b60e90042aa6b8dbecd58e224b3e36114dbf8ad754465264c2476ad58a86e45c
         env:
           POSTGRES_USER: divat_restore_runner
           POSTGRES_DB: divat_restore
