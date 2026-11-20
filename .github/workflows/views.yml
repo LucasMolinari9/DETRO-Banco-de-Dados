@@ -64,6 +64,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: views-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   views:
     # Preso ao 24.04, e não ao `ubuntu-latest`: em 25/10/2026 o `ubuntu-latest` passou a ser o
@@ -79,7 +83,7 @@ jobs:
           persist-credentials: false   # nenhum job faz push; token fora do .git/config do runner
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # O repo é zero-build: não há package.json, e o rig.mjs procura o Playwright no
       # `npm root -g`. Por isso a instalação é GLOBAL, igual à receita do cabeçalho do rig.

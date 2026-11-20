@@ -1,37 +1,6 @@
-# atualizar-baseline.yml — MEDE um banco e abre um PR com o diff do baseline.
-#
-# Por que existe: os baselines guardam MEDIÇÃO por ambiente (issue #99), e medir exige rede até o
-# Supabase. Até 09/08/2026 o único caminho era `--atualizar-baseline` numa máquina com o repo
-# clonado — o que exclui quem opera pelo celular, que é o caso do dono. Sem este workflow, um slot
-# vazio só era preenchível por quem tivesse terminal, e um gate que ninguém consegue destravar é um
-# gate que se aprende a ignorar.
-#
-# NÃO CONTRADIZ a regra "nunca rodar --atualizar-baseline no CI" (db-checks.yml, CLAUDE.md). O que
-# aquela regra protege é o REFLEXO: gate fica vermelho, alguém roda o comando, o alarme vira
-# carimbo. Ela se enuncia inteira como "baseline se atualiza com diff revisável em PR" — e é
-# exatamente isso que aqui acontece:
-#   * o gatilho é SÓ `workflow_dispatch`. Nenhum push, PR, cron ou chamada de outro workflow o
-#     dispara. A decisão humana continua sendo a condição de partida, como era localmente;
-#   * ele NUNCA escreve na branch. Abre um PR, e o merge é um segundo ato deliberado;
-#   * o gate `seguranca` do db-checks.yml continua rodando contra o resultado, como sempre.
-# O que muda é o teclado de onde a decisão sai, não quem decide.
-#
-# O QUE ELE NÃO PODE FAZER, por desenho do próprio script: baselinar um dos SEIS indicadores
-# graves. `check_grants.mjs` recusa e sai 1 antes de escrever — a resposta certa ali é revogar o
-# privilégio, não registrar exceção. Este workflow não tem como contornar isso, e é de propósito.
-#
-# ARMADILHA CONHECIDA — `alvo: producao`: desde a migração dos quatro gates para o auditor
-# PostgreSQL (scripts/lib/audit-database.mjs), `check_grants.mjs`/`check_data_quality.mjs` só
-# aceitam o project ref de TESTE (gontnlfmothfglssbyyk) — produção não tem o schema `audit`
-# ainda (ver docs/planos/fase-3-hardening-moderado.md). Rodar este workflow com `alvo: producao`
-# falha fechado no passo "Medir e escrever o slot": o script recusa a conexão antes de medir
-# qualquer coisa (sem tocar no banco, sem vazar segredo), então o job para ali e os passos
-# seguintes (diff, abrir PR) nem rodam. Isso vale para os dois baselines — não só `seguranca`.
-# `SUPABASE_PROD_AUDIT_DATABASE_URL` fica declarado abaixo para quando a Fase 3 chegar a
-# produção; até lá não tem efeito nos dois baselines.
-#
-# COMO USAR (pelo navegador, celular inclusive): aba Actions → "Atualizar baseline" → "Run
-# workflow" → escolha a branch, o baseline e o alvo → Run. Ao fim, um PR aparece com o diff.
+# Mede a baseline no banco oficial com o auditor mínimo e abre um PR com o diff.
+# Execute na aba Actions → Atualizar baseline → Run workflow, na main.
+# A baseline de qualidade preserva orfaos_conhecidos. A de segurança recusa indicadores graves.
 name: Atualizar baseline
 
 on:
@@ -45,30 +14,31 @@ on:
           - seguranca
           - qualidade
       alvo:
-        description: 'Banco a medir (governa DIVAT_ALVO e o slot escrito)'
+        description: 'Banco oficial (nome histórico: teste)'
         type: choice
         required: true
         default: teste
         options:
           - teste
-          - producao
 
-# `contents: write` e `pull-requests: write` são o mínimo para abrir o PR, e existem SÓ aqui —
-# os outros oito workflows seguem com `contents: read` (achado SEC-07). Escrita na branch não
-# acontece: o push é sempre numa branch nova, criada pelo run.
+# O push e a abertura do PR exigem escrita. O push vai para a branch criada pelo run.
 permissions:
   contents: write
   pull-requests: write
 
-# Duas medições simultâneas do mesmo alvo produziriam dois PRs disputando o mesmo slot.
+# Serializa medições que alteram o mesmo arquivo.
 concurrency:
-  group: atualizar-baseline-${{ inputs.baseline }}-${{ inputs.alvo }}
+  group: atualizar-baseline-${{ inputs.baseline }}
   cancel-in-progress: false
 
 jobs:
   medir:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment:
+      name: auditoria-ci
+      deployment: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -78,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # Os dois baselines usam psql (login auditor) desde a migração de check_grants.mjs e
       # check_data_quality.mjs para scripts/lib/audit-database.mjs — revisão anterior encontrou
@@ -96,11 +66,9 @@ jobs:
       # tinha 5 regras), e foi assim que 3 achados dela chegaram ao CI neste arquivo. Hoje os
       # rulesets são vendorizados em .semgrep/vendor/ e o modo padrão do wrapper os roda offline
       # — ver docs/semgrep.md § "Por que a cópia vendorizada existe".
-      - name: Medir e escrever o slot
+      - name: Medir e atualizar a baseline
         env:
-          DIVAT_ALVO: ${{ inputs.alvo }}
           BASELINE: ${{ inputs.baseline }}
-          SUPABASE_PROD_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_PROD_AUDIT_DATABASE_URL }}
           SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
         run: |
           if [ "$BASELINE" = "seguranca" ]; then
@@ -146,10 +114,13 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git checkout -b "$RAMO"
           git add scripts/
-          git commit -m "chore(baseline): mede $BASELINE em $ALVO" -m "Medição feita pelo workflow 'Atualizar baseline' (run $RUN_ID), disparada à mão. Só o slot de '$ALVO' foi escrito; a política do topo e o slot do outro banco seguem intactos — confira no diff."
-          # Mesmo cabeçalho que o actions/checkout gravaria, mas só neste comando.
+          git commit -m "chore(baseline): mede $BASELINE em $ALVO" -m "Medição do banco oficial pelo workflow 'Atualizar baseline' (run $RUN_ID)."
+          # Mesmo cabeçalho que o actions/checkout gravaria, só no ambiente do git push.
           AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" push -u origin "$RAMO"
+          GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+            GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $AUTH" \
+            git push -u origin "$RAMO"
           gh pr create \
             --base "$BASE" \
             --head "$RAMO" \
@@ -158,11 +129,9 @@ jobs:
 
           **O que conferir antes do merge**
 
-          - o diff toca **só** o slot de \`$ALVO\`; a política do topo (\`achados\` / \`orfaos_conhecidos\`) e o slot do outro banco não podem ter mudado;
-          - contagem que **subiu** é privilégio novo — investigue antes de aceitar, não é rotina;
-          - \`digest\` diferente é mudança estrutural (tabela, policy, função). Se você não fez nenhuma, não dê merge: descubra o que mudou.
-
-          Os seis indicadores graves não passam por aqui — o script recusa baseliná-los e sai 1 antes de escrever.
+          - Em \`scripts/security_baseline.json\`, revise \`tipo\`, \`alvo\` e \`detalhe\` de cada exceção. Investigue entradas novas. O script recusa indicadores graves.
+          - Em \`scripts/data_quality_baseline.json\`, revise \`achados\` e investigue aumentos em \`qtd\`. A medição preserva \`orfaos_conhecidos\`. Se houve correção de dados, confira a lista mantida à mão.
+          - Compare \`gerado_em\` com a data da medição e confirme que a mudança se limita ao arquivo selecionado.
 
           ---
           _Generated by [Claude Code](https://claude.ai/code)_"

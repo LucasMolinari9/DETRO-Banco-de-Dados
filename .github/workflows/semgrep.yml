@@ -1,23 +1,5 @@
-# Semgrep — análise estática (SAST) em todo push e PR. Ver docs/semgrep.md.
-#
-# É COMPLEMENTAR ao ci.yml, não substituto: o `node tests/check.js` valida sintaxe,
-# anti-drift e a lógica pura (o que o projeto FAZ); o Semgrep procura padrão perigoso
-# (o que o projeto NÃO PODE fazer). São gates separados de propósito — um pode ficar
-# vermelho sem esconder o resultado do outro.
-#
-# Três metades (sic), na ordem de quem depende de menos coisa:
-#   [1] regras locais (.semgrep/rules/) — offline, deterministas, escritas pra este portal.
-#       Rodam antes: se quebrarem, é problema NOSSO, e o log fica no topo.
-#   [2] rulesets VENDORIZADOS (.semgrep/vendor/) — cópia versionada dos mesmos rulesets do [3].
-#       É EXATAMENTE o que `./scripts/semgrep.sh` roda na máquina de quem desenvolve, e existe
-#       para que verde local seja evidência de verde aqui. Antes dele, não era: em 09/08/2026,
-#       3 achados de `run-shell-injection` passaram do local para o CI justamente por essa
-#       diferença (docs/historico/contexto-proxima-sessao-2026-08-09.md).
-#   [3] rulesets públicos ao vivo (p/javascript, p/xss, p/secrets, p/github-actions) — baixados
-#       de semgrep.dev. Precisam de rede; por isso não dá pra rodar essa metade no ambiente do
-#       agente Claude (saída bloqueada), só aqui e na máquina do dono. Continua sendo a
-#       AUTORIDADE: é ele que percebe regra nova a montante. [2] verde + [3] vermelho tem
-#       diagnóstico único — a cópia vendorizada está velha, rode `atualizar-semgrep-rulesets`.
+# Em toda PR: regras locais e rulesets vendorizados numa única varredura, mais os testes
+# das regras. Na main, o registry ao vivo também confere o frescor da cópia vendorizada.
 #
 # Sem upload SARIF / Code Scanning. O repo foi observado como privado em 08/11/2026;
 # disponibilidade e custos dependem do plano atual (ver docs/adr/0003-repositorio-publico.md).
@@ -40,6 +22,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * 1' # toda segunda 09:00 UTC
 
 # GITHUB_TOKEN no mínimo: nenhum destes workflows faz push, abre PR ou comenta.
 # Sem este bloco o token herda o default do repo/organização, que pode ser contents: write
@@ -47,9 +31,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: semgrep-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   semgrep:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -60,26 +49,12 @@ jobs:
       - name: Instalar Semgrep (versão fixa)
         run: pip install semgrep==1.171.0
 
-      # --metrics=off em ambas: nada de telemetria de código pra semgrep.dev. A razão NÃO é a
-      # visibilidade do repo — é não mandar dado do projeto para terceiro sem necessidade.
-      # --error faz o job falhar quando há achado (sem isso o Semgrep sai 0 e o gate é decorativo).
-      - name: '[1] Regras locais do portal (offline)'
-        run: semgrep scan --config=.semgrep/rules --metrics=off --error .
-
-      # [2] roda EXATAMENTE o que `./scripts/semgrep.sh` roda na máquina de quem desenvolve.
-      # Está antes do registry ao vivo de propósito: se este passar e o [3] reprovar, o
-      # diagnóstico é imediato — a cópia vendorizada está velha, rode o workflow
-      # `atualizar-semgrep-rulesets`. Antes disto existir, a diferença entre local e CI era
-      # invisível até o PR ficar vermelho sem explicação (foi assim que 3 achados de
-      # `run-shell-injection` chegaram ao CI em 09/08).
-      #
-      # O `if:` cobre o estado transitório em que `.semgrep/vendor/` ainda não foi preenchido:
-      # sem ele, o passo falharia por config inexistente e pareceria achado.
-      - name: '[2] Rulesets vendorizados (offline — o mesmo que roda local)'
-        if: hashFiles('.semgrep/vendor/*.yml') != ''
-        run: semgrep scan --config=.semgrep/vendor --metrics=off --error .
+      # O wrapper exige a cópia completa dos quatro rulesets e desliga a telemetria.
+      - name: '[1–2] Regras locais e rulesets vendorizados (offline)'
+        run: ./scripts/semgrep.sh
 
       - name: '[3] Rulesets públicos (registry ao vivo)'
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         run: >-
           semgrep scan
           --config=p/javascript

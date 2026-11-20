@@ -1,7 +1,7 @@
 # Testes — módulos reais e contratos do portal
 
 O gate usa Node, Git e shell POSIX, sem pacotes npm adicionais. Use Node.js 22.12+ ou 20.19+:
-os harnesses CommonJS carregam os módulos `.mjs` reais com `require()`. O CI seleciona Node 20.
+os harnesses CommonJS carregam os módulos `.mjs` reais com `require()`. O CI seleciona Node 22.
 Não há cópias de funções de produção: o `fetch` é mockado e os testes que invocam PostgreSQL
 usam `psql` falso. Alguns testes criam processos ou servidores locais; o ambiente deve permiti-los.
 

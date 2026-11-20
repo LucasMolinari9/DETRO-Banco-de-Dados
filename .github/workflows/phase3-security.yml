@@ -39,6 +39,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: phase3-security-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   migration-contract:
     runs-on: ubuntu-latest
@@ -49,7 +53,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: RLS, revokes e allowlist na mesma migração
         run: node scripts/check_migrations.mjs
 
@@ -57,21 +61,23 @@ jobs:
   # Auditar a main após publicar alterações SQL/validador não aplica migrations nem escreve dados.
   test-auditor:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
+    environment:
+      name: auditoria-ci
+      deployment: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
-      - name: Exigir credencial auditora do banco em uso
-        shell: bash
-        run: test -n "$SUPABASE_TEST_AUDIT_DATABASE_URL"
+          node-version: '22'
+      - name: Instalar cliente PostgreSQL
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Executar diagnósticos pelo auditor mínimo
+        env:
+          SUPABASE_TEST_AUDIT_DATABASE_URL: ${{ secrets.SUPABASE_TEST_AUDIT_DATABASE_URL }}
         run: node scripts/check_phase3_audit.mjs

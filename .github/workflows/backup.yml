@@ -41,13 +41,27 @@ jobs:
           persist-credentials: false   # nenhum job faz push; token fora do .git/config do runner
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Dump NDJSON via REST (modo público)
         env:
           SUPABASE_URL: https://gontnlfmothfglssbyyk.supabase.co
-          # anon JWT legada — pública por design (é a mesma embutida no app.js servido a todo visitante)
-          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvbnRubGZtb3RoZmdsc3NieXlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTU0OTAsImV4cCI6MjEwMDgzMTQ5MH0.NMEaXXeWxI6A50KuA1euHpSH3Mi53CXU71N16zrjhH4
-        run: node scripts/backup_rest.mjs ./backup_out
+        shell: bash
+        run: |
+          SUPABASE_ANON_KEY="$(node <<'NODE'
+          const { readFileSync } = require('node:fs');
+          const source = readFileSync('app.js', 'utf8');
+          const key = source.match(/^const SB_TESTE_KEY\s*=\s*'([\w-]+\.[\w-]+\.[\w-]+)'/m)?.[1];
+          if (!key) throw new Error('JWT anon ausente no app.js');
+          const payload = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8'));
+          const projectRef = new URL(process.env.SUPABASE_URL).hostname.split('.')[0];
+          if (payload.role !== 'anon' || payload.ref !== projectRef) {
+            throw new Error('A chave do app.js precisa ser uma JWT anon do banco oficial');
+          }
+          process.stdout.write(key);
+          NODE
+          )"
+          export SUPABASE_ANON_KEY
+          node scripts/backup_rest.mjs ./backup_out
       - name: Publicar artifact (90 dias)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

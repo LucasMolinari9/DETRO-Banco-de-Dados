@@ -308,20 +308,21 @@ PDF ficam com os gates de navegador. Requisitos e comandos: [`tests/README.md`](
    armadilhas antes de escrever SQL/JS. Ajuste isolado de CSS/texto/UI pula direto pro passo 1.
 1. Edite o módulo responsável em `src/`, `app.js` (shell), `index.html` (HTML) ou `styles.css`. **Trabalhe numa branch**, não direto na
    `main`: push na branch → o Vercel gera **preview deploy** → confira no preview → merge na
-   `main` (que é a publicada). Existem **12 workflows**, separados por preocupação: `ci.yml`,
+   `main` (que é a publicada). Existem **13 workflows**, separados por preocupação: `ci.yml`,
    `views.yml`, `semgrep.yml`, `deriva.yml`, `db-checks.yml`, `phase3-security.yml`,
-   `deploy-smoke.yml`, `backup.yml`, `backup-private.yml`, `graft.yml`, `atualizar-baseline.yml` e `atualizar-semgrep-rulesets.yml`
+   `deploy-smoke-event.yml`, `deploy-smoke.yml`, `backup.yml`, `backup-private.yml`, `graft.yml`,
+   `atualizar-baseline.yml` e `atualizar-semgrep-rulesets.yml`
    (`backup-private.yml` e os dois últimos são **só** `workflow_dispatch`: backup integral,
    atualização do baseline e atualização dos rulesets do Semgrep pela aba Actions).
    `check`, `views`,
    `semgrep`, `deriva`, `realtime`, `qualidade`, `seguranca` e `migration-contract` (o contrato
-   offline da Fase 3) são os checks a conferir antes de merge. Os workflows têm gatilho de PR
-   sem filtro de caminho, mas isso não comprova obrigatoriedade de merge: em 08/11/2026 a API
-   retornou `main.protected=false` e o repo privado. Conferência de ruleset/plano pendente no
-   painel; ver `docs/seguranca.md` §5. O smoke acompanha deploys; backup é cron/manual.
+   offline da Fase 3) são os checks exigidos pelo ruleset da `main`. Os workflows têm gatilho de
+   PR sem filtro de caminho. O smoke acompanha deploys e o backup roda por agendamento ou
+   despacho manual. Ver `docs/seguranca.md` §5–6.
    Se previews estiverem protegidos pela Vercel, configure um **Protection Bypass for
-   Automation** e grave o mesmo valor no secret GitHub `VERCEL_AUTOMATION_BYPASS_SECRET`;
-   sem isso o smoke recebe a tela de login em vez do portal e falha de propósito.
+   Automation** e grave o mesmo valor como `VERCEL_AUTOMATION_BYPASS_SECRET` no
+   Environment `deploy-smoke`, restrito à `main`. Configure o auditor de CI conforme
+   [segurança](docs/seguranca.md#96--pendências-da-auditoria-de-13102026-que-só-o-painel-responde).
    **Onde os gates disparam (desde 30/07/2026):** push de branch **sem** PR aberto não dispara
    gate nenhum — evita rodar cada um **duas vezes** quando há PR. Rode `node tests/check.js`
    local, ou dispare pela aba Actions → Run workflow (`workflow_dispatch`, que os que não exigem

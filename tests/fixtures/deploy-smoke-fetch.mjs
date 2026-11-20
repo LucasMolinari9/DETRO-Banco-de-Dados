@@ -17,6 +17,8 @@ if (scenario === 'retired-config') {
 if (scenario === 'missing-preview') app = app.replace(/const SB_TESTE_URL\s*=\s*'[^']*'/, "const SB_TESTE_URL = ''");
 if (scenario === 'wrong-ref-key') app = app.replace(/const SB_TESTE_KEY\s*=\s*'[^']*'/, `const SB_TESTE_KEY = '${jwt('outro-projeto')}'`);
 if (scenario === 'admin-key') app = app.replace(/const SB_KEY\s*=\s*'[^']*'/, `const SB_KEY = '${jwt('gontnlfmothfglssbyyk', 'service_role')}'`);
+if (scenario === 'missing-preview-import') app += "\nimport './src/preview/feature.mjs';";
+if (scenario === 'external-import') app += "\nimport '//modulos.example/dependency.mjs';";
 if (scenario === 'missing-csp') csp = csp.replace(official, '');
 if (scenario === 'retired-csp') csp += `; connect-src ${retired}`;
 
@@ -45,7 +47,10 @@ globalThis.fetch = async (input, init = {}) => {
   }
   if (pathname === '/') return new Response('<!doctype html><title>Portal DIVAT</title>', { headers });
   if (pathname === '/app.js') return new Response(app);
+  if (pathname === '/src/preview/feature.mjs') return new Response("import './dependency.mjs';");
+  if (pathname === '/src/preview/dependency.mjs') return new Response('', { status: 404 });
   if (pathname === '/src/data/rest.mjs') return new Response(scenario === 'missing-guard' ? '' : readFileSync(new URL('src/data/rest.mjs', root), 'utf8'));
+  if (/^\/src\/(?:[a-z_-]+\/)+[a-z_-]+\.mjs$/.test(pathname)) return new Response(readFileSync(new URL(pathname.slice(1), root), 'utf8'));
   if (pathname === '/.mcp.json' && scenario === 'exposed-file') return new Response('{}');
   if (/^\/(?:CLAUDE\.md|CONTEXT\.md|\.git\/|\.mcp\.json|\.codex\/|\.github\/|docs\/|scripts\/|tests\/)/.test(pathname)) return new Response('', { status: 404 });
   return new Response('asset local');

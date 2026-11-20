@@ -1,0 +1,23 @@
+# Sinaliza o deploy ao workflow da main. Este YAML pode vir do commit do preview.
+name: Deploy smoke event
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  signal:
+    if: >-
+      github.event.deployment.creator.login == 'vercel[bot]' &&
+      github.event.deployment_status.creator.login == 'vercel[bot]' &&
+      github.event.deployment_status.state == 'success' &&
+      ((github.event.deployment_status.environment_url || github.event.deployment_status.target_url) == 'https://divatdetro.vercel.app' ||
+       (startsWith(github.event.deployment_status.environment_url || github.event.deployment_status.target_url, 'https://divatdetro-') &&
+        endsWith(github.event.deployment_status.environment_url || github.event.deployment_status.target_url, '-lucas-molinari-s-projects.vercel.app')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Sinalizar deploy publicado
+        run: echo 'Deploy publicado pela Vercel.'
