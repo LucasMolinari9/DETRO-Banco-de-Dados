@@ -45,6 +45,7 @@ import { SECURITY_SHAPE_SQL, indexarPolicies, detalhePolicy, bloqueiaEscrita } f
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = join(ROOT, 'scripts', 'security_baseline.json');
+const TIPOS_PERMITIDOS_NO_BASELINE = new Set(['default_privilege_permissivo', 'funcao_security_definer']);
 
 const args = new Set(process.argv.slice(2));
 const semBaseline = args.has('--sem-baseline') || args.has('--all');
@@ -154,13 +155,20 @@ for (const d of forma.default_privileges) {
 
 // ---------------------------------------------------------------------------------------------
 const chave = a => `${a.tipo}\0${a.alvo}`;
+const erros = achados.filter(a => a.severidade === 'erro');
 
 if (atualizar) {
+  const proibidos = achados.filter(a => !TIPOS_PERMITIDOS_NO_BASELINE.has(a.tipo));
+  if (proibidos.length) {
+    console.error('✗ Baseline preservado: há achados que não podem ser registrados como exceção:');
+    for (const a of proibidos) console.error(`    [${a.tipo}] ${a.detalhe}`);
+    process.exit(1);
+  }
+
   const registro = {
     gerado_em: new Date().toISOString().slice(0, 10),
     nota: 'Exceções de segurança CONHECIDAS e aceitas. Cada entrada precisa de justificativa em docs/seguranca.md §9. Isto não é perdão: se um achado NOVO aparecer, revogue — não baseline.',
-    achados: achados
-      .filter(a => a.severidade === 'erro')
+    achados: erros
       .map(a => ({ tipo: a.tipo, alvo: a.alvo, detalhe: a.detalhe }))
       .sort((x, y) => chave(x).localeCompare(chave(y))),
   };
@@ -180,7 +188,6 @@ if (!semBaseline) {
   }
 }
 
-const erros = achados.filter(a => a.severidade === 'erro');
 const novos = erros.filter(a => !base.has(chave(a)));
 const conhecidos = erros.filter(a => base.has(chave(a)));
 const resolvidos = [...base].filter(k => !erros.some(a => chave(a) === k));

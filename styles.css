@@ -903,8 +903,8 @@
      alguém escrever depois. Um utilitário cujo trabalho é vencer precisa vencer. */
   .is-hidden{display:none !important}
 
-  /* Larguras de coluna de tabela. Conjunto FECHADO: `c.w` no app.js é sempre constante do código,
-     nunca dado do usuário. O gate tests/check.js §[2b] falha se aparecer um `w:'…'` sem classe
+  /* Larguras de coluna de tabela. Conjunto FECHADO: `c.w` é sempre constante do código,
+     nunca dado do usuário. O gate tests/check.js §[1] falha se aparecer um `w:'…'` sem classe
      aqui — sem essa guarda a coluna sairia torta em silêncio. */
   .doc-table th.w-52{width:52px}   .doc-table th.w-55{width:55px}
   .doc-table th.w-60{width:60px}   .doc-table th.w-62{width:62px}
@@ -915,4 +915,5 @@
   .doc-table th.w-108{width:108px} .doc-table th.w-110{width:110px}
   .doc-table th.w-120{width:120px} .doc-table th.w-130{width:130px}
   .doc-table th.w-150{width:150px} .doc-table th.w-160{width:160px}
+  .doc-table th.w-170{width:170px}
   .doc-table th.w-33p{width:33%}

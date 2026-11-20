@@ -55,6 +55,15 @@ test('as migrações reais do repositório continuam aprovadas', () => {
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
+test('migração UTF-16 com bytes NUL é recusada', () => {
+  recusa(Buffer.from('\uFEFFselect 1;', 'utf16le'), /20990101000000_caso\.sql:[^\n]*NUL/i);
+});
+
+test('migração sem NUL com sequência UTF-8 inválida é recusada', () => {
+  recusa(Buffer.concat([Buffer.from('-- comentário: '), Buffer.from([0xc3, 0x28])]),
+    /20990101000000_caso\.sql:[^\n]*UTF-8/i);
+});
+
 test('tabela pública fechada com leitura anônima explícita é aprovada', () => {
   aceita(`${TABELA_FECHADA}
 grant select on table public.caso to anon;
@@ -68,6 +77,50 @@ create policy caso_bloqueio on public.caso as restrictive for all to anon, authe
 
 test('GRANT EXECUTE de RPC da allowlist para anon é aprovado', () => {
   aceita(`grant execute on function public.divat_busca_logradouro(text, integer) to anon;`);
+});
+
+test('comentários de bloco entre os termos de um GRANT preservam a verificação', () => {
+  recusa(`${TABELA_FECHADA}\ngrant/* nota */insert on table public.caso to anon;`, /GRANT de escrita/i);
+});
+
+test('comentários de bloco aninhados entre CREATE e TABLE preservam a verificação', () => {
+  recusa('create/* externa /* interna */ fim */table public.caso (id integer);', /public\.caso[^\n]*ROW LEVEL/i);
+});
+
+test('cada função pública criada precisa do seu REVOKE EXECUTE de PUBLIC', () => {
+  const funcoes = `
+    create function public.primeira() returns int language sql as $$ select 1 $$;
+    create or replace function "public" . "segunda"() returns int language sql as $$ select 2 $$;`;
+  const revogaPrimeira = 'revoke execute on function public.primeira() from public;';
+  recusa(`${funcoes}\n${revogaPrimeira}`, /public\.segunda[^\n]*REVOKE EXECUTE/i);
+  recusa(`${funcoes}\n${revogaPrimeira}\nrevoke execute on function audit.segunda() from public;`,
+    /public\.segunda[^\n]*REVOKE EXECUTE/i);
+  recusa(`${funcoes}\n${revogaPrimeira}\nrevoke execute on function public.segunda() from public_leitura;`,
+    /public\.segunda[^\n]*REVOKE EXECUTE/i);
+  aceita(`${funcoes}\n${revogaPrimeira}\nrevoke execute on function public.segunda() from anon, public;`);
+  aceita(`${funcoes}\nrevoke execute on function public.primeira(), public.segunda() from public;`);
+  aceita(`${funcoes}\nrevoke execute on all functions in schema public from public, anon;`);
+});
+
+test('revogar uma sobrecarga não fecha as demais assinaturas da função', () => {
+  const funcoes = `
+    create function public.caso(valor text) returns int language sql as $$ select 1 $$;
+    create function public.caso(valor integer default 0) returns int language sql as $$ select 2 $$;`;
+  const revogaTexto = 'revoke execute on function public.caso(text) from public;';
+  recusa(`${funcoes}\n${revogaTexto}`, /public\.caso\(integer\)[^\n]*REVOKE EXECUTE/i);
+  aceita(`${funcoes}\n${revogaTexto}\nrevoke execute on function public.caso(integer) from public;`);
+});
+
+test('REVOKE geral anterior à criação não fecha uma função nova', () => {
+  recusa(`revoke execute on all functions in schema public from public;
+    create function public.caso() returns int language sql as $$ select 1 $$;`,
+    /public\.caso\(\)[^\n]*REVOKE EXECUTE/i);
+});
+
+test('identificadores de função entre aspas preservam o nome exato', () => {
+  const funcao = 'create function public."Caso-Único"() returns int language sql as $$ select 1 $$;';
+  recusa(`${funcao}\nrevoke execute on function public."caso-único"() from public;`, /Caso-Único[^\n]*REVOKE EXECUTE/);
+  aceita(`${funcao}\nrevoke execute on function public."Caso-Único"() from public;`);
 });
 
 // ---- AUD-03, exemplo 1 do Codex, aberto em duas peças ----

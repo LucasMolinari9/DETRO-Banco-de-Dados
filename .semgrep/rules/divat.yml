@@ -20,10 +20,12 @@ rules:
   # dentro do `ctx` que ele RECEBE — nenhum render lê `currentView`. As únicas escritas
   # legítimas em `.pdfHTML` são as de dentro do próprio seam, que usam `view.pdfHTML`.
   - id: divat-pdfhtml-fora-do-seam
-    patterns:
-      - pattern: currentView.pdfHTML = $X
+    pattern: $V.pdfHTML = $X
+    paths:
+      exclude:
+        - /src/domain/view-state.mjs
     message: >-
-      Atribuição direta a `currentView.pdfHTML`. Use o seam do ciclo de vida da view: o
+      Atribuição direta a `.pdfHTML`. Use o seam do ciclo de vida da view: o
       `ctx = { view, gen, pane, host, line }` que todo render/loader RECEBE já traz a view
       e a geração — escreva com `commitViewResult(view, gen, { pdfHTML: ... })` (ou
       pushDetail/popDetail em painel lista+detalhe). Sem isso, uma resposta atrasada de uma

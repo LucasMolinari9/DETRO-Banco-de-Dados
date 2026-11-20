@@ -19,9 +19,37 @@ const PRIVILEGIOS_LEITURA = new Set(['select', 'usage', 'execute']);
 
 const failures = [];
 const fail = (file, message) => failures.push(`${file}: ${message}`);
-// Aspas em identificador simples saem: `"public"."caso"` é a mesma tabela que public.caso, e sem
-// isso nenhuma regra abaixo a reconhecia.
-const compact = sql => sql.replace(/--.*$/gm, '').replace(/"([a-z0-9_]+)"/gi, '$1').replace(/\s+/g, ' ').trim();
+const utf8 = new TextDecoder('utf-8', { fatal: true });
+const literaisSql = /"(?:[^"]|"")*"|'(?:[^']|'')*'|(\$(?:[a-zA-Z_][a-zA-Z0-9_]*)?\$)[\s\S]*?\1/g;
+
+function semComentarios(sql) {
+  // Ignora delimitadores dentro de literais, e trata comentários de bloco aninhados do PostgreSQL.
+  const tokens = new RegExp(`--[^\\r\\n]*|/\\*|${literaisSql.source}`, 'g');
+  const blocos = /\/\*|\*\//g;
+  const partes = [];
+  let inicio = 0;
+  for (let token; (token = tokens.exec(sql));) {
+    if (token[0] !== '/*' && !token[0].startsWith('--')) continue;
+    partes.push(sql.slice(inicio, token.index), ' ');
+    inicio = token.index + token[0].length;
+    if (token[0] !== '/*') continue;
+
+    blocos.lastIndex = inicio;
+    let nivel = 1;
+    while (nivel > 0) {
+      const marca = blocos.exec(sql);
+      if (!marca) throw new Error('comentário de bloco SQL sem fechamento');
+      nivel += marca[0] === '/*' ? 1 : -1;
+    }
+    inicio = blocos.lastIndex;
+    // Retoma a leitura depois do bloco inteiro. As aspas de um comentário não iniciam literais.
+    tokens.lastIndex = inicio;
+  }
+  partes.push(sql.slice(inicio));
+  return partes.join('');
+}
+
+const compact = sql => semComentarios(sql).replace(/\s+/g, ' ').trim();
 
 // O gate avalia o que cada GRANT/REVOKE/POLICY concede, não a presença de palavras: até a revisão
 // AUD-03 (11/10/2026), `revoke select … ; grant insert … to anon` e uma policy PERMISSIVE FOR ALL
@@ -43,6 +71,49 @@ const publicos = lista => lista.filter(p => PAPEIS_PUBLICOS.has(p));
 const dinamico = lista => lista.some(p => p.includes('%'));
 const comandos = (sql, re) => [...sql.matchAll(re)].map(m => m.slice(1));
 
+const identificador = /"(?:[^"]|"")+"|[a-zA-Z_\u0080-\uFFFF][a-zA-Z0-9_$\u0080-\uFFFF]*/;
+const nomeQualificado = `(${identificador.source})\\s*\\.\\s*(${identificador.source})`;
+const normalizarIdentificador = nome => nome.startsWith('"') ? nome.replace(/^"([a-z_][a-z0-9_$]*)"$/, '$1') : nome.toLowerCase();
+
+// Vírgulas em tipos com modificador, arrays ou expressões DEFAULT não separam parâmetros.
+function listaSql(trecho, ateFecharParenteses = false) {
+  const itens = [];
+  let inicio = 0;
+  let nivel = 0;
+  for (const token of trecho.matchAll(/"(?:[^"]|"")*"|[()[\],]/g)) {
+    const marca = token[0];
+    if (nivel === 0 && marca === ')' && ateFecharParenteses) {
+      const final = trecho.slice(inicio, token.index).trim();
+      if (final) itens.push(final);
+      return itens;
+    }
+    if (marca === '(' || marca === '[') nivel++;
+    if (marca === ')' || marca === ']') nivel--;
+    if (nivel === 0 && marca === ',') {
+      itens.push(trecho.slice(inicio, token.index).trim());
+      inicio = token.index + 1;
+    }
+  }
+  if (ateFecharParenteses) return null;
+  return [...itens, trecho.slice(inicio).trim()];
+}
+
+function assinaturaPublica(nome, args) {
+  if (!args) return null;
+  const tipos = [];
+  const argNomeado = new RegExp(`^(?:${identificador.source})\\s+(?=${identificador.source})`);
+  const tipoComposto = /^(?:double\s+precision|(?:national\s+)?(?:character|char|bit)\s+varying|(?:time|timestamp)(?:\s*\([^)]*\))?\s+with(?:out)?\s+time\s+zone|interval\s+(?:year|month|day|hour|minute|second))\b/i;
+  for (const arg of args) {
+    if (/^out\s+/i.test(arg)) continue;
+    let tipo = arg.replace(/^(?:in|inout|variadic)\s+/i, '').split(/\s+default\s+|\s*=/i, 1)[0].trim();
+    if (!tipoComposto.test(tipo)) tipo = tipo.replace(argNomeado, '');
+    tipo = tipo.replace(new RegExp(identificador.source, 'g'), normalizarIdentificador)
+      .replace(/\(\s*\d+(?:\s*,\s*\d+)*\s*\)/g, '').replace(/\s*([.[\]])\s*/g, '$1');
+    tipos.push(tipo);
+  }
+  return `public.${normalizarIdentificador(nome)}(${tipos.join(', ')})`;
+}
+
 let files;
 try {
   files = (await readdir(DIR)).filter(name => name.endsWith('.sql')).sort();
@@ -57,7 +128,33 @@ if (!files.length) {
 }
 
 for (const file of files) {
-  const sql = compact(await readFile(join(DIR, file), 'utf8'));
+  let bytes;
+  try {
+    bytes = await readFile(join(DIR, file));
+  } catch (error) {
+    fail(file, `não foi possível ler a migração: ${error.message}`);
+    continue;
+  }
+  if (bytes.includes(0x00)) {
+    fail(file, 'contém byte NUL (0x00); salve a migração como texto UTF-8');
+    continue;
+  }
+  let texto;
+  try {
+    texto = utf8.decode(bytes);
+  } catch {
+    fail(file, 'codificação UTF-8 inválida; salve a migração como texto UTF-8');
+    continue;
+  }
+  let sqlComAspas;
+  try {
+    sqlComAspas = compact(texto);
+  } catch (error) {
+    fail(file, error.message);
+    continue;
+  }
+  // As guardas legadas reconhecem identificadores simples nas duas formas: public.caso e "public"."caso".
+  const sql = sqlComAspas.replace(/"([a-z0-9_]+)"/gi, '$1');
 
   if (/\bcreate\s+role\b[\s\S]*?\bpassword\b/i.test(sql) || /\balter\s+role\b[\s\S]*?\bpassword\b/i.test(sql)) {
     fail(file, 'credenciais/senhas não podem ser versionadas em migrações');
@@ -144,7 +241,7 @@ for (const file of files) {
   // public é exposto pela Data API: função DEFINER ali roda com o dono para quem a chamar. As de
   // produto são INVOKER; diagnóstico DEFINER mora em audit. O corpo $tag$…$tag$ sai antes, porque
   // tem `;` próprio e o SECURITY DEFINER pode vir depois dele.
-  const semCorpos = sql.replace(/\$([a-z_]*)\$[\s\S]*?\$\1\$/gi, '$$$$');
+  const semCorpos = sql.replace(/(\$(?:[a-zA-Z_][a-zA-Z0-9_]*)?\$)[\s\S]*?\1/g, '$$$$');
   for (const [funcao] of comandos(semCorpos, /\b(?:create\s+(?:or\s+replace\s+)?|alter\s+)(?:function|procedure)\s+(public\.[a-z0-9_]+)[^;]*?\bsecurity\s+definer\b/gi)) {
     fail(file, `SECURITY DEFINER em ${funcao.toLowerCase()} — função de public é INVOKER (DEFINER só em audit)`);
   }
@@ -181,10 +278,44 @@ for (const file of files) {
     }
   }
 
-  const createsPublicFunction = /\bcreate\s+(?:or\s+replace\s+)?function\s+public\./i.test(sql);
-  const closesFunctionDefaults = /revoke\s+execute\s+on\s+(?:all\s+functions\s+in\s+schema\s+public|function\s+[^;]+)\s+from\s+public/i.test(sql);
-  if (createsPublicFunction && !closesFunctionDefaults) {
-    fail(file, 'função public é criada sem REVOKE EXECUTE de PUBLIC na mesma migração');
+  // Só um REVOKE posterior à criação, fora de literais e corpos, comprova o fechamento.
+  const sqlSemLiterais = sqlComAspas.replace(literaisSql, token => token.startsWith('"') ? token : '?');
+  const regexCreate = new RegExp(`(?:^|;)\\s*create\\s+(?:or\\s+replace\\s+)?function\\s+${nomeQualificado}\\s*\\(`, 'gi');
+  const criadas = [...sqlSemLiterais.matchAll(regexCreate)].filter(([, schema]) => normalizarIdentificador(schema) === 'public');
+  if (criadas.length) {
+    const alvo = new RegExp(`^${nomeQualificado}\\s*(?:\\((.*)\\))?$`);
+    const schemas = /^all\s+functions\s+in\s+schema\s+/i;
+    const revogadas = new Map();
+    let ultimaRevogacaoGeral = -1;
+    const revokes = sqlSemLiterais.matchAll(/(?:^|;)\s*revoke\s+execute\s+on\s+([^;]+?)\s+from\s+([^;]+)(?=;|$)/gi);
+    for (const revoke of revokes) {
+      const [, objeto, de] = revoke;
+      const destinatarios = de.replace(/\s+(?:granted\s+by\b.*|cascade|restrict)\s*$/i, '');
+      if (!listaSql(destinatarios).some(papel => /^public$/i.test(papel))) continue;
+      if (schemas.test(objeto) && listaSql(objeto.replace(schemas, '')).some(schema => normalizarIdentificador(schema) === 'public')) {
+        ultimaRevogacaoGeral = revoke.index;
+      }
+      if (!/^function\s+/i.test(objeto)) continue;
+      for (const funcao of listaSql(objeto.replace(/^function\s+/i, ''))) {
+        const match = funcao.match(alvo);
+        if (!match || normalizarIdentificador(match[1]) !== 'public') continue;
+        const [, , nome, args] = match;
+        const assinatura = args === undefined ? `public.${normalizarIdentificador(nome)}`
+          : assinaturaPublica(nome, args.trim() ? listaSql(args) : []);
+        revogadas.set(assinatura, revoke.index);
+      }
+    }
+    for (const match of criadas) {
+      if (ultimaRevogacaoGeral > match.index) continue;
+      const [, , nome] = match;
+      const args = listaSql(sqlSemLiterais.slice(match.index + match[0].length), true);
+      const assinatura = assinaturaPublica(nome, args);
+      const nomePublico = `public.${normalizarIdentificador(nome)}`;
+      const ultimaRevogacao = Math.max(revogadas.get(assinatura) ?? -1, revogadas.get(nomePublico) ?? -1);
+      if (!assinatura || ultimaRevogacao <= match.index) {
+        fail(file, `função ${assinatura || nomePublico} é criada sem REVOKE EXECUTE de PUBLIC na mesma migração`);
+      }
+    }
   }
 
   for (const { privs, objeto, para } of grants) {

@@ -19,14 +19,16 @@
 // extra"), então nenhuma variável própria do rig atravessaria.
 // Unidade equivalente, mais estreita (só a validação de conexão e a invocação do psql, sem
 // process real do gate): tests/audit-database.test.mjs.
-import { mkdir, writeFile, copyFile, chmod, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, copyFile, chmod, rm } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 
-const RAIZ = '/tmp/divat-rig-grants';
+const RAIZ = await mkdtemp(join(tmpdir(), 'divat-rig-grants-'));
 const REAL = join(dirname(fileURLToPath(import.meta.url)), '..');
 const RESPOSTA = `${RAIZ}/resposta-atual.json`;
+const BASELINE = `${RAIZ}/scripts/security_baseline.json`;
 
 // Não é credencial real — é só uma URL de FORMATO válido para o auditor de teste passar pela
 // validação de scripts/lib/audit-database.mjs. O psql que ela "abre" é o falso abaixo; nenhuma
@@ -40,7 +42,6 @@ const AUDITOR_SENHA_FALSA = 'senha-de-teste-do-rig';
 const URL_AUDITOR_FALSA =
   `postgresql://${AUDITOR_USER}:${AUDITOR_SENHA_FALSA}@${AUDITOR_HOST}:5432/postgres?sslmode=require`;
 
-await rm(RAIZ, { recursive: true, force: true });
 await mkdir(`${RAIZ}/scripts/lib`, { recursive: true });
 await mkdir(`${RAIZ}/bin`, { recursive: true });
 await copyFile(`${REAL}/scripts/check_grants.mjs`, `${RAIZ}/scripts/check_grants.mjs`);
@@ -104,9 +105,10 @@ function rodar(extraArgs = []) {
         SUPABASE_TEST_AUDIT_DATABASE_URL: URL_AUDITOR_FALSA,
       },
     });
-    let out = '';
-    p.stdout.on('data', d => out += d); p.stderr.on('data', d => out += d);
-    p.on('close', code => res({ code, out }));
+    let stdout = '', stderr = '';
+    p.stdout.on('data', d => stdout += d);
+    p.stderr.on('data', d => stderr += d);
+    p.on('close', code => res({ code, out: stdout + stderr, stderr }));
   });
 }
 
@@ -159,7 +161,8 @@ caso('RPC sem o campo funcoes', f => { delete f.funcoes; return f; }, 1);
 caso('funcoes vem vazia (visão perdida)', f => { f.funcoes = []; return f; }, 1);
 caso('default_privileges vem vazio (visão perdida)', f => { f.default_privileges = []; return f; }, 1);
 
-await writeFile(`${RAIZ}/scripts/security_baseline.json`, JSON.stringify(baseline, null, 2));
+const baselineOriginal = Buffer.from(JSON.stringify(baseline, null, 2));
+await writeFile(BASELINE, baselineOriginal);
 
 let falhas = 0;
 for (const c of casos) {
@@ -185,6 +188,39 @@ console.log(`${okCru ? '  ✓' : '  ✗'} --sem-baseline expõe a exceção conh
 const semSegredo = !cru.out.includes('senha-de-teste-do-rig');
 if (!semSegredo) falhas++;
 console.log(`${semSegredo ? '  ✓' : '  ✗'} saída do gate nunca contém a senha da credencial auditora`);
+
+const proibidos = [
+  ['rls_off', f => { f.tabelas[0].rls = false; }],
+  ['grant_escrita', f => { f.tabelas[0].anon.insert = true; }],
+  ['grant_maintain', f => { f.tabelas[0].anon.maintain = true; }],
+  ['policy_escrita', f => adicionarPolicy(f, 'w', { permissive: true })],
+  ['funcao_public_execute', f => { f.funcoes[0].public_execute = true; }],
+  ['funcao_sem_search_path', f => { f.funcoes[0].search_path_fixo = false; }],
+];
+for (const [tipo, mutar] of proibidos) {
+  const forma = sao();
+  mutar(forma);
+  await writeFile(BASELINE, baselineOriginal);
+  await writeFile(RESPOSTA, JSON.stringify(forma));
+  const { code, stderr } = await rodar(['--atualizar-baseline']);
+  const intacto = (await readFile(BASELINE)).equals(baselineOriginal);
+  const diagnosticado = stderr.includes(`[${tipo}]`);
+  const ok = code === 1 && intacto && diagnosticado;
+  if (!ok) falhas++;
+  console.log(`${ok ? '  ✓' : '  ✗'} --atualizar-baseline com ${tipo} → saiu ${code}, baseline ${intacto ? 'intacto' : 'alterado'}, achado no stderr: ${diagnosticado}`);
+}
+
+const formaComExcecoes = sao();
+formaComExcecoes.funcoes[0].security_definer = true;
+await writeFile(RESPOSTA, JSON.stringify(formaComExcecoes));
+const atualizacao = await rodar(['--atualizar-baseline']);
+const atualizado = JSON.parse(await readFile(BASELINE, 'utf8'));
+const excecoes = atualizado.achados.map(a => `${a.tipo}:${a.alvo}`).sort();
+const rechecagem = await rodar();
+const permiteExcecoes = atualizacao.code === 0 && rechecagem.code === 0
+  && excecoes.join(',') === 'default_privilege_permissivo:supabase_admin:public:r,funcao_security_definer:divat_api_shape()';
+if (!permiteExcecoes) falhas++;
+console.log(`${permiteExcecoes ? '  ✓' : '  ✗'} --atualizar-baseline grava as duas exceções permitidas e o gate as reconhece`);
 
 await rm(RAIZ, { recursive: true, force: true });
 console.log(falhas ? `\n✗ ${falhas} caso(s) falharam` : '\n✓ bancada: todos os casos passaram');
