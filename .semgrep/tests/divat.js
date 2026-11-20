@@ -24,12 +24,17 @@ async function bom() {
   commitViewResult(view, gen, { pdfHTML: () => tableHTML(rows) });
 }
 
-// as escrituras de DENTRO do seam usam a view capturada — não podem disparar
-function commitViewResultFake(view, gen, patch) {
-  if (!isCurrentGen(view, gen)) return false;
+function atribuirViewRecebida(ctx) {
+  const { view } = ctx;
+  // ruleid: divat-pdfhtml-fora-do-seam
+  view.pdfHTML = null;
+  // ruleid: divat-pdfhtml-fora-do-seam
+  ctx.view.pdfHTML = null;
+}
+
+function lerPdfDaView(view) {
   // ok: divat-pdfhtml-fora-do-seam
-  if ('pdfHTML' in patch) view.pdfHTML = patch.pdfHTML;
-  return true;
+  return view.pdfHTML;
 }
 
 /* ===== 2) sinks bloqueados pela CSP ===== */

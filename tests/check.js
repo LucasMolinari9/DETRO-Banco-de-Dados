@@ -1,7 +1,7 @@
 'use strict';
 /* GATE DE PRÉ-PUBLICAÇÃO — rode `node tests/check.js` antes de publicar.
    Faz, em sequência, e agrega o resultado:
-     [1] valida a SINTAXE do app.js (sem executar o código) e garante que o
+     [1] valida a SINTAXE do app.js e de src/ (sem executar o código) e garante que o
          index.html NÃO tem <script> inline (a CSP publica script-src 'self');
     [1c] confere que nenhum `env:` de workflow tem duas chaves que só diferem em
          maiúsculas — o GitHub rejeita o workflow e o run morre com zero jobs;
@@ -12,6 +12,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const TESTS_DIR = __dirname;
+const ROOT = path.join(__dirname, '..');
 const INDEX = path.join(__dirname, '..', 'index.html');
 const APPJS = path.join(__dirname, '..', 'app.js');
 const CSS   = path.join(__dirname, '..', 'styles.css');
@@ -25,17 +26,31 @@ const html = fs.readFileSync(INDEX, 'utf8');
 const js   = fs.readFileSync(APPJS, 'utf8');
 const css  = fs.readFileSync(CSS, 'utf8');
 
-// ---------- [1] sintaxe do app.js + nenhum <script> inline no index.html ----------
-console.log('\n[1] Sintaxe do app.js + index.html sem <script> inline');
-try {
-  const syntax = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: js, encoding:'utf8' });
-  if (syntax.status !== 0) throw new Error((syntax.stderr || syntax.stdout || 'erro desconhecido').trim());
-  okline(`sintaxe OK (${js.split('\n').length} linhas em app.js)`);
-} catch (e){
-  const first = String(e.stack || '').split('\n')[0];
-  const mm = /:(\d+)\s*$/.exec(first);
-  fail(`erro de sintaxe no app.js${mm ? ` (linha ${mm[1]})` : ''}: ${e.message}`);
+function listarModulos(dir) {
+  return fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap(entrada => {
+    const rel = `${dir}/${entrada.name}`;
+    if (entrada.isDirectory()) return listarModulos(rel);
+    return /\.(mjs|js)$/.test(entrada.name) ? [rel] : [];
+  });
 }
+
+const modulos = [
+  ['app.js', js],
+  ...listarModulos('src').sort().map(nome => [nome, fs.readFileSync(path.join(ROOT, nome), 'utf8')]),
+];
+const arquivosFrontend = [['index.html', html], ...modulos];
+
+// ---------- [1] sintaxe dos módulos + nenhum <script> inline no index.html ----------
+console.log('\n[1] Sintaxe do app.js e de src/ + index.html sem <script> inline');
+for (const [nome, src] of modulos) {
+  const syntax = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: src, encoding: 'utf8' });
+  if (syntax.status !== 0) {
+    const linha = syntax.stderr?.match(/^\[stdin\]:(\d+)/)?.[1];
+    const motivo = syntax.stderr?.match(/^SyntaxError: (.+)$/m)?.[1] || syntax.error?.message || 'erro desconhecido';
+    fail(`[${nome}${linha ? `:${linha}` : ''}] erro de sintaxe: ${motivo}`);
+  }
+}
+if (!problems) okline(`sintaxe OK (${modulos.length} módulos)`);
 // guard anti-regressão da CSP: script-src é 'self' (sem 'unsafe-inline') —
 // qualquer <script> sem src= no index.html seria BLOQUEADO no navegador.
 if (/<script(?![^>]*\bsrc=)[^>]*>/.test(html)) {
@@ -191,49 +206,65 @@ if (!fs.existsSync(VERSION) || !js.includes("'/version.json")) {
 // em Chromium headless — markup e setAttribute bloqueados, CSSOM liberado). O sintoma de uma
 // recaída é mudo: a largura/o esconder simplesmente não acontece, sem erro no console.
 // Só o ATRIBUTO é proibido; `el.style.x = …` continua legítimo (é como o dropdown se posiciona).
-// A varredura cobre index.html E os templates do app.js — foi lá que estavam 7 dos 10 casos.
 const styleAttr = /(?<!\/\/[^\n]{0,200})<[a-z][^>]*\sstyle\s*=\s*["'`]/i;
-const semComentarios = src => src.replace(/^\s*(\/\/|--).*$/gm, '');
+const semComentarios = src => src.replace(/^[ \t]*(\/\/|--).*$/gm, '');
 let styleInline = 0;
-for (const [nome, src] of [['index.html', html], ['app.js', semComentarios(js)]]){
-  if (styleAttr.test(src)){
-    const linha = src.split('\n').findIndex(l => /<[a-z][^>]*\sstyle\s*=\s*["'`]/i.test(l)) + 1;
+for (const [nome, conteudo] of arquivosFrontend) {
+  const src = nome === 'index.html' ? conteudo : semComentarios(conteudo);
+  const atributo = styleAttr.exec(src);
+  if (atributo) {
+    const linha = src.slice(0, atributo.index).split('\n').length;
     fail(`[${nome}:${linha}] atributo style= em markup — a CSP (style-src-attr 'none') ignora; use classe no styles.css (ou el.style.x via JS, que é permitido).`);
     styleInline++;
   }
 }
-if (!styleInline) okline("index.html e app.js sem atributo style= (compatível com style-src-attr 'none')");
+if (!styleInline) okline("index.html e módulos sem atributo style= (compatível com style-src-attr 'none')");
 
-// Largura de coluna: todo `w:'…'` do app.js precisa de classe correspondente no styles.css.
+// Largura de coluna: todo `w:'…'` dos módulos precisa de classe correspondente no styles.css.
 // Sem isto, uma largura nova vira `class="w-999"` que não existe e a coluna sai torta EM
 // SILÊNCIO — o modo de falha exato que a troca de style= por classe introduziu.
 {
-  const larguras = [...js.matchAll(/\bw:\s*'(\d+(?:px|%))'/g)].map(m => m[1]);
-  const faltando = [...new Set(larguras)]
-    .map(w => `w-${w.replace('px','').replace('%','p')}`)
-    .filter(cls => !new RegExp(`\\.${cls}\\{`).test(css));
-  if (faltando.length) fail(`larguras de coluna sem classe em styles.css: ${faltando.join(', ')}`);
-  else okline(`larguras de coluna com classe (${new Set(larguras).size} distintas)`);
+  const classes = new Set();
+  const classesCss = new Set([...css.matchAll(/\.(w-\d+p?)\s*\{/g)].map(m => m[1]));
+  let faltouClasse = false;
+  for (const [nome, src] of modulos) {
+    const classesDoModulo = new Set([...src.matchAll(/\bw\s*:\s*(['"`])(\d+(?:px|%))\1/g)]
+      .map(m => `w-${m[2].replace('px', '').replace('%', 'p')}`));
+    const faltando = [...classesDoModulo].filter(cls => !classesCss.has(cls));
+    if (faltando.length) {
+      fail(`[${nome}] larguras de coluna sem classe em styles.css: ${faltando.join(', ')}`);
+      faltouClasse = true;
+    }
+    for (const cls of classesDoModulo) classes.add(cls);
+  }
+  if (!faltouClasse) okline(`larguras de coluna com classe (${classes.size} distintas)`);
 }
 
 // ---------- [1b] nenhuma chave service_role nos arquivos servidos ----------
 // A chave anon (role=anon) é pública por design; a service_role IGNORA o RLS e
 // jamais pode ir para um arquivo entregue ao cliente. Decodifica cada JWT do
-// index.html e do app.js e falha se algum tiver role=service_role (sem
+// index.html e dos módulos e falha se algum tiver role=service_role (sem
 // falso-positivo na palavra "service_role" de comentários/docs).
-console.log('\n[1b] Segredo: nenhuma JWT service_role no index.html/app.js');
+console.log('\n[1b] Segredo: nenhuma JWT service_role no index.html, app.js e src/');
 {
-  const jwts = (html + '\n' + js).match(/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+/g) || [];
+  let total = 0;
   let vazou = false;
-  for (const tok of jwts){
-    try {
-      const b64 = tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
-      if (payload && payload.role === 'service_role') vazou = true;
-    } catch (_) { /* token não-JWT: ignora */ }
+  for (const [nome, src] of arquivosFrontend) {
+    const jwts = src.matchAll(/eyJ[A-Za-z0-9_-]+\.(eyJ[A-Za-z0-9_-]+)/g);
+    for (const [, claims] of jwts) {
+      total++;
+      let payload;
+      try {
+        payload = JSON.parse(Buffer.from(claims, 'base64url').toString('utf8'));
+      } catch (_) { continue; }
+      if (payload?.role === 'service_role') {
+        fail(`[${nome}] CHAVE service_role embutida em arquivo servido — ignora o RLS, NÃO publicar.`);
+        vazou = true;
+        break;
+      }
+    }
   }
-  if (vazou) fail('CHAVE service_role embutida em arquivo servido — ignora o RLS, NÃO publicar.');
-  else okline(`ok (${jwts.length} token(s) JWT, nenhum service_role)`);
+  if (!vazou) okline(`ok (${total} token(s) JWT, nenhum service_role)`);
 }
 
 // ---------- [1c] env: dos workflows sem chave duplicada ignorando maiúsculas ----------
